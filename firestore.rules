@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Rule for the 'users' collection
+    match /users/{userId} {
+      // Allow a user to create and read their own user document.
+      // The document ID must match their Auth UID.
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && request.auth.uid == userId;
+      // You can add update/delete if needed
+      allow update, delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Rule for the 'itemGroups' collection
+    match /itemGroups/{itemGroupId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Rule for the 'items' collection
+    match /items/{itemId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
