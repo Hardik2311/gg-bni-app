@@ -14,7 +14,6 @@ service cloud.firestore {
       allow create: if request.auth != null && request.auth.uid == userId;
       allow read, update: if request.auth != null && request.auth.uid == userId;
     }
-
     // Rule for the 'itemGroups' collection
     match /itemGroups/{itemGroupId} {
       allow read, write: if request.auth != null;
