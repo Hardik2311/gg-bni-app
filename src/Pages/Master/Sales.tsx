@@ -166,7 +166,6 @@ const Spinner: React.FC<{ size?: string }> = ({ size = 'h-5 w-5' }) => (
     }
   };
 
-  // --- Discount Long Press Logic ---
   const handleDiscountPressStart = () => {
             longPressTimer.current = setTimeout(() => {
               setIsDiscountLocked(false);
