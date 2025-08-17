@@ -4,7 +4,7 @@ import { getItems } from '../../lib/items_firebase';
 import type { Item } from '../../constants/models';
 import { ROUTES } from '../../constants/routes.constants';
 import { db } from '../../lib/firebase';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, doc, updateDoc, increment as firebaseIncrement } from 'firebase/firestore';
 import { useAuth } from '../../context/auth-context';
 
 // --- Helper Types & Interfaces ---
@@ -205,7 +205,7 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
                   <div
                     onClick={() => handleModeToggle(mode.id)}
                     className={`p-3 rounded-lg shadow-sm cursor-pointer aspect-square flex flex-col items-center justify-center text-center transition-all duration-200
-                                        ${isSelected ? 'bg-gray-600 text-white border-2 border-gray-700' : 'bg-white text-gray-800 border'}`}
+                                       ${isSelected ? 'bg-gray-600 text-white border-2 border-gray-700' : 'bg-white text-gray-800 border'}`}
                   >
                     <h3 className="font-semibold text-sm">{mode.name}</h3>
                     <p className={`text-xs mt-1 ${isSelected ? 'text-blue-200' : 'text-gray-500'}`}>{mode.description}</p>
@@ -251,6 +251,9 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
 const SalesPage1: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+
+  // New state to manage feedback messages
+  const [modal, setModal] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   const [items, setItems] = useState<SalesItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<string>('');
@@ -320,10 +323,31 @@ const SalesPage1: React.FC = () => {
     setIsDrawerOpen(true);
   };
 
+  // New function to update item amount in Firestore
+  const updateItemAmount = async (itemId: string, quantitySold: number) => {
+    const itemRef = doc(db, "items", itemId);
+    try {
+      await updateDoc(itemRef, {
+        amount: firebaseIncrement(-quantitySold)
+      });
+    } catch (error) {
+      console.error(`Error updating item amount for ID: ${itemId}`, error);
+      throw new Error(`Failed to update inventory for item ID: ${itemId}`);
+    }
+  };
+
   const handleSavePayment = async (completionData: PaymentCompletionData) => {
     if (!currentUser) throw new Error("User is not authenticated.");
 
     const { paymentDetails, partyName, partyNumber, discount } = completionData;
+
+    // Check if enough stock is available before saving
+    for (const item of items) {
+      const availableItem = availableItems.find(i => i.id === item.id);
+      if (availableItem && availableItem.amount < item.quantity) {
+        throw new Error(`Not enough stock for item: ${item.name}. Available: ${availableItem.amount}, Requested: ${item.quantity}`);
+      }
+    }
 
     const saleData = {
       userId: currentUser.uid,
@@ -338,12 +362,21 @@ const SalesPage1: React.FC = () => {
     };
 
     try {
+      // 1. Save the sale to the 'sales' collection
       await addDoc(collection(db, "sales"), saleData);
+
+      // 2. Update the amount of each sold item in the 'items' collection
+      const updatePromises = items.map(item => updateItemAmount(item.id, item.quantity));
+      await Promise.all(updatePromises);
+
+      // Clear the cart and reset state after successful transaction
       setItems([]);
       setSelectedItem('');
       setSearchQuery('');
+      setModal({ message: "Sale completed successfully!", type: 'success' });
     } catch (error) {
       console.error("Error saving sale to Firestore: ", error);
+      setModal({ message: `Failed to save payment: ${error}`, type: 'error' });
       throw error;
     }
   };
@@ -360,6 +393,7 @@ const SalesPage1: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-white w-full">
+      {modal && <Modal message={modal.message} onClose={() => setModal(null)} type={modal.type} />}
       <div className="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm sticky top-0 z-30">
         <button onClick={() => navigate(ROUTES.HOME)} className="text-2xl font-bold text-gray-600">&times;</button>
         <div className="flex-1 flex justify-center items-center gap-6">

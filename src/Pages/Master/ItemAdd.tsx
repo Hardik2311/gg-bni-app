@@ -13,6 +13,7 @@ const ItemAdd: React.FC = () => {
   const [itemPurchasePrice, setItemPurchasePrice] = useState<string>('');
   const [itemDiscount, setItemDiscount] = useState<string>('');
   const [itemTax, setItemTax] = useState<string>('');
+  const [itemAmount, setItemAmount] = useState<string>(''); // Added state for item amount
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [itemGroups, setItemGroups] = useState<ItemGroup[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -46,18 +47,17 @@ const ItemAdd: React.FC = () => {
     setItemPurchasePrice('');
     setItemDiscount('');
     setItemTax('');
+    setItemAmount('');
   };
 
   const handleAddItem = async () => {
     setError(null);
     setSuccess(null);
 
-    if (!itemName.trim() || !itemMRP.trim() || !selectedCategory) {
-      setError('Please fill in all required fields: Item Name, MRP, and Category.');
+    if (!itemName.trim() || !itemMRP.trim() || !selectedCategory || !itemAmount.trim()) {
+      setError('Please fill in all required fields: Item Name, MRP, Amount, and Category.');
       return;
     }
-
-    // ... (rest of your validation logic remains the same)
 
     try {
       const newItemData: Omit<Item, 'id' | 'createdAt' | 'updatedAt'> = {
@@ -67,6 +67,7 @@ const ItemAdd: React.FC = () => {
         discount: parseFloat(itemDiscount) || 0,
         tax: parseFloat(itemTax) || 0,
         itemGroupId: selectedCategory,
+        amount: parseInt(itemAmount, 10), // Converted amount to integer
       };
 
       await createItem(newItemData);
@@ -105,7 +106,7 @@ const ItemAdd: React.FC = () => {
         // Process each row from the Excel file
         for (const row of json) {
           // Basic validation for each row
-          if (!row.name || !row.mrp || !row.itemGroupId) {
+          if (!row.name || !row.mrp || !row.itemGroupId || !row.amount) {
             console.warn("Skipping invalid row:", row);
             continue; // Skip rows that are missing required data
           }
@@ -117,6 +118,7 @@ const ItemAdd: React.FC = () => {
             discount: parseFloat(row.discount) || 0,
             tax: parseFloat(row.tax) || 0,
             itemGroupId: String(row.itemGroupId),
+            amount: parseInt(row.amount, 10), // Converted amount to integer
           };
 
           // Use your existing createItem function to add the item
@@ -128,7 +130,7 @@ const ItemAdd: React.FC = () => {
 
       } catch (err) {
         console.error('Error processing Excel file:', err);
-        setError('Failed to process file. Please ensure it is a valid .xlsx or .csv file and has columns: name, mrp, purchasePrice, discount, tax, itemGroupId.');
+        setError('Failed to process file. Please ensure it is a valid .xlsx or .csv file and has columns: name, mrp, purchasePrice, discount, tax, itemGroupId, and amount.');
       } finally {
         setIsUploading(false);
         // Reset file input to allow re-uploading the same file
@@ -159,7 +161,7 @@ const ItemAdd: React.FC = () => {
           {/* Import from Excel Button */}
           <div className="mb-6 pb-6 border-b">
             <h2 className="text-xl font-semibold text-gray-700 mb-2">Bulk Import</h2>
-            <p className="text-sm text-gray-500 mb-3">Upload an Excel (.xlsx, .csv) file with columns: name, mrp, purchasePrice, discount, tax, itemGroupId.</p>
+            <p className="text-sm text-gray-500 mb-3">Upload an Excel (.xlsx, .csv) file with columns: name, mrp, purchasePrice, discount, tax, itemGroupId, and amount.</p>
             <input
               type="file"
               ref={fileInputRef}
@@ -198,6 +200,11 @@ const ItemAdd: React.FC = () => {
             <div>
               <label htmlFor="itemTax" className="block text-sm font-medium text-gray-600 mb-1">Tax (%)</label>
               <input type="number" id="itemTax" value={itemTax} onChange={(e) => setItemTax(e.target.value)} placeholder="e.g., 18" className="w-full p-2 border rounded-md" />
+            </div>
+            {/* Added input for item amount */}
+            <div>
+              <label htmlFor="itemAmount" className="block text-sm font-medium text-gray-600 mb-1">Amount of Items</label>
+              <input type="number" id="itemAmount" value={itemAmount} onChange={(e) => setItemAmount(e.target.value)} placeholder="e.g., 50" className="w-full p-2 border rounded-md" />
             </div>
             <div>
               <label htmlFor="itemCategory" className="block text-sm font-medium text-gray-600 mb-1">Category</label>
