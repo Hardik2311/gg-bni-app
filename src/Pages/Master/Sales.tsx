@@ -196,6 +196,24 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
     }
   };
 
+  const handleDiscountPressStart = () => {
+    longPressTimer.current = setTimeout(() => {
+      setIsDiscountLocked(false);
+    }, 500);
+  };
+
+  const handleDiscountPressEnd = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+    }
+  };
+
+  const handleDiscountClick = () => {
+    if (isDiscountLocked) {
+      setModal({ message: "Long press to enable discount field.", type: 'info' });
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -271,6 +289,8 @@ const SalesPage1: React.FC = () => {
   const { currentUser } = useAuth();
   // New state to manage feedback messages
   const [modal, setModal] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  // New state to manage feedback messages
+  const [modal, setModal] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   const [items, setItems] = useState<SalesItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<string>('');
@@ -338,7 +358,6 @@ const SalesPage1: React.FC = () => {
       return;
     }
     setIsDrawerOpen(true);
-
   };
 
   // New function to update item amount in Firestore
@@ -351,6 +370,20 @@ const SalesPage1: React.FC = () => {
     } catch (error) {
       console.error(`Error updating item amount for ID: ${itemId}`, error);
       throw new Error(`Failed to update inventory for item ID: ${itemId}`);
+    }
+  };
+
+  const handleSavePayment = async (completionData: PaymentCompletionData) => {
+    if (!currentUser) throw new Error("User is not authenticated.");
+
+    const { paymentDetails, partyName, partyNumber, discount } = completionData;
+
+    // Check if enough stock is available before saving
+    for (const item of items) {
+      const availableItem = availableItems.find(i => i.id === item.id);
+      if (availableItem && availableItem.amount < item.quantity) {
+        throw new Error(`Not enough stock for item: ${item.name}. Available: ${availableItem.amount}, Requested: ${item.quantity}`);
+      }
     }
   };
 
@@ -384,8 +417,6 @@ const SalesPage1: React.FC = () => {
     try {
       // 1. Save the sale to the 'sales' collection
       await addDoc(collection(db, "sales"), saleData);
-
-
       // 2. Update the amount of each sold item in the 'items' collection
       const updatePromises = items.map(item => updateItemAmount(item.id, item.quantity));
       await Promise.all(updatePromises);
@@ -398,7 +429,6 @@ const SalesPage1: React.FC = () => {
     } catch (error) {
       console.error("Error saving sale to Firestore: ", error);
       setModal({ message: `Failed to save payment: ${error}`, type: 'error' });
-
       throw error;
     }
   };
@@ -416,12 +446,11 @@ const SalesPage1: React.FC = () => {
   return (
     <div className="flex flex-col min-h-screen bg-white w-full">
       {modal && <Modal message={modal.message} onClose={() => setModal(null)} type={modal.type} />}
-
       <div className="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm sticky top-0 z-30">
         <button onClick={() => navigate(ROUTES.HOME)} className="text-2xl font-bold text-gray-600">&times;</button>
         <div className="flex-1 flex justify-center items-center gap-6">
-          <NavLink to={`${ROUTES.MASTERS}/${ROUTES.SALES}`} className={({ isActive }) => `flex-1 text-center py-3 border-b-2 ${isActive ? 'border-blue-600 text-blue-600 font-semibold' : 'border-transparent text-slate-500'}`}>Sales</NavLink>
-          <NavLink to={`${ROUTES.MASTERS}/${ROUTES.SALES_RETURN}`} className={({ isActive }) => `flex-1 text-center py-3 border-b-2 ${isActive ? 'border-blue-600 text-blue-600 font-semibold' : 'border-transparent text-slate-500'}`}>Sales Return</NavLink>
+          <NavLink to={`${ROUTES.SALES}`} className={({ isActive }) => `flex-1 text-center py-3 border-b-2 ${isActive ? 'border-blue-600 text-blue-600 font-semibold' : 'border-transparent text-slate-500'}`}>Sales</NavLink>
+          <NavLink to={`${ROUTES.SALES_RETURN}`} className={({ isActive }) => `flex-1 text-center py-3 border-b-2 ${isActive ? 'border-blue-600 text-blue-600 font-semibold' : 'border-transparent text-slate-500'}`}>Sales Return</NavLink>
         </div>
         <div className="w-6"></div>
       </div>
