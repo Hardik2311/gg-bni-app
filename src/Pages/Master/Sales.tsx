@@ -178,6 +178,24 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
   };
 
 
+  const handleDiscountPressStart = () => {
+    longPressTimer.current = setTimeout(() => {
+      setIsDiscountLocked(false);
+    }, 500);
+  };
+
+  const handleDiscountPressEnd = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+    }
+  };
+
+  const handleDiscountClick = () => {
+    if (isDiscountLocked) {
+      setModal({ message: "Long press to enable discount field.", type: 'info' });
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -251,10 +269,9 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
 const SalesPage1: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-
-
   // New state to manage feedback messages
   const [modal, setModal] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
   const [items, setItems] = useState<SalesItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<string>('');
   const [availableItems, setAvailableItems] = useState<Item[]>([]);
@@ -321,7 +338,9 @@ const SalesPage1: React.FC = () => {
       return;
     }
     setIsDrawerOpen(true);
+
   };
+
   // New function to update item amount in Firestore
   const updateItemAmount = async (itemId: string, quantitySold: number) => {
     const itemRef = doc(db, "items", itemId);
@@ -340,7 +359,6 @@ const SalesPage1: React.FC = () => {
     if (!currentUser) throw new Error("User is not authenticated.");
 
     const { paymentDetails, partyName, partyNumber, discount } = completionData;
-
 
     // Check if enough stock is available before saving
     for (const item of items) {
@@ -364,23 +382,21 @@ const SalesPage1: React.FC = () => {
     };
 
     try {
-
       // 1. Save the sale to the 'sales' collection
       await addDoc(collection(db, "sales"), saleData);
+
 
       // 2. Update the amount of each sold item in the 'items' collection
       const updatePromises = items.map(item => updateItemAmount(item.id, item.quantity));
       await Promise.all(updatePromises);
 
       // Clear the cart and reset state after successful transaction
-
       setItems([]);
       setSelectedItem('');
       setSearchQuery('');
       setModal({ message: "Sale completed successfully!", type: 'success' });
     } catch (error) {
       console.error("Error saving sale to Firestore: ", error);
-
       setModal({ message: `Failed to save payment: ${error}`, type: 'error' });
 
       throw error;
@@ -399,7 +415,6 @@ const SalesPage1: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-white w-full">
-
       {modal && <Modal message={modal.message} onClose={() => setModal(null)} type={modal.type} />}
 
       <div className="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm sticky top-0 z-30">
