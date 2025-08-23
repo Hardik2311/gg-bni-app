@@ -402,6 +402,7 @@ const PurchaseReturnPage: React.FC = () => {
             <div>
               <label htmlFor="mode-of-return" className="block font-medium mb-1">Mode of Return</label>
               <select id="mode-of-return" value={modeOfReturn} onChange={(e) => setModeOfReturn(e.target.value)} className="w-full p-2 border rounded bg-white">
+                <option>Exchange</option>
                 <option>Cash Refund</option>
                 <option>Debit Note</option>
               </select>

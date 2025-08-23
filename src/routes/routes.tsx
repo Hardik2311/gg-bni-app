@@ -4,6 +4,8 @@ import MainLayout from '../app/MainLayout';
 import { ROUTES } from '../constants/routes.constants';
 import { AuthProvider } from '../context/Authcontext'; // Import AuthProvider
 import ProtectedRoute from '../constants/ProtectedRoutes';
+import PermissionWrapper from '../context/PermissionWrapper';
+import { Permissions } from '../enums';
 
 import Loading from '../Pages/Loading/Loading';
 // Lazy load all the page components
@@ -44,7 +46,14 @@ const router = createBrowserRouter([
       { path: ROUTES.ACCOUNT.substring(1), element: <Account /> },
       { path: ROUTES.EDIT_PROFILE, element: <EditProfile /> },
 
-      { path: ROUTES.JOURNAL.substring(1), element: <Journal /> },
+      {
+        path: ROUTES.JOURNAL.substring(1),
+        element: (
+          <PermissionWrapper requiredPermission={Permissions.ViewTransactions}>
+            <Journal />
+          </PermissionWrapper>
+        ),
+      },
       { path: ROUTES.MASTERS.substring(1), element: <Masters /> },
       { path: ROUTES.SALES, element: <Sales /> },
       { path: ROUTES.SALES_RETURN, element: <SalesReturn /> },

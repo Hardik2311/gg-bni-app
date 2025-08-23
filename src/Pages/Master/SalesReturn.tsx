@@ -307,8 +307,8 @@ const SalesReturnPage: React.FC = () => {
       <div className="flex items-center justify-between p-4 bg-white border-b sticky top-0 z-10">
         <button onClick={() => navigate(ROUTES.HOME)} className="text-2xl font-bold">&times;</button>
         <div className="flex-1 flex justify-center gap-6">
-          <NavLink to={ROUTES.SALES} className="py-3 text-center text-slate-500">Sales</NavLink>
-          <NavLink to={ROUTES.SALES_RETURN} className="py-3 text-center border-b-2 border-blue-600 text-blue-600 font-semibold">Sales Return</NavLink>
+          <NavLink to={ROUTES.SALES} className={({ isActive }) => `flex-1 text-center py-3 border-b-2 ${isActive ? 'border-blue-600 text-blue-600 font-semibold' : 'border-transparent text-slate-500'}`}>Sales</NavLink>
+          <NavLink to={ROUTES.SALES_RETURN} className={({ isActive }) => `flex-1 text-center py-3 border-b-2 ${isActive ? 'border-blue-600 text-blue-600 font-semibold' : 'border-transparent text-slate-500'}`}>Sales Return</NavLink>
         </div>
         <div className="w-6"></div>
       </div>
@@ -357,6 +357,7 @@ const SalesReturnPage: React.FC = () => {
             <div>
               <label htmlFor="mode-of-return" className="block font-medium mb-1">Mode of Return</label>
               <select id="mode-of-return" value={modeOfReturn} onChange={(e) => setModeOfReturn(e.target.value)} className="w-full p-2 border rounded bg-white">
+                <option>Exchange</option>
                 <option>Cash Refund</option>
                 <option>Credit Note</option>
               </select>

@@ -1,36 +1,42 @@
 import React, { useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { auth } from '../lib/firebase';
-// Import the context and hook from the new file
-import { AuthContext } from './auth-context.ts';
+import { AuthContext, type AuthContextType } from './auth-context';
+import { Permissions } from '../enums'; // Assuming you have this import
 
-// AuthProvider component to wrap your application
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true); // Initially true
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Firebase listener for auth state changes
     const unsubscribe = auth.onAuthStateChanged((user) => {
       setCurrentUser(user);
-      setLoading(false); // Auth state has been loaded
+      setLoading(false);
     });
-
-    // Cleanup subscription on unmount
     return unsubscribe;
   }, []);
 
+  // 1. DEFINE THE 'hasPermission' FUNCTION
+  //    (This is a placeholder; you'll add real logic later)
+  const hasPermission = (permission: Permissions): boolean => {
+    // For now, let's just return false.
+    // Later, this will check the currentUser's roles and permissions.
+    console.log('Checking permission:', permission);
+    return false;
+  };
+
+  // 2. ADD 'hasPermission' TO THE VALUE OBJECT
   const value = {
     currentUser,
     loading,
-  };
+    hasPermission,
+  } as unknown as AuthContextType;
 
-  // Render children only after auth state has been determined
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children} {/* Render children only when not loading */}
+      {!loading && children}
     </AuthContext.Provider>
   );
 };
