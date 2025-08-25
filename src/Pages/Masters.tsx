@@ -38,7 +38,7 @@ const Masters = () => {
               </span>
               <span className="master-option-arrow">→</span>
             </Link>
-            <Link to={ROUTES.ITEM_ADD} className="master-option-link">
+            <Link to={ROUTES.PERMSETTING} className="master-option-link">
               <span className="master-option-text">Items/Items Group </span>
               <span className="master-option-arrow">→</span>
             </Link>
