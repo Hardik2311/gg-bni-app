@@ -6,50 +6,26 @@ import { ROUTES } from '../../constants/routes.constants';
 import { db } from '../../lib/firebase';
 import { addDoc, collection, serverTimestamp, doc, updateDoc, increment as firebaseIncrement } from 'firebase/firestore';
 import { useAuth } from '../../context/auth-context';
-
-// --- Helper Types & Interfaces ---
-interface SalesItem {
-  id: string;
-  name: string;
-  mrp: number;
-  quantity: number;
-}
-
-interface PaymentMode {
-  id: 'cash' | 'card' | 'upi' | 'due';
-  name: string;
-  description: string;
-}
-
-interface PaymentDetails {
-  [key: string]: number;
-}
+import { Html5Qrcode } from 'html5-qrcode';
 
 interface PaymentCompletionData {
   paymentDetails: PaymentDetails;
   partyName: string;
   partyNumber: string;
   discount: number;
+  finalAmount: number;
 }
 
-// --- Reusable Modal Component ---
-const Modal: React.FC<{
-  message: string;
-  onClose: () => void;
-  type: 'success' | 'error' | 'info'; // Added info type
-}> = ({ message, onClose, type }) => (
+// --- Reusable Components ---
+const Modal: React.FC<{ message: string; onClose: () => void; type: 'success' | 'error' | 'info'; }> = ({ message, onClose, type }) => (
   <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
     <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm text-center">
-      <div
-        className={`mx-auto mb-4 w-12 h-12 rounded-full flex items-center justify-center ${type === 'success' ? 'bg-green-100' : type === 'error' ? 'bg-red-100' : 'bg-blue-100'
-          }`}
-      >
+      <div className={`mx-auto mb-4 w-12 h-12 rounded-full flex items-center justify-center ${type === 'success' ? 'bg-green-100' : type === 'error' ? 'bg-red-100' : 'bg-blue-100'}`}>
         {type === 'success' && <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>}
         {type === 'error' && <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>}
         {type === 'info' && <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>}
       </div>
       <p className="text-lg font-medium text-gray-800 mb-4">{message}</p>
-      <button onClick={onClose} className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">OK</button>
       <button onClick={onClose} className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">OK</button>
     </div>
   </div>
@@ -59,375 +35,403 @@ const Spinner: React.FC<{ size?: string }> = ({ size = 'h-5 w-5' }) => (
   <svg className={`animate-spin text-white ${size}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-    <svg className={`animate-spin text-white ${size}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-    </svg>
-    );
+  </svg>
+);
 
-    const BarcodeScanner: React.FC<{
+const BarcodeScanner: React.FC<{
   isOpen: boolean;
   onClose: () => void;
-    subtotal: number;
-  onPaymentComplete: (completionData: PaymentCompletionData) => Promise<void>;
-}
-
-      const PaymentDrawer: React.FC<PaymentDrawerProps> = ({isOpen, onClose, subtotal, onPaymentComplete}) => {
-  const [partyName, setPartyName] = useState('');
-        const [partyNumber, setPartyNumber] = useState('');
-        const [discount, setDiscount] = useState(0);
-        const [selectedPayments, setSelectedPayments] = useState<PaymentDetails>({ });
-          const [modal, setModal] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-          const [modal, setModal] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-          const [isSubmitting, setIsSubmitting] = useState(false);
-          const [isDiscountLocked, setIsDiscountLocked] = useState(true);
-          // FIX: Initialize useRef with null and update the type
-          const longPressTimer = useRef<NodeJS.Timeout | null>(null);
-
-  const finalPayableAmount = useMemo(() => Math.max(0, subtotal - discount), [subtotal, discount]);
-  const totalEnteredAmount = useMemo(() => Object.values(selectedPayments).reduce((sum, amount) => sum + amount, 0), [selectedPayments]);
-  const remainingAmount = useMemo(() => finalPayableAmount - totalEnteredAmount, [finalPayableAmount, totalEnteredAmount]);
-
-          const transactionModes = [
-          {id: 'cash', name: 'Cash', description: 'Pay with physical currency' },
-          {id: 'upi', name: 'UPI', description: 'Google Pay, PhonePe, etc.' },
-          {id: 'card', name: 'Card', description: 'Credit or Debit Card' },
-          {id: 'due', name: 'Due', description: 'Record as outstanding' },
-          ];
+  onScanSuccess: (decodedText: string) => void;
+}> = ({ isOpen, onClose, onScanSuccess }) => {
+  // FIX: Use a ref to hold the scanner instance
+  const scannerRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
     if (isOpen) {
-            setSelectedPayments({ cash: finalPayableAmount });
-    } else {
-            setSelectedPayments({});
-          setPartyName('');
-          setPartyNumber('');
-          setDiscount(0);
-          setIsDiscountLocked(true); // Re-lock discount field on close
+      // Initialize the scanner
+      const scanner = new Html5Qrcode('barcode-scanner-container');
+      scannerRef.current = scanner;
+
+      const startScanner = async () => {
+        try {
+          await scanner.start(
+            { facingMode: "environment" },
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            (decodedText) => {
+              onScanSuccess(decodedText);
+            },
+            undefined // Optional error callback
+          );
+        } catch (err) {
+          console.error("Error starting scanner:", err);
+        }
+      };
+
+      startScanner();
     }
-  }, [isOpen, finalPayableAmount]);
+
+    // FIX: Updated cleanup function to be more robust
+    return () => {
+      if (scannerRef.current && scannerRef.current.isScanning) {
+        scannerRef.current.stop()
+          .then(() => {
+            scannerRef.current = null;
+          })
+          .catch((err) => {
+            console.error("Failed to stop scanner cleanly:", err);
+          });
+      }
+    };
+  }, [isOpen, onScanSuccess]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center p-4">
+      <div id="barcode-scanner-container" className="w-full max-w-md bg-gray-900 rounded-lg overflow-hidden"></div>
+      <button
+        onClick={onClose}
+        className="mt-4 bg-white text-gray-800 font-bold py-2 px-6 rounded-lg shadow-lg hover:bg-gray-200 transition"
+      >
+        Close
+      </button>
+    </div>
+  );
+};
+
+const PaymentDrawer: React.FC<{ isOpen: boolean; onClose: () => void; subtotal: number; onPaymentComplete: (data: PaymentCompletionData) => Promise<void>; }> = ({ isOpen, onClose, subtotal, onPaymentComplete }) => {
+  const [partyName, setPartyName] = useState('');
+  const [partyNumber, setPartyNumber] = useState('');
+  const [discount, setDiscount] = useState(0);
+  const [selectedPayments, setSelectedPayments] = useState<PaymentDetails>({});
+  const [modal, setModal] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDiscountLocked, setIsDiscountLocked] = useState(true);
+  // const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+
+  const finalPayableAmount = useMemo(() => Math.max(0, subtotal - (subtotal * (discount / 100))), [subtotal, discount]);
+  const totalEnteredAmount = useMemo(() => Object.values(selectedPayments).reduce((sum, amount) => sum + (amount || 0), 0), [selectedPayments]);
+  const remainingAmount = useMemo(() => finalPayableAmount - totalEnteredAmount, [finalPayableAmount, totalEnteredAmount]);
+
+  const transactionModes = [
+    { id: 'cash', name: 'Cash', description: 'Pay with physical currency' },
+    { id: 'upi', name: 'UPI', description: 'Google Pay, PhonePe, etc.' },
+    { id: 'card', name: 'Card', description: 'Credit or Debit Card' },
+    { id: 'due', name: 'Due', description: 'Record as outstanding' },
+  ];
+
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedPayments({ cash: subtotal });
+      setDiscount(0);
+      setIsDiscountLocked(true);
+      setPartyName('');
+      setPartyNumber('');
+    }
+  }, [isOpen, subtotal]);
+
+  const handleDiscountChange = (amount: string) => {
+    const numAmount = parseFloat(amount);
+    const newDiscount = isNaN(numAmount) ? 0 : numAmount;
+    setDiscount(newDiscount);
+    const newFinalPayable = subtotal - (subtotal * (newDiscount / 100));
+    const paymentModes = Object.keys(selectedPayments);
+    if (paymentModes.length === 1) {
+      const singleMode = paymentModes[0];
+      setSelectedPayments({ [singleMode]: newFinalPayable });
+    }
+  };
 
   const handleModeToggle = (modeId: string) => {
-            setSelectedPayments(prev => {
-              setSelectedPayments(prev => {
-                const newPayments = { ...prev };
-                if (newPayments[modeId] !== undefined) {
-                  delete newPayments[modeId];
-                } else {
-                  newPayments[modeId] = Object.keys(newPayments).length === 0 ? finalPayableAmount : 0;
-                  newPayments[modeId] = Object.keys(newPayments).length === 0 ? finalPayableAmount : 0;
-                }
-                return newPayments;
-              });
-            };
+    setSelectedPayments(prev => {
+      const newPayments = { ...prev };
+      if (newPayments[modeId] !== undefined) {
+        delete newPayments[modeId];
+      } else {
+        newPayments[modeId] = Object.keys(newPayments).length === 0 ? finalPayableAmount : 0;
+      }
+      return newPayments;
+    });
+  };
 
   const handleAmountChange = (modeId: string, amount: string) => {
     const numAmount = parseFloat(amount);
-    setSelectedPayments(prev => ({...prev, [modeId]: isNaN(numAmount) ? 0 : numAmount }));
-    setSelectedPayments(prev => ({...prev, [modeId]: isNaN(numAmount) ? 0 : numAmount }));
+    setSelectedPayments(prev => ({ ...prev, [modeId]: isNaN(numAmount) ? 0 : numAmount }));
   };
 
   const handleFillRemaining = (modeId: string) => {
     const currentAmount = selectedPayments[modeId] || 0;
-          handleAmountChange(modeId, (currentAmount + remainingAmount).toFixed(2));
-  };
-
-  const handleDiscountChange = (amount: string) => {
-    const numAmount = parseFloat(amount);
-          setDiscount(isNaN(numAmount) ? 0 : numAmount);
+    const amountToFill = Math.max(0, remainingAmount);
+    handleAmountChange(modeId, (currentAmount + amountToFill).toFixed(2));
   };
 
   const handleConfirm = async () => {
     if (!partyName.trim()) {
-            setModal({ message: 'Please enter a Party Name.', type: 'error' });
-          return;
+      setModal({ message: 'Please enter a Party Name.', type: 'error' });
+      return;
     }
-          if (Object.keys(selectedPayments).length === 0) {
-            setModal({ message: 'Please select a payment mode.', type: 'error' });
-          return;
+    if (Math.abs(remainingAmount) > 0.01) {
+      setModal({ message: `Amount mismatch. Remaining: ₹${remainingAmount.toFixed(2)}`, type: 'error' });
+      return;
     }
-          if (remainingAmount !== 0) {
-            setModal({ message: `Amount mismatch. Remaining: ₹${remainingAmount.toFixed(2)}`, type: 'error' });
-          return;
-    }
-          setIsSubmitting(true);
-          try {
-            await onPaymentComplete({ paymentDetails: selectedPayments, partyName, partyNumber, discount });
-          setModal({message: 'Payment saved successfully!', type: 'success' });
-      setTimeout(() => {
-            setModal(null);
-          onClose();
-      }, 1500);
+    setIsSubmitting(true);
+    try {
+      await onPaymentComplete({
+        paymentDetails: selectedPayments,
+        partyName,
+        partyNumber,
+        discount,
+        finalAmount: finalPayableAmount,
+      });
     } catch (error) {
-            console.error("Payment submission failed:", error);
-          setModal({message: 'Failed to save payment. Please try again.', type: 'error' });
+      setModal({ message: (error as Error).message || 'Failed to save sale.', type: 'error' });
     } finally {
-            setIsSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
-  const handleDiscountPressStart = () => {
-            longPressTimer.current = setTimeout(() => {
-              setIsDiscountLocked(false);
-            }, 500); // 500ms for a long press
-  };
+  if (!isOpen) return null;
 
-  const handleDiscountPressEnd = () => {
-    if (longPressTimer.current) {
-            clearTimeout(longPressTimer.current);
-    }
-  };
-
-  const handleDiscountClick = () => {
-    if (isDiscountLocked) {
-            setModal({ message: "Cannot change the discount field.", type: 'info' });
-    }
-  };
-          // --- End of Discount Logic ---
-
-          if (!isOpen) return null;
-
-          return (
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={onClose}>
-            {modal && <Modal message={modal.message} onClose={() => setModal(null)} type={modal.type} />}
-            <div className="fixed bottom-0 left-0 right-0 bg-gray-50 rounded-t-2xl shadow-xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-              <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={onClose}>
-                {modal && <Modal message={modal.message} onClose={() => setModal(null)} type={modal.type} />}
-                <div className="fixed bottom-0 left-0 right-0 bg-gray-50 rounded-t-2xl shadow-xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-                  <div className="p-4 sticky top-0 bg-gray-50 z-10 border-b">
-                    <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4"></div>
-                    <h2 className="text-xl font-bold text-center text-gray-800">Finalize Sale</h2>
-                  </div>
-
-                  <div className="overflow-y-auto p-4 space-y-4">
-                    <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
-                      <h3 className="font-semibold text-gray-800">Customer Details</h3>
-                      <input type="text" placeholder="Party Name*" value={partyName} onChange={(e) => setPartyName(e.target.value)} className="w-full bg-gray-100 p-2 rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500" />
-                      <input type="text" placeholder="Party Number (Optional)" value={partyNumber} onChange={(e) => setPartyNumber(e.target.value)} className="w-full bg-gray-100 p-2 rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500" />
-                    </div>
-
-                    {transactionModes.map((mode) => (
-                      <div key={mode.id} className="bg-white rounded-xl shadow-sm p-4">
-                        <div className="flex items-center justify-between cursor-pointer" onClick={() => handleModeToggle(mode.id)}>
-                          <div>
-                            <h3 className="font-semibold text-gray-800">{mode.name}</h3>
-                            <p className="text-xs text-gray-500">{mode.description}</p>
-                          </div>
-                          <input type="checkbox" checked={selectedPayments[mode.id] !== undefined} readOnly className="h-5 w-5 rounded text-blue-600 focus:ring-0 border-gray-300" />
-                        </div>
-                        {selectedPayments[mode.id] !== undefined && (
-                          <div className="mt-4 pt-4 border-t border-gray-100 flex items-center gap-2">
-                            <span className="font-bold text-lg text-gray-700">₹</span>
-                            <input type="number" placeholder="0.00" value={selectedPayments[mode.id] || ''} onChange={(e) => handleAmountChange(mode.id, e.target.value)} className="flex-grow w-full bg-gray-100 p-2 rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500" />
-                            {remainingAmount > 0 && <button onClick={() => handleFillRemaining(mode.id)} className="text-xs bg-blue-100 text-blue-700 font-semibold px-3 py-1 rounded-full hover:bg-blue-200">Fill</button>}
-                          </div>
-                        )
-                        })}
-                      </div>
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={onClose}>
+      {modal && <Modal message={modal.message} onClose={() => setModal(null)} type={modal.type} />}
+      <div className="fixed bottom-0 left-0 right-0 bg-gray-50 rounded-t-2xl shadow-xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="p-4 sticky top-0 bg-gray-50 z-10 border-b">
+          <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-2"></div>
+          <h2 className="text-xl font-bold text-center text-gray-800">Payment</h2>
         </div>
-
-                  <div className="p-4 mt-auto sticky bottom-0 bg-white border-t">
-                    <div className="flex justify-between items-center mb-2"><span className="text-gray-600">Subtotal:</span><span className="font-medium">₹{subtotal.toFixed(2)}</span></div>
-                    <div
-                      className="flex items-center justify-between mb-2 gap-2"
-                      onMouseDown={handleDiscountPressStart}
-                      onMouseUp={handleDiscountPressEnd}
-                      onTouchStart={handleDiscountPressStart}
-                      onTouchEnd={handleDiscountPressEnd}
-                      onClick={handleDiscountClick}
-                    >
-                      <label htmlFor="discount" className="text-gray-600">Discount:</label>
-                      <input id="discount" type="number" placeholder="0.00" value={discount || ''} onChange={(e) => handleDiscountChange(e.target.value)} readOnly={isDiscountLocked} className={`w-24 text-right bg-gray-100 p-1 rounded-md border-gray-300 focus:ring-blue-500 focus:border-blue-500 ${isDiscountLocked ? 'cursor-pointer' : ''}`} />
-                    </div>
-                    <div className="flex justify-between items-center mb-2 border-t pt-2"><span className="text-gray-800 font-bold">Total Payable:</span><span className="font-bold text-xl text-blue-600">₹{finalPayableAmount.toFixed(2)}</span></div>
-                    <div className="flex justify-between items-center mb-4"><span className="text-gray-600">Remaining:</span><span className={`font-bold text-lg ${remainingAmount === 0 ? 'text-green-600' : 'text-red-600'}`}>₹{remainingAmount.toFixed(2)}</span></div>
-                    <button onClick={handleConfirm} disabled={isSubmitting || remainingAmount !== 0} className="w-full flex items-center justify-center bg-blue-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-blue-700 transition-colors disabled:bg-gray-400">
-                      {isSubmitting ? <Spinner /> : 'Confirm & Save Payment'}
-                    </button>
+        <div className="overflow-y-auto p-3 space-y-3">
+          <div className="bg-white rounded-xl shadow-sm p-3 space-y-2">
+            <h3 className="font-semibold text-gray-800 text-sm">Customer Details</h3>
+            <input type="text" placeholder="Party Name*" value={partyName} onChange={(e) => setPartyName(e.target.value)} className="w-full bg-gray-100 p-2 text-sm rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500" />
+            <input type="text" placeholder="Party Number (Optional)" value={partyNumber} onChange={(e) => setPartyNumber(e.target.value)} className="w-full bg-gray-100 p-2 text-sm rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500" />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {transactionModes.map((mode) => {
+              const isSelected = selectedPayments[mode.id] !== undefined;
+              return (
+                <div key={mode.id}>
+                  <div onClick={() => handleModeToggle(mode.id)} className={`p-3 rounded-lg shadow-sm cursor-pointer aspect-square flex flex-col items-center justify-center text-center transition-all duration-200 ${isSelected ? 'bg-blue-600 text-white border-2 border-blue-700' : 'bg-white text-gray-800 border'}`}>
+                    <h3 className="font-semibold text-sm">{mode.name}</h3>
+                    <p className={`text-xs mt-1 ${isSelected ? 'text-gray-300' : 'text-gray-500'}`}>{mode.description}</p>
                   </div>
+                  {isSelected && (
+                    <div className="mt-2 flex items-center gap-1">
+                      <span className="font-bold text-gray-700">₹</span>
+                      <input type="number" placeholder="0.00" value={selectedPayments[mode.id] || ''} onChange={(e) => handleAmountChange(mode.id, e.target.value)} className="flex-grow w-full bg-gray-100 p-1 text-sm rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500" />
+                      {remainingAmount > 0.01 && <button onClick={() => handleFillRemaining(mode.id)} className="text-xs bg-blue-100 text-blue-700 font-semibold px-2 py-1 rounded-full hover:bg-blue-200">Fill</button>}
+                    </div>
+                  )}
                 </div>
-              </div>
-              );
+              )
+            })}
+          </div>
+        </div>
+        <div className="p-4 mt-auto sticky bottom-0 bg-white border-t">
+          <div className="flex justify-between items-center mb-2"><span className="text-sm text-gray-600">Subtotal:</span><span className="font-medium text-sm">₹{subtotal.toFixed(2)}</span></div>
+          <div className="flex items-center justify-between mb-2 gap-2" onMouseDown={() => setIsDiscountLocked(false)}>
+            <label htmlFor="discount" className="text-sm text-gray-600">Discount (%):</label>
+            <input id="discount" type="number" placeholder="0.00" value={discount || ''} onChange={(e) => handleDiscountChange(e.target.value)} readOnly={isDiscountLocked} className={`w-20 text-right bg-gray-100 p-1 text-sm rounded-md border-gray-300 focus:ring-blue-500 focus:border-blue-500 ${isDiscountLocked ? 'cursor-not-allowed' : ''}`} />
+          </div>
+          <div className="flex justify-between items-center mb-2 border-t pt-2"><span className="text-gray-800 font-semibold">Total Payable:</span><span className="font-bold text-lg text-blue-600">₹{finalPayableAmount.toFixed(2)}</span></div>
+          <div className="flex justify-between items-center mb-3"><span className="text-gray-600">Remaining:</span><span className={`font-bold text-md ${Math.abs(remainingAmount) < 0.01 ? 'text-green-600' : 'text-red-600'}`}>₹{remainingAmount.toFixed(2)}</span></div>
+          <button onClick={handleConfirm} disabled={isSubmitting || Math.abs(remainingAmount) > 0.01} className="w-full flex items-center justify-center bg-blue-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-blue-700 transition-colors disabled:bg-gray-400">
+            {isSubmitting ? <Spinner /> : 'Confirm & Save Sale'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 // --- Main Sales Page Component ---
 const Sales: React.FC = () => {
   const navigate = useNavigate();
-              const {currentUser} = useAuth();
-
-              const [items, setItems] = useState<SalesItem[]>([]);
-              const [selectedItem, setSelectedItem] = useState<string>('');
-                const [availableItems, setAvailableItems] = useState<Item[]>([]);
-                const [searchQuery, setSearchQuery] = useState<string>('');
-                  const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
-                    const dropdownRef = useRef<HTMLDivElement>(null);
-                      const [isLoading, setIsLoading] = useState<boolean>(true);
-                        const [error, setError] = useState<string | null>(null);
-                        const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const { currentUser } = useAuth();
+  const [modal, setModal] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [items, setItems] = useState<SalesItem[]>([]);
+  const [selectedItem, setSelectedItem] = useState<string>('');
+  const [availableItems, setAvailableItems] = useState<Item[]>([]);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   useEffect(() => {
     const fetchItems = async () => {
       try {
-                          setIsLoading(true);
-                        const fetchedItems = await getItems();
-                        setAvailableItems(fetchedItems);
+        setIsLoading(true);
+        const fetchedItems = await getItems();
+        setAvailableItems(fetchedItems);
       } catch (err) {
-                          setError('Failed to load items.');
-                        setError('Failed to load items.');
+        setError('Failed to load items.');
       } finally {
-                          setIsLoading(false);
+        setIsLoading(false);
       }
     };
-                        fetchItems();
+    fetchItems();
   }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                          setIsDropdownOpen(false);
+        setIsDropdownOpen(false);
       }
     };
-                        document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-  }, []);
 
-  const totalAmount = items.reduce((sum, item) => sum + item.mrp * item.quantity, 0);
+  const totalAmount = useMemo(() => items.reduce((sum, item) => sum + item.mrp * item.quantity, 0), [items]);
 
-  const handleQuantityChange = (id: string, delta: number) => {
-                          setItems(prev => prev.map(item => item.id === id ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item));
-  };
-
-  const handleDeleteItem = (id: string) => {
-                          setItems(prev => prev.filter(item => item.id !== id));
+  const addItemToCart = (itemToAdd: Item) => {
+    const itemExists = items.find(item => item.id === itemToAdd.id);
+    if (itemExists) {
+      setItems(prev => prev.map(item => item.id === itemToAdd.id ? { ...item, quantity: item.quantity + 1 } : item));
+    } else {
+      setItems(prev => [...prev, { id: itemToAdd.id!, name: itemToAdd.name, mrp: itemToAdd.mrp, quantity: 1 }]);
+    }
   };
 
   const handleAddItemToCart = () => {
     if (!selectedItem) return;
     const itemToAdd = availableItems.find(item => item.id === selectedItem);
-    const itemToAdd = availableItems.find(item => item.id === selectedItem);
-                        if (itemToAdd) {
-      const itemExists = items.find(item => item.id === itemToAdd.id);
-                        if (itemExists) {
-                          setItems(prev => prev.map(item => item.id === itemToAdd.id ? { ...item, quantity: item.quantity + 1 } : item));
-      } else {
-                          setItems(prev => [...prev, { id: itemToAdd.id!, name: itemToAdd.name, mrp: itemToAdd.mrp, quantity: 1 }]);
-      }
-                        setSelectedItem('');
-                        setSearchQuery('');
+    if (itemToAdd) {
+      addItemToCart(itemToAdd);
+      setSelectedItem('');
+      setSearchQuery('');
     }
   };
 
   const handleBarcodeScanned = (barcode: string) => {
-                          setIsScannerOpen(false);
+    setIsScannerOpen(false);
     const itemToAdd = availableItems.find(item => item.barcode === barcode);
-                        if (itemToAdd) {
-                          addItemToCart(itemToAdd);
-                        setModal({message: `Added: ${itemToAdd.name}`, type: 'success' });
+    if (itemToAdd) {
+      addItemToCart(itemToAdd);
+      setModal({ message: `Added: ${itemToAdd.name}`, type: 'success' });
     } else {
-                          setModal({ message: 'Item not found for this barcode.', type: 'error' });
+      setModal({ message: 'Item not found for this barcode.', type: 'error' });
     }
   };
 
   const handleQuantityChange = (id: string, delta: number) => {
-                          setItems(prev => prev.map(item => item.id === id ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item));
+    setItems(prev => prev.map(item => item.id === id ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item));
   };
 
   const handleDeleteItem = (id: string) => {
-                          setItems(prev => prev.filter(item => item.id !== id));
+    setItems(prev => prev.filter(item => item.id !== id));
   };
 
   const handleProceedToPayment = () => {
     if (items.length === 0) {
-                          alert('Please add at least one item to the cart.');
-                        return;
+      setModal({ message: 'Please add at least one item to the cart.', type: 'info' });
+      return;
     }
-                        setIsDrawerOpen(true);
-                        setIsDrawerOpen(true);
+    setIsDrawerOpen(true);
   };
 
   const handleSavePayment = async (completionData: PaymentCompletionData) => {
     if (!currentUser) throw new Error("User is not authenticated.");
+    const { paymentDetails, partyName, partyNumber, discount, finalAmount } = completionData;
 
-                        const {paymentDetails, partyName, partyNumber, discount} = completionData;
+    for (const item of items) {
+      const availableItem = availableItems.find(i => i.id === item.id);
+      if (!availableItem || availableItem.amount < item.quantity) {
+        throw new Error(`Not enough stock for item: ${item.name}.`);
+      }
+    }
 
-                        const saleData = {
-                          userId: currentUser.uid,
-                        partyName: partyName.trim(),
-                        partyNumber: partyNumber.trim(),
-                        items: items.map(({id, name, mrp, quantity}) => ({id, name, mrp, quantity})),
-                        subtotal: totalAmount,
-                        discount: discount,
-                        totalAmount: totalAmount - discount,
-                        paymentMethods: paymentDetails,
-                        createdAt: serverTimestamp(),
+    const saleData = {
+      userId: currentUser.uid,
+      partyName: partyName.trim(),
+      partyNumber: partyNumber.trim(),
+      items: items.map(({ id, name, mrp, quantity }) => ({ id, name, mrp, quantity })),
+      subtotal: totalAmount,
+      discount,
+      totalAmount: finalAmount,
+      paymentMethods: paymentDetails,
+      createdAt: serverTimestamp(),
     };
 
-                        try {
-                          await addDoc(collection(db, "sales"), saleData);
-                        setItems([]);
-                        setSelectedItem('');
-                        setSearchQuery('');
-    } catch (error) {
-                          console.error("Error saving sale to Firestore: ", error);
-                        throw error;
-    }
+    const updatePromises = items.map(item => {
+      const itemRef = doc(db, "items", item.id);
+      return updateDoc(itemRef, { amount: firebaseIncrement(-item.quantity) });
+    });
+
+    await addDoc(collection(db, "sales"), saleData);
+    await Promise.all(updatePromises);
+
+    setIsDrawerOpen(false);
+    setItems([]);
+    setSelectedItem('');
+    setSearchQuery('');
+    setModal({ message: "Sale completed successfully!", type: 'success' });
   };
 
-  const filteredItems = availableItems.filter(item =>
-                        item.name.toLowerCase().includes(searchQuery.toLowerCase())
-                        );
+  const filteredItems = useMemo(() => availableItems.filter(item =>
+    item.name.toLowerCase().includes(searchQuery.toLowerCase())
+  ), [availableItems, searchQuery]);
 
   const handleSelect = (item: Item) => {
-                          setSelectedItem(item.id!);
-                        setSearchQuery(item.name);
-                        setIsDropdownOpen(false);
+    setSelectedItem(item.id!);
+    setSearchQuery(item.name);
+    setIsDropdownOpen(false);
   };
 
-                        return (
-                        <div className="flex flex-col min-h-screen bg-white w-full">
-                          <div className="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm sticky top-0 z-30">
-                            <button onClick={() => navigate(ROUTES.HOME)} className="text-2xl font-bold text-gray-600">&times;</button>
-                            <button onClick={() => navigate(ROUTES.HOME)} className="text-2xl font-bold text-gray-600">&times;</button>
-                            <div className="flex-1 flex justify-center items-center gap-6">
-                              <NavLink to={`${ROUTES.MASTERS}/${ROUTES.SALES}`} className={({ isActive }) => `flex-1 text-center py-3 border-b-2 ${isActive ? 'border-blue-600 text-blue-600 font-semibold' : 'border-transparent text-slate-500'}`}>Sales</NavLink>
-                              <NavLink to={`${ROUTES.MASTERS}/${ROUTES.SALES_RETURN}`} className={({ isActive }) => `flex-1 text-center py-3 border-b-2 ${isActive ? 'border-blue-600 text-blue-600 font-semibold' : 'border-transparent text-slate-500'}`}>Sales Return</NavLink>
-                            </div>
-                            <div className="w-6"></div>
-                            <div className="w-6"></div>
-                          </div>
+  return (
+    <div className="flex flex-col min-h-screen bg-white w-full">
+      {modal && <Modal message={modal.message} onClose={() => setModal(null)} type={modal.type} />}
+      <BarcodeScanner isOpen={isScannerOpen} onClose={() => setIsScannerOpen(false)} onScanSuccess={handleBarcodeScanned} />
 
-                          <div className="flex-grow p-4 bg-gray-50 w-full overflow-y-auto box-border">
-                            <div className="mb-6 relative" ref={dropdownRef}>
-                              <label className="block text-gray-700 text-sm font-medium mb-1">Search & Add Item</label>
-                              <div className="flex gap-2">
-                                <input type="text" value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setIsDropdownOpen(true); }} onFocus={() => setIsDropdownOpen(true)} placeholder="Search for an item..." className="flex-grow w-full p-3 border border-gray-300 rounded-md focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-200" autoComplete="off" />
-                                <button onClick={handleAddItemToCart} className="bg-blue-600 text-white py-3 px-5 rounded-md font-semibold hover:bg-blue-700 disabled:bg-blue-300" disabled={!selectedItem}>Add</button>
-                              </div>
-                              {isDropdownOpen && (
-                                <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-52 overflow-y-auto">
-                                  {isLoading ? <div className="p-3 text-gray-500">Loading...</div> :
-                                    error ? <div className="p-3 text-red-600">{error}</div> :
-                                      filteredItems.length === 0 ? <div className="p-3 text-gray-500">No items found.</div> :
-                                        (filteredItems.map(item => (<div key={item.id} className="p-3 cursor-pointer border-b last:border-b-0 hover:bg-gray-100" onClick={() => handleSelect(item)}>{item.name}</div>)))
-                                  }
-                                </div>
-                              )}
-                            </div>
+      <div className="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm sticky top-0 z-30">
+        <button onClick={() => navigate(ROUTES.HOME)} className="text-2xl font-bold text-gray-600">&times;</button>
+        <div className="flex-1 flex justify-center items-center gap-6">
+          <NavLink to={ROUTES.SALES} className={({ isActive }) => `flex-1 text-center py-3 border-b-2 ${isActive ? 'border-blue-600 text-blue-600 font-semibold' : 'border-transparent text-slate-500'}`}>Sales</NavLink>
+          <NavLink to={ROUTES.SALES_RETURN} className={({ isActive }) => `flex-1 text-center py-3 border-b-2 ${isActive ? 'border-blue-600 text-blue-600 font-semibold' : 'border-transparent text-slate-500'}`}>Sales Return</NavLink>
+        </div>
+        <div className="w-6"></div>
+      </div>
 
-                            <h3 className="text-gray-700 text-lg font-medium mb-4">Cart</h3>
-                            <h3 className="text-gray-700 text-lg font-medium mb-4">Cart</h3>
-                            <div className="flex flex-col gap-3 mb-6">
-                              {items.length === 0 ? (
+      <div className="flex-grow p-4 bg-gray-50 w-full overflow-y-auto box-border">
+        <div className="mb-6 relative" ref={dropdownRef}>
+          <label className="block text-gray-700 text-sm font-medium mb-1">Search & Add Item</label>
+          <div className="flex gap-2">
+            <input type="text" value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setIsDropdownOpen(true); }} onFocus={() => setIsDropdownOpen(true)} placeholder="Search for an item..." className="flex-grow w-full p-3 border border-gray-300 rounded-md focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-200" autoComplete="off" />
+            <button onClick={() => setIsScannerOpen(true)} className="bg-gray-700 text-white p-3 rounded-md font-semibold transition hover:bg-gray-800" title="Scan Barcode">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>
+            </button>
+            <button onClick={handleAddItemToCart} className="bg-blue-600 text-white py-3 px-5 rounded-md font-semibold hover:bg-blue-700 disabled:bg-blue-300" disabled={!selectedItem}>Add</button>
+          </div>
+          {isDropdownOpen && (
+            <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-52 overflow-y-auto">
+              {isLoading ? <div className="p-3 text-gray-500">Loading...</div> :
+                error ? <div className="p-3 text-red-600">{error}</div> :
+                  filteredItems.length === 0 ? <div className="p-3 text-gray-500">No items found.</div> :
+                    (filteredItems.map(item => (
+                      <div
+                        key={item.id}
+                        className="p-3 cursor-pointer border-b last:border-b-0 hover:bg-gray-100 flex justify-between items-center"
+                        onClick={() => handleSelect(item)}
+                      >
+                        <span className="font-medium text-gray-800">{item.name}</span>
+                        <span className="text-sm font-semibold text-blue-600">
+                          ₹{item.mrp.toFixed(2)}
+                        </span>
+                      </div>
+                    )))
+              }
+            </div>
+          )}
+        </div>
+
+        <h3 className="text-gray-700 text-lg font-medium mb-4">Cart</h3>
+        <div className="flex flex-col gap-3 mb-6">
+          {items.length === 0 ? (
             <div className="text-center py-8 text-gray-500 bg-gray-100 rounded-lg">No items added.</div>
-            <div className="text-center py-8 text-gray-500 bg-gray-100 rounded-lg">No items added.</div>
-                              ) : (
-                                items.map(item => (
-              <div key={item.id} className="flex items-center justify-between p-3 bg-white rounded-lg shadow-sm border border-gray-200">
-                <div>
-                  <p className="font-medium">{item.name}</p>
-                  <p className="text-sm text-gray-600">₹{item.mrp.toFixed(2)}</p>
+          ) : (
             items.map(item => (
               <div key={item.id} className="flex items-center justify-between p-3 bg-white rounded-lg shadow-sm border border-gray-200">
                 <div>
@@ -435,11 +439,6 @@ const Sales: React.FC = () => {
                   <p className="text-sm text-gray-600">₹{item.mrp.toFixed(2)}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button className="flex items-center justify-center w-7 h-7 rounded-full bg-gray-200 disabled:opacity-50" onClick={() => handleQuantityChange(item.id, -1)} disabled={item.quantity === 1}>-</button>
-                  <span className="w-6 text-center font-semibold">{item.quantity}</span>
-                  <button className="flex items-center justify-center w-7 h-7 rounded-full bg-gray-200" onClick={() => handleQuantityChange(item.id, 1)}>+</button>
-                  <button className="text-gray-500 hover:text-red-500" onClick={() => handleDeleteItem(item.id)} title="Remove item">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
                   <button className="flex items-center justify-center w-7 h-7 rounded-full bg-gray-200 disabled:opacity-50" onClick={() => handleQuantityChange(item.id, -1)} disabled={item.quantity === 1}>-</button>
                   <span className="w-6 text-center font-semibold">{item.quantity}</span>
                   <button className="flex items-center justify-center w-7 h-7 rounded-full bg-gray-200" onClick={() => handleQuantityChange(item.id, 1)}>+</button>
@@ -454,27 +453,18 @@ const Sales: React.FC = () => {
       </div>
 
       <div className="sticky bottom-0 left-0 right-0 p-4 bg-white border-t shadow-[0_-2px_5px_rgba(0,0,0,0.05)]">
-      <div className="sticky bottom-0 left-0 right-0 p-4 bg-white border-t shadow-[0_-2px_5px_rgba(0,0,0,0.05)]">
         <div className="flex justify-between items-center mb-3">
           <p className="text-lg font-medium">Total Amount</p>
           <p className="text-2xl font-bold">₹{totalAmount.toFixed(2)}</p>
-          <p className="text-lg font-medium">Total Amount</p>
-          <p className="text-2xl font-bold">₹{totalAmount.toFixed(2)}</p>
         </div>
-        <button onClick={handleProceedToPayment} className="w-full bg-green-600 text-white p-3 rounded-lg text-lg font-semibold shadow-md hover:bg-green-700 disabled:opacity-50" disabled={items.length === 0}>
         <button onClick={handleProceedToPayment} className="w-full bg-green-600 text-white p-3 rounded-lg text-lg font-semibold shadow-md hover:bg-green-700 disabled:opacity-50" disabled={items.length === 0}>
           Proceed to Payment
         </button>
       </div>
 
-      <PaymentDrawer
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        subtotal={totalAmount}
-        onPaymentComplete={handleSavePayment}
-      />
+      <PaymentDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} subtotal={totalAmount} onPaymentComplete={handleSavePayment} />
     </div>
-                                );
+  );
 };
 
-                              export default Sales;
+export default Sales;
