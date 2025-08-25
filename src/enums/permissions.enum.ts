@@ -2,26 +2,26 @@
 
 export enum Permissions {
     // Dashboard & Reporting
-    ViewDashboard = 1,
-    ViewItemReport = 2,
-    ViewSalesReport = 3,
-    ViewPurchaseReport = 4,
-    ViewPNLReport = 5,
+    ViewDashboard = 'ViewDashboard',
+    ViewItemReport = 'ViewItemReport',
+    ViewSalesReport = 'ViewSalesReport',
+    ViewPurchaseReport = 'ViewPurchaseReport',
+    ViewPNLReport = 'ViewPNLReport',
     // Core Actions
-    CreateSales = 6,
-    CreateSalesReturn = 7,
-    CreatePurchase = 8,
-    CreatePurchaseReturn = 9,
-    ManagePayments = 10,
+    CreateSales = 'CreateSales',
+    CreateSalesReturn = 'CreateSalesReturn',
+    CreatePurchase = 'CreatePurchase',
+    CreatePurchaseReturn = 'CreatePurchaseReturn',
+    ManagePayments = 'ManagePayments',
 
     // Inventory & User Management
-    ManageItemGroup = 11,
-    ManageItems = 12,
-    ManageUsers = 13,
-    ManageEditProfile = 14,
-    CreateUsers = 15,
+    ManageItemGroup = 'ManageItemGroup',
+    ManageItems = 'ManageItems',
+    ManageUsers = 'ManageUsers',
+    ManageEditProfile = 'ManageEditProfile',
+    CreateUsers = 'CreateUsers',
 
     // General Access
-    ViewTransactions = 16,
-    SetPermissions = 17,
+    ViewTransactions = 'ViewTransactions',
+    SetPermissions = 'SetPermissions',
 }

@@ -190,7 +190,7 @@ const router = createBrowserRouter([
       {
         path: ROUTES.PERMSETTING,
         element: (
-          <PermissionWrapper requiredPermission={Permissions.ViewPNLReport}>
+          <PermissionWrapper requiredPermission={Permissions.SetPermissions}>
             <Permissionsetting />
           </PermissionWrapper>
         ),
