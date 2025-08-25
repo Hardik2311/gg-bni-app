@@ -1,10 +1,12 @@
 import { createContext, useContext } from 'react';
-import type { User } from 'firebase/auth';
+import type { User } from '../Role/permission';
+import { Permissions } from '../enums';
 
 // Define the shape of your AuthContext
 export interface AuthContextType {
   currentUser: User | null;
-  loading: boolean; // To indicate if auth state is still loading
+  loading: boolean;
+  hasPermission: (permission: Permissions) => boolean;
 }
 
 // Create the context
