@@ -9,6 +9,7 @@ import {
   QuerySnapshot,
 } from 'firebase/firestore'; // Import QuerySnapshot
 import { useAuth } from '../context/auth-context';
+import { CustomToggle, CustomToggleItem } from '../Components/CustomToggle';
 
 // --- Reusable Spinner Component ---
 const Spinner: React.FC = () => (
@@ -183,30 +184,26 @@ const Journal: React.FC = () => {
       return filteredInvoices.map((invoice) => (
         <div
           key={invoice.id}
-          className="mb-4 flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 px-5 shadow-sm transition hover:-translate-y-0.5"
+          className="mb-4 flex flex-col rounded-lg border border-slate-200 bg-white p-6 shadow-sm"
         >
-          <div>
-            <p className="mb-1 text-lg font-semibold text-slate-800">
-              {invoice.partyName}
+          <div className="flex items-center justify-between">
+            <p className="text-xl font-medium text-slate-800">
+              INVOICE No. - {invoice.id.slice(0, 6)}...
             </p>
-            <p className="text-sm text-slate-500">
-              Inv #{invoice.id.slice(0, 6)}... at {invoice.time}
-              {invoice.status === 'Unpaid' &&
-                ` (Total: ₹${invoice.amount.toLocaleString('en-IN')})`}
+            <p className="text-lg font-medium text-slate-500">
+              +15.03%
             </p>
           </div>
-          <p
-            className={`text-2xl font-bold ${invoice.type === 'Credit' ? 'text-green-600' : 'text-red-600'}`}
-          >
-            ₹
-            {(invoice.status === 'Unpaid'
-              ? invoice.dueAmount
-              : invoice.amount
-            )?.toLocaleString('en-IN')}
+          <p className="text-3xl font-bold text-slate-800">
+            {invoice.amount.toLocaleString('en-IN', {
+              style: 'currency',
+              currency: 'INR',
+            })}
           </p>
         </div>
       ));
     }
+
     return (
       <p className="p-8 text-center text-base text-slate-500">
         No invoices found for this selection.
@@ -217,42 +214,41 @@ const Journal: React.FC = () => {
   return (
     <div className="flex min-h-screen w-full flex-col overflow-hidden bg-white shadow-md">
       {/* Top Header */}
-      <div className="flex flex-shrink-0 items-center justify-center border-b border-slate-200 bg-white p-4 px-6 shadow-sm ">
-        <h1 className="text-3xl font-bold text-slate-800 ">Transactions</h1>
+      <div className="flex items-center justify-center p-4 px-6">
+        <h1 className="text-4xl font-light text-slate-800 ">Transactions</h1>
       </div>
 
       {/* Debit/Credit Tabs */}
-      <div className="flex justify-around border-b border-slate-200 bg-white px-6 shadow-sm">
+      <div className="flex justify-center border-b border-gray-500 p-2 mb-4">
         <button
-          className={`flex-1 cursor-pointer border-b-2 py-3 text-center text-base font-medium transition hover:text-slate-700 ${activeType === 'Credit' ? 'border-blue-600 font-semibold text-blue-600' : 'border-transparent text-slate-500'}`}
+          className={`flex-1 rounded-sm py-3 px-3 text-center text-lg font-bold transition hover:text-slate-700 border border-slate-300 mx-1 ${activeType === 'Credit' ? 'bg-cyan-500 font-bold text-white' : 'bg-white text-black'}`}
           onClick={() => setActiveType('Credit')}
         >
           Sales
         </button>
         <button
-          className={`flex-1 cursor-pointer border-b-2 py-3 text-center text-base font-medium transition hover:text-slate-700 ${activeType === 'Debit' ? 'border-blue-600 font-semibold text-blue-600' : 'border-transparent text-slate-500'}`}
+          className={`flex-1 rounded-sm py-3 text-center text-lg font-bold transition hover:text-slate-700 border border-slate-300 mx-1 ${activeType === 'Debit' ? 'bg-cyan-500 font-bold text-white' : 'bg-white text-black'}`}
           onClick={() => setActiveType('Debit')}
         >
           Purchase
         </button>
       </div>
-
       {/* Filter Tabs */}
-      <div className="flex justify-around border-b border-slate-200 bg-white p-3 px-6 shadow-md">
-        <button
-          className={`cursor-pointer rounded-lg border px-5 py-2 text-sm font-medium transition ${activeTab === 'Paid' ? 'border-blue-600 bg-blue-600 text-white shadow-md' : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-blue-300 hover:bg-blue-50'}`}
+      <CustomToggle>
+        <CustomToggleItem
+          className="mr-2"
           onClick={() => setActiveTab('Paid')}
+          data-state={activeTab === 'Paid' ? 'on' : 'off'}
         >
           Paid
-        </button>
-        <button
-          className={`cursor-pointer rounded-lg border px-5 py-2 text-sm font-medium transition ${activeTab === 'Unpaid' ? 'border-blue-600 bg-blue-600 text-white shadow-md' : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-blue-300 hover:bg-blue-50'}`}
+        </CustomToggleItem>
+        <CustomToggleItem
           onClick={() => setActiveTab('Unpaid')}
+          data-state={activeTab === 'Unpaid' ? 'on' : 'off'}
         >
           Unpaid
-        </button>
-      </div>
-
+        </CustomToggleItem>
+      </CustomToggle>
       {/* Invoice List */}
       <div className="flex-grow overflow-y-auto bg-slate-100 p-6">
         {renderContent()}
