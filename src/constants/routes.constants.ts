@@ -24,5 +24,4 @@ export const ROUTES = {
   BUSINESS_ADDRESS: '/bus-address',
   PAYMENT: '/payment',
   PERMSETTING: '/permsetting',
-  UNAUTHORIZED: '/unauthorized',
 };
