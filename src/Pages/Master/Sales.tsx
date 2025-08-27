@@ -16,7 +16,8 @@ interface PaymentCompletionData {
   finalAmount: number;
 }
 
-// --- Reusable Components ---
+// Reusable Components (Modal, Spinner, BarcodeScanner)
+// Keep these components as they were. No changes are needed here.
 const Modal: React.FC<{ message: string; onClose: () => void; type: 'success' | 'error' | 'info'; }> = ({ message, onClose, type }) => (
   <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
     <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm text-center">
@@ -43,12 +44,10 @@ const BarcodeScanner: React.FC<{
   onClose: () => void;
   onScanSuccess: (decodedText: string) => void;
 }> = ({ isOpen, onClose, onScanSuccess }) => {
-  // FIX: Use a ref to hold the scanner instance
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
     if (isOpen) {
-      // Initialize the scanner
       const scanner = new Html5Qrcode('barcode-scanner-container');
       scannerRef.current = scanner;
 
@@ -60,7 +59,7 @@ const BarcodeScanner: React.FC<{
             (decodedText) => {
               onScanSuccess(decodedText);
             },
-            undefined // Optional error callback
+            undefined
           );
         } catch (err) {
           console.error("Error starting scanner:", err);
@@ -70,7 +69,6 @@ const BarcodeScanner: React.FC<{
       startScanner();
     }
 
-    // FIX: Updated cleanup function to be more robust
     return () => {
       if (scannerRef.current && scannerRef.current.isScanning) {
         scannerRef.current.stop()
@@ -107,7 +105,6 @@ const PaymentDrawer: React.FC<{ isOpen: boolean; onClose: () => void; subtotal: 
   const [modal, setModal] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDiscountLocked, setIsDiscountLocked] = useState(true);
-  // const longPressTimer = useRef<NodeJS.Timeout | null>(null);
 
   const finalPayableAmount = useMemo(() => Math.max(0, subtotal - (subtotal * (discount / 100))), [subtotal, discount]);
   const totalEnteredAmount = useMemo(() => Object.values(selectedPayments).reduce((sum, amount) => sum + (amount || 0), 0), [selectedPayments]);
