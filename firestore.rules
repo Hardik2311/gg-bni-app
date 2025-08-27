@@ -59,5 +59,11 @@ service cloud.firestore {
       // Explicitly denies any client-side writes to prevent tampering.
       allow write,update,delete : if request.auth != null;
     }
+    match /settings/sales-settings {
+      allow read, write: if request.auth != null;
+    }
+    match /settings/purchase-settings {
+      allow read, write: if request.auth != null;
+    }
   }
 }

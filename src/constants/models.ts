@@ -12,7 +12,7 @@ export interface Item {
   barcode?: string; // Link to ItemGroup. This will be derived from 'Category'
   createdAt: number; // Timestamp
   updatedAt: number; // Timestamp
-  // Add any other properties your items might have
+  category?: string;
 }
 
 export interface ItemGroup {
