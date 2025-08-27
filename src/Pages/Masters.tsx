@@ -18,17 +18,17 @@ const Masters = () => {
         {isDefaultMastersView ? (
           <>
             {/* Display list of master options if no specific sub-page is selected */}
-            <Link to={ROUTES.SALES} className="master-option-link">
-              <span className="master-option-text">Sales/Sales Return </span>
+            <Link to={ROUTES.SALESETTING} className="master-option-link">
+              <span className="master-option-text">Sales Setting </span>
               <span className="master-option-arrow">→</span>
             </Link>
             {/* <Link to={ROUTES.SALES_RETURN} className="master-option-link">
               <span className="master-option-text">Sales Return</span>
               <span className="master-option-arrow">→</span>
             </Link> */}
-            <Link to={ROUTES.PURCHASE} className="master-option-link">
+            <Link to={ROUTES.PURCHASESETTING} className="master-option-link">
               <span className="master-option-text">
-                Purchase/Purchase Return{' '}
+                Purchase Setting{' '}
               </span>
               <span className="master-option-arrow">→</span>
             </Link>

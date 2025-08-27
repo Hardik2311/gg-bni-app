@@ -8,6 +8,7 @@ import PermissionWrapper from '../context/PermissionWrapper';
 import { Permissions } from '../enums';
 
 import Loading from '../Pages/Loading/Loading';
+
 // Lazy load all the page components
 const Home = lazy(() => import('../Pages/Home'));
 const Account = lazy(() => import('../Pages/Account'));
@@ -32,8 +33,11 @@ const PnlReport = lazy(() => import('../Pages/Reports/PNLReport'));
 const BusInfo = lazy(() => import('../Pages/Auth/BusInfo'));
 const BusAddress = lazy(() => import('../Pages/Auth/BusAddress'));
 const Payment = lazy(() => import('../Pages/Master/Payment'));
-const Permissionsetting = lazy(() => import('../Pages/Settings/Permissionsetting'))
-const UnauthorizedPage = lazy(() => import('../Pages/Unauthorized'))
+const Permissionsetting = lazy(() => import('../Pages/Settings/Permissionsetting'));
+const UnauthorizedPage = lazy(() => import('../Pages/Unauthorized'));
+const SalesSettingsPage = lazy(() => import('../Pages/Settings/SalesSetting'));
+const PurchaseSettingsPage = lazy(() => import('../Pages/Settings/Purchasesetting'));
+
 const router = createBrowserRouter([
   {
     path: ROUTES.HOME,
@@ -194,6 +198,14 @@ const router = createBrowserRouter([
             <Permissionsetting />
           </PermissionWrapper>
         ),
+      },
+      {
+        path: ROUTES.SALESETTING,
+        element: <SalesSettingsPage />,
+      },
+      {
+        path: ROUTES.PURCHASESETTING,
+        element: <PurchaseSettingsPage />,
       },
     ],
   },

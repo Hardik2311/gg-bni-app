@@ -10,6 +10,8 @@ import {
 } from 'firebase/firestore'; // Import QuerySnapshot
 import { useAuth } from '../context/auth-context';
 import { CustomToggle, CustomToggleItem } from '../Components/CustomToggle';
+import { CustomCard } from '../Components/CustomCard';
+import { CustomButton } from '../Components/CustomButton';
 
 // --- Reusable Spinner Component ---
 const Spinner: React.FC = () => (
@@ -182,25 +184,22 @@ const Journal: React.FC = () => {
     }
     if (filteredInvoices.length > 0) {
       return filteredInvoices.map((invoice) => (
-        <div
-          key={invoice.id}
-          className="mb-4 flex flex-col rounded-lg border border-slate-200 bg-white p-6 shadow-sm"
-        >
+        <CustomCard key={invoice.id}>
           <div className="flex items-center justify-between">
-            <p className="text-xl font-medium text-slate-800">
+            <p className="text-base font-medium text-slate-800">
               INVOICE No. - {invoice.id.slice(0, 6)}...
             </p>
-            <p className="text-lg font-medium text-slate-500">
+            <p className="text-sm font-medium text-slate-500">
               +15.03%
             </p>
           </div>
-          <p className="text-3xl font-bold text-slate-800">
+          <p className="text-lg font-bold text-slate-800">
             {invoice.amount.toLocaleString('en-IN', {
               style: 'currency',
               currency: 'INR',
             })}
           </p>
-        </div>
+        </CustomCard>
       ));
     }
 
@@ -220,18 +219,20 @@ const Journal: React.FC = () => {
 
       {/* Debit/Credit Tabs */}
       <div className="flex justify-center border-b border-gray-500 p-2 mb-4">
-        <button
-          className={`flex-1 rounded-sm py-3 px-3 text-center text-lg font-bold transition hover:text-slate-700 border border-slate-300 mx-1 ${activeType === 'Credit' ? 'bg-cyan-500 font-bold text-white' : 'bg-white text-black'}`}
+        <CustomButton
+          variant="clear"
+          active={activeType === 'Credit'}
           onClick={() => setActiveType('Credit')}
         >
           Sales
-        </button>
-        <button
-          className={`flex-1 rounded-sm py-3 text-center text-lg font-bold transition hover:text-slate-700 border border-slate-300 mx-1 ${activeType === 'Debit' ? 'bg-cyan-500 font-bold text-white' : 'bg-white text-black'}`}
+        </CustomButton>
+        <CustomButton
+          variant="clear"
+          active={activeType === 'Debit'}
           onClick={() => setActiveType('Debit')}
         >
           Purchase
-        </button>
+        </CustomButton>
       </div>
       {/* Filter Tabs */}
       <CustomToggle>
