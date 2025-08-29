@@ -8,6 +8,8 @@ import { SalesBarChartReport } from '../Components/SBGraph';
 import { SalesCard } from '../Components/SCard';
 import { TopSoldItemsCard } from '../Components/TFCard';
 import { TopSalespersonCard } from '../Components/TSCard';
+import PermissionWrapper from '../context/PermissionWrapper';
+import { Permissions } from '../enums';
 
 const useBusinessName = (userId?: string) => {
   const [businessName, setBusinessName] = useState<string>('');
@@ -75,18 +77,38 @@ const Home = () => {
       <div className="flex-grow overflow-y-auto p-4 sm:p-6">
         <div className="flex w-full items-start justify-center gap-4 mb-6">
           <div className="flex-1 min-w-0">
-            <SalesCard isDataVisible={isDataVisible} />
+            <PermissionWrapper
+              requiredPermission={Permissions.ViewSalescard}
+              behavior="hide"
+            >
+              <SalesCard isDataVisible={isDataVisible} />
+            </PermissionWrapper>
           </div>
         </div>
         <div className="mb-6">
-          <SalesBarChartReport isDataVisible={isDataVisible} />
+          <PermissionWrapper
+            requiredPermission={Permissions.ViewSalesbarchart}
+            behavior="hide"
+          >
+            <SalesBarChartReport isDataVisible={isDataVisible} />
+          </PermissionWrapper>
         </div>
         <div className="flex w-full flex-wrap items-start justify-center gap-6 mb-6">
           <div className="flex-1 min-w-[280px]">
-            <TopSoldItemsCard isDataVisible={isDataVisible} />
+            <PermissionWrapper
+              requiredPermission={Permissions.ViewTopSoldItems}
+              behavior="hide"
+            >
+              <TopSoldItemsCard isDataVisible={isDataVisible} />
+            </PermissionWrapper>
           </div>
           <div className="flex-1 min-w-[280px]">
-            <TopSalespersonCard isDataVisible={isDataVisible} />
+            <PermissionWrapper
+              requiredPermission={Permissions.ViewSalescard}
+              behavior="hide"
+            >
+              <TopSalespersonCard isDataVisible={isDataVisible} />
+            </PermissionWrapper>
           </div>
         </div>
       </div>

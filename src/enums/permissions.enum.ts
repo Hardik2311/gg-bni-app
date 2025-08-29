@@ -3,6 +3,10 @@
 export enum Permissions {
     // Dashboard & Reporting
     ViewDashboard = 'ViewDashboard',
+    ViewSalescard = 'ViewSalescard',
+    ViewTopSoldItems = 'ViewTopSoldItems',
+    ViewTopSalesperson = 'ViewTopSalesperson',
+    ViewSalesbarchart = 'ViewSalesbarchart',
     ViewItemReport = 'ViewItemReport',
     ViewSalesReport = 'ViewSalesReport',
     ViewPurchaseReport = 'ViewPurchaseReport',

@@ -37,6 +37,7 @@ const Permissionsetting = lazy(() => import('../Pages/Settings/Permissionsetting
 const UnauthorizedPage = lazy(() => import('../Pages/Unauthorized'));
 const SalesSettingsPage = lazy(() => import('../Pages/Settings/SalesSetting'));
 const PurchaseSettingsPage = lazy(() => import('../Pages/Settings/Purchasesetting'));
+const History = lazy(() => import('../UseComponents/historypage'));
 
 const router = createBrowserRouter([
   {
@@ -198,6 +199,10 @@ const router = createBrowserRouter([
             <Permissionsetting />
           </PermissionWrapper>
         ),
+      },
+      {
+        path: ROUTES.HISTORY,
+        element: <History />,
       },
       {
         path: ROUTES.SALESETTING,

@@ -27,4 +27,5 @@ export const ROUTES = {
   UNAUTHORIZED: '/unauthorized',
   SALESETTING: '/sales-setting',
   PURCHASESETTING: '/purchase-setting',
+  HISTORY: '/history',
 };

@@ -32,7 +32,7 @@ const Masters = () => {
               </span>
               <span className="master-option-arrow">→</span>
             </Link>
-            <Link to={ROUTES.USER_ADD} className="master-option-link">
+            <Link to={ROUTES.HISTORY} className="master-option-link">
               <span className="master-option-text">
                 Users (Salesman, Admin)
               </span>

@@ -20,7 +20,7 @@ const Spinner: React.FC = () => (
       className="animate-spin h-8 w-8 text-blue-600"
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
-      viewBox="0 0 24 24"
+      viewBox="0 0 24"
     >
       <circle
         className="opacity-25"
@@ -42,13 +42,14 @@ const Spinner: React.FC = () => (
 // --- Data Types & Helpers ---
 interface Invoice {
   id: string;
+  invoiceNumber: string; // FIX: Added invoiceNumber field
   amount: number;
   time: string;
   status: 'Paid' | 'Unpaid';
   type: 'Debit' | 'Credit';
   partyName: string;
   createdAt: Date;
-  dueAmount?: number; // Added to store the unpaid amount
+  dueAmount?: number;
 }
 
 const formatDate = (date: Date): string => {
@@ -86,7 +87,6 @@ const useJournalData = (userId?: string) => {
       setLoading(false);
     };
 
-    // FIX: Add explicit type QuerySnapshot for the snapshot parameter
     const processSnapshot = (
       snapshot: QuerySnapshot,
       type: 'Credit' | 'Debit',
@@ -103,6 +103,8 @@ const useJournalData = (userId?: string) => {
 
         return {
           id: doc.id,
+          // FIX: Read the invoiceNumber from the document, with a fallback
+          invoiceNumber: data.invoiceNumber || `#${doc.id.slice(0, 6).toUpperCase()}`,
           amount: data.totalAmount || 0,
           time: formatDate(createdAt),
           status: status,
@@ -186,14 +188,16 @@ const Journal: React.FC = () => {
       return filteredInvoices.map((invoice) => (
         <CustomCard key={invoice.id}>
           <div className="flex items-center justify-between">
+            {/* FIX: Display the proper invoiceNumber */}
             <p className="text-base font-medium text-slate-800">
-              INVOICE No. - {invoice.id.slice(0, 6)}...
+              {invoice.invoiceNumber}
             </p>
             <p className="text-sm font-medium text-slate-500">
-              +15.03%
+              {invoice.time}
             </p>
           </div>
-          <p className="text-lg font-bold text-slate-800">
+          <p className="text-lg text-slate-800">{invoice.partyName}</p>
+          <p className="text-lg font-bold text-slate-800 text-right">
             {invoice.amount.toLocaleString('en-IN', {
               style: 'currency',
               currency: 'INR',
@@ -251,7 +255,7 @@ const Journal: React.FC = () => {
         </CustomToggleItem>
       </CustomToggle>
       {/* Invoice List */}
-      <div className="flex-grow overflow-y-auto bg-slate-100 p-6">
+      <div className="flex-grow overflow-y-auto bg-slate-100 p-6 space-y-3">
         {renderContent()}
       </div>
     </div>
