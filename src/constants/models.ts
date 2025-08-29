@@ -13,6 +13,9 @@ export interface Item {
   createdAt: number; // Timestamp
   updatedAt: number; // Timestamp
   category?: string;
+  hsnSac?: string; // HSN/SAC code
+  gst?: number; // GST percentage
+  unit?: string; // Unit of measure (e.g., Pcs.)
 }
 
 export interface ItemGroup {
