@@ -5,6 +5,7 @@ import { CustomIcon } from '../../Components';
 import { ICONS } from '../../constants/icon.constants';
 import { CustomButton } from '../../Components/CustomButton';
 import { FloatingLabelInput } from '../../Components/ui/FloatingLabelInput';
+import { Variant } from '../../enums';
 
 // --- Main Business Address Page Component (Step 2) ---
 const BusinessAddressPage: React.FC = () => {
@@ -89,7 +90,7 @@ const BusinessAddressPage: React.FC = () => {
 
                 {error && <p className="text-red-500 text-sm text-center">{error}</p>}
 
-                <CustomButton type="submit" variant="filled">
+                <CustomButton type="submit" variant={Variant.Filled}>
                     Next
                 </CustomButton>
             </form>

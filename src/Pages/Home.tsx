@@ -1,9 +1,8 @@
-// src/Pages/Home.tsx
 import { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { useAuth } from '../context/auth-context';
-
+import { AttendanceCard, AttendanceLogCard } from '../Components/AttendaceCard';
 import { SalesBarChartReport } from '../Components/SBGraph';
 import { SalesCard } from '../Components/SCard';
 import { TopSoldItemsCard } from '../Components/TFCard';
@@ -32,25 +31,68 @@ const useBusinessName = (userId?: string) => {
   return { businessName, loading };
 };
 
-
+// ADDED: Interface for the attendance log
+interface LogEntry {
+  checkIn: Date;
+  checkOut: Date | null;
+}
 
 const Home = () => {
+  // ADDED: `userName` is now retrieved from useAuth
   const { currentUser, loading: authLoading } = useAuth();
   const { businessName, loading: nameLoading } = useBusinessName(currentUser?.uid);
 
-  const [isDataVisible, setIsDataVisible] = useState<boolean>(false);
-
+  const [isDataVisible, setIsDataVisible] = useState<boolean>(false); // Changed default to true
   const isLoading = authLoading || nameLoading;
+
+  // ADDED: State management for the Attendance Card
+  const [status, setStatus] = useState<'Checked Out' | 'Checked In'>('Checked Out');
+  const [checkInTime, setCheckInTime] = useState<Date | null>(null);
+  const [checkOutTime, setCheckOutTime] = useState<Date | null>(null);
+  const [elapsedTime, setElapsedTime] = useState<number>(0);
+  const [attendanceLog, setAttendanceLog] = useState<LogEntry[]>([]);
+
+  // ADDED: Timer effect for the attendance duration
+  useEffect(() => {
+    let timer: NodeJS.Timeout | undefined;
+    if (status === 'Checked In') {
+      timer = setInterval(() => {
+        setElapsedTime(prevTime => prevTime + 1);
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [status]);
+
+  // ADDED: Handlers for check-in and check-out logic
+  const handleCheckIn = () => {
+    const now = new Date();
+    setStatus('Checked In');
+    setCheckInTime(now);
+    setCheckOutTime(null);
+    setAttendanceLog(prevLog => [...prevLog, { checkIn: now, checkOut: null }]);
+  };
+
+  const handleCheckOut = () => {
+    const now = new Date();
+    setStatus('Checked Out');
+    setCheckOutTime(now);
+    setAttendanceLog(prevLog => {
+      const newLog = [...prevLog];
+      const lastEntry = newLog[newLog.length - 1];
+      if (lastEntry && lastEntry.checkOut === null) {
+        lastEntry.checkOut = now;
+      }
+      return newLog;
+    });
+  };
 
   return (
     <div className="flex min-h-screen w-full flex-col overflow-hidden bg-slate-100 shadow-sm">
       {/* Top Bar */}
-      {/* FIX: The top bar is restructured for perfect centering */}
       <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white p-4 shadow-sm">
-        {/* 1. Invisible placeholder on the left to balance the button */}
         <div className="w-8"></div>
-
-        {/* 2. Centered title block */}
         <div className="flex flex-col text-center">
           <h1 className="text-2xl font-bold text-slate-800">
             Dashboard
@@ -59,8 +101,6 @@ const Home = () => {
             {isLoading ? 'Loading...' : ` ${businessName}`}
           </p>
         </div>
-
-        {/* 3. Button on the right */}
         <button
           onClick={() => setIsDataVisible(!isDataVisible)}
           className="p-2 rounded-full hover:bg-slate-200 transition-colors"
@@ -102,12 +142,31 @@ const Home = () => {
               <TopSoldItemsCard isDataVisible={isDataVisible} />
             </PermissionWrapper>
           </div>
-          <div className="flex-1 min-w-[280px]">
+          <div className="flex-1 min-w-[280px] space-y-6">
             <PermissionWrapper
               requiredPermission={Permissions.ViewSalescard}
               behavior="hide"
             >
               <TopSalespersonCard isDataVisible={isDataVisible} />
+            </PermissionWrapper>
+
+            {/* ADDED: The complete, functional AttendanceCard and Log */}
+            <PermissionWrapper
+              requiredPermission={Permissions.ViewAttendance} // Assumes you have this permission
+              behavior="hide"
+            >
+              <>
+                <AttendanceCard
+                  userName={'Work Hours'}
+                  status={status}
+                  checkInTime={checkInTime}
+                  checkOutTime={checkOutTime}
+                  elapsedTime={elapsedTime}
+                  onCheckIn={handleCheckIn}
+                  onCheckOut={handleCheckOut}
+                />
+                <AttendanceLogCard log={attendanceLog} />
+              </>
             </PermissionWrapper>
           </div>
         </div>
@@ -117,3 +176,4 @@ const Home = () => {
 };
 
 export default Home;
+

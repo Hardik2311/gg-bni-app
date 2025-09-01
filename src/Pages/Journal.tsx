@@ -3,7 +3,6 @@ import { db } from '../lib/firebase';
 import {
   collection,
   query,
-  where,
   onSnapshot,
   Timestamp,
   QuerySnapshot,
@@ -12,6 +11,7 @@ import { useAuth } from '../context/auth-context';
 import { CustomToggle, CustomToggleItem } from '../Components/CustomToggle';
 import { CustomCard } from '../Components/CustomCard';
 import { CustomButton } from '../Components/CustomButton';
+import { Variant } from '../enums';
 
 // --- Reusable Spinner Component ---
 const Spinner: React.FC = () => (
@@ -42,7 +42,7 @@ const Spinner: React.FC = () => (
 // --- Data Types & Helpers ---
 interface Invoice {
   id: string;
-  invoiceNumber: string; // FIX: Added invoiceNumber field
+  invoiceNumber: string;
   amount: number;
   time: string;
   status: 'Paid' | 'Unpaid';
@@ -73,12 +73,10 @@ const useJournalData = (userId?: string) => {
     }
 
     const salesQuery = query(
-      collection(db, 'sales'),
-      where('userId', '==', userId),
+      collection(db, 'sales')
     );
     const purchasesQuery = query(
-      collection(db, 'purchases'),
-      where('userId', '==', userId),
+      collection(db, 'purchases')
     );
 
     const handleSnapshotError = (err: Error, type: string) => {
@@ -188,21 +186,22 @@ const Journal: React.FC = () => {
       return filteredInvoices.map((invoice) => (
         <CustomCard key={invoice.id}>
           <div className="flex items-center justify-between">
-            {/* FIX: Display the proper invoiceNumber */}
-            <p className="text-base font-medium text-slate-800">
+            <p className="text-base font-semibold text-slate-800">
               {invoice.invoiceNumber}
             </p>
-            <p className="text-sm font-medium text-slate-500">
+            <p className="text-sm text-slate-500">
               {invoice.time}
             </p>
           </div>
-          <p className="text-lg text-slate-800">{invoice.partyName}</p>
-          <p className="text-lg font-bold text-slate-800 text-right">
-            {invoice.amount.toLocaleString('en-IN', {
-              style: 'currency',
-              currency: 'INR',
-            })}
-          </p>
+          <p className="text-sm text-slate-800 mt-2">{invoice.partyName}</p>
+          <div className="flex justify-end -mt-6">
+            <p className="text-lg font-bold text-slate-800">
+              {invoice.amount.toLocaleString('en-IN', {
+                style: 'currency',
+                currency: 'INR',
+              })}
+            </p>
+          </div>
         </CustomCard>
       ));
     }
@@ -224,14 +223,14 @@ const Journal: React.FC = () => {
       {/* Debit/Credit Tabs */}
       <div className="flex justify-center border-b border-gray-500 p-2 mb-4">
         <CustomButton
-          variant="clear"
+          variant={Variant.Transparent}
           active={activeType === 'Credit'}
           onClick={() => setActiveType('Credit')}
         >
           Sales
         </CustomButton>
         <CustomButton
-          variant="clear"
+          variant={Variant.Transparent}
           active={activeType === 'Debit'}
           onClick={() => setActiveType('Debit')}
         >
@@ -258,7 +257,7 @@ const Journal: React.FC = () => {
       <div className="flex-grow overflow-y-auto bg-slate-100 p-6 space-y-3">
         {renderContent()}
       </div>
-    </div>
+    </div >
   );
 };
 
