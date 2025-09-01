@@ -64,4 +64,5 @@ export interface SalesItem {
   name: string;
   mrp: number;
   quantity: number;
+  discount: number; // Store as a number (e.g., 10 for 10%)
 }

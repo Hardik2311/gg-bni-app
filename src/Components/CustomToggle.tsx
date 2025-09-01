@@ -20,7 +20,7 @@ const CustomToggleItem = React.forwardRef<HTMLButtonElement, any>(({ children, c
         className={cn(
             'flex grow items-center justify-center rounded-sm text-sm font-medium transition-all px-8 py-2',
             'text-black',
-            'data-[state=on]:bg-sky-500 data-[state=on]:text-white data-[state=on]:border-transparent', // Make border transparent on active
+            'data-[state=on]:bg-blue-900 data-[state=on]:text-white data-[state=on]:border-transparent', // Make border transparent on active
             className
         )}
         ref={ref}

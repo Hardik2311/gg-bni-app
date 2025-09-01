@@ -5,56 +5,7 @@ import type { Item, ItemGroup } from '../../constants/models';
 import { ROUTES } from '../../constants/routes.constants';
 // Import the xlsx library for reading Excel files
 import * as XLSX from 'xlsx';
-// Import the barcode scanner library
-import { Html5Qrcode } from 'html5-qrcode';
-
-// --- Reusable Barcode Scanner Component ---
-const BarcodeScanner: React.FC<{
-  isOpen: boolean;
-  onClose: () => void;
-  onScanSuccess: (decodedText: string) => void;
-}> = ({ isOpen, onClose, onScanSuccess }) => {
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const scanner = new Html5Qrcode('barcode-scanner-container');
-
-    const startScanner = async () => {
-      try {
-        await scanner.start(
-          { facingMode: "environment" },
-          { fps: 10, qrbox: { width: 250, height: 250 } },
-          (decodedText) => {
-            onScanSuccess(decodedText);
-            scanner.stop();
-          },
-          undefined // Optional error callback
-        );
-      } catch (err) {
-        console.error("Error starting scanner:", err);
-      }
-    };
-
-    startScanner();
-
-    return () => {
-      // Ensure scanner is stopped on cleanup
-      scanner.stop().catch(() => { });
-    };
-  }, [isOpen, onScanSuccess]);
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center p-4">
-      <div id="barcode-scanner-container" className="w-full max-w-md bg-gray-900 rounded-lg overflow-hidden"></div>
-      <button onClick={onClose} className="mt-4 bg-white text-gray-800 font-bold py-2 px-6 rounded-lg shadow-lg hover:bg-gray-200 transition">
-        Close
-      </button>
-    </div>
-  );
-};
-
+import BarcodeScanner from '../../UseComponents/BarcodeScanner';
 
 const ItemAdd: React.FC = () => {
   const navigate = useNavigate();
