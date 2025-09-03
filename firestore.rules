@@ -72,4 +72,24 @@ match /settings/purchase-settings {
   // Any authenticated user can read or write (create, update, delete).
   allow read, write: if request.auth != null;
 }
+match /attendance/{attendanceId} {
+
+  // A user can read their own attendance records.
+  allow read: if isOwner(attendanceId);
+
+  // A user can create their own attendance record for the day.
+  // This rule also enforces that the 'userId' field inside the new document
+  // correctly matches their own UID.
+  allow create: if isOwner(attendanceId)
+                && request.resource.data.userId == request.auth.uid;
+
+  // A user can update their own attendance record.
+  // This rule also prevents the 'userId' field from being changed after
+  // the document has been created.
+  allow update: if isOwner(attendanceId)
+                && request.resource.data.userId == resource.data.userId;
+
+  // Deleting attendance records is disallowed to maintain data integrity.
+  allow delete: if false;
+}
 }}

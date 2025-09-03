@@ -107,9 +107,16 @@ const ItemAdd: React.FC = () => {
           throw new Error("The selected Excel file is empty or in the wrong format.");
         }
 
+        let processedCount = 0;
         for (const row of json) {
-          if (!row.name || !row.mrp || !row.itemGroupId || !row.amount) {
-            console.warn("Skipping invalid row:", row);
+          // THIS IS THE CORRECTED VALIDATION LOGIC
+          if (
+            !row.name ||
+            row.mrp == null || // Use `== null` to check for both null and undefined
+            !row.itemGroupId ||
+            row.amount == null // This will now correctly allow `amount: 0`
+          ) {
+            console.warn("Skipping invalid row (missing required fields):", row);
             continue;
           }
 
@@ -120,15 +127,17 @@ const ItemAdd: React.FC = () => {
             discount: parseFloat(row.discount) || 0,
             tax: parseFloat(row.tax) || 0,
             itemGroupId: String(row.itemGroupId),
-            amount: parseInt(row.amount, 10),
+            amount: parseInt(String(row.amount), 10),
             barcode: String(row.barcode || '').trim(),
           };
 
           await createItem(newItemData);
+          processedCount++;
         }
 
-        setSuccess(`${json.length} items have been successfully imported!`);
+        setSuccess(`${processedCount} items have been successfully imported!`);
         setTimeout(() => setSuccess(null), 5000);
+
 
       } catch (err) {
         console.error('Error processing Excel file:', err);

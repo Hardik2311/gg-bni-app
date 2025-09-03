@@ -57,6 +57,7 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
     // Fix: Added types for the reduce function's parameters to resolve 'unknown' type errors
     const totalEnteredAmount = useMemo(() => Object.values(selectedPayments).reduce((sum: number, amount: number) => sum + (amount || 0), 0), [selectedPayments]);
     const remainingAmount = useMemo(() => finalPayableAmount - totalEnteredAmount, [finalPayableAmount, totalEnteredAmount]);
+    const [discountInfo, setDiscountInfo] = useState<string | null>(null);
 
     const transactionModes = [
         { id: 'cash', name: 'Cash', description: 'Pay with physical currency' },
@@ -92,7 +93,9 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
 
     const handleDiscountClick = () => {
         if (isDiscountLocked) {
-            setModal({ message: "Cannot change the discount.", type: 'info' });
+            setDiscountInfo("Cannot edit discount.");
+            // Clear the message automatically after 3 seconds
+            setTimeout(() => setDiscountInfo(null), 3000);
         }
     };
 
@@ -208,6 +211,14 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
                         onClick={handleDiscountClick}
                     >
                         <label htmlFor="discount" className={`text-sm text-gray-600 ${isDiscountLocked ? 'cursor-pointer' : ''}`}>Discount (%):</label>
+                        {discountInfo && (
+                            <div className="flex items-center text-red-700 text-xs mb-1 p-1 bg-blue-50 rounded-md">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                </svg>
+                                <span>{discountInfo}</span>
+                            </div>
+                        )}
                         <input id="discount" type="number" placeholder="0.00" value={discount || ''} onChange={handleDiscountChange} readOnly={isDiscountLocked} className={`w-20 text-right bg-gray-100 p-1 text-sm rounded-md border-gray-300 focus:ring-blue-500 focus:border-blue-500 ${isDiscountLocked ? 'cursor-not-allowed text-gray-500' : ''}`} />
                     </div>
                     <div className="flex justify-between items-center mb-2 border-t pt-2"><span className="text-gray-800 font-semibold">Total Payable:</span><span className="font-bold text-lg text-blue-600">₹{finalPayableAmount.toFixed(2)}</span></div>
