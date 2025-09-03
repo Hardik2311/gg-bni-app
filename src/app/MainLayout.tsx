@@ -78,23 +78,17 @@ const MainLayout = () => {
         </PermissionWrapper>
       </FloatingButton>
 
-      <nav className="fixed bottom-0 left-0 w-full border-t border-slate-200 bg-slate-50">
-        <div className="flex justify-around px-4 pt-2 pb-3">
+      <nav className="fixed bottom-0 left-0 w-full border-t border-slate-200 bg-white">
+        <div className="flex justify-around items-center px-4 pt-2 pb-3">
           {navItems.map(({ to, icon, label }) => (
-            <Button
+            <Link
               key={to}
-              asChild
-              variant={location.pathname === to ? 'secondary' : 'ghost'}
-              className="flex-1"
+              to={to}
+              className={`flex-1 flex flex-row items-center justify-center gap-1 py-2 rounded-lg text-sm transition-colors duration-200 ${location.pathname === to ? 'bg-sky-100 text-sky-600' : 'text-gray-500 hover:bg-gray-100'}`}
             >
-              <Link
-                to={to}
-                className="flex flex-col items-center gap-1 text-xs"
-              >
-                {icon}
-                <span>{label}</span>
-              </Link>
-            </Button>
+              <div>{icon}</div>
+              <span className="font-medium">{label}</span>
+            </Link>
           ))}
         </div>
       </nav>

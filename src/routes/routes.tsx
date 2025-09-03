@@ -3,7 +3,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import MainLayout from '../app/MainLayout';
 import { ROUTES } from '../constants/routes.constants';
 import { AuthProvider } from '../context/Authcontext'; // Import AuthProvider
-import ProtectedRoute from '../constants/ProtectedRoutes';
+// import ProtectedRoute from '../constants/ProtectedRoutes';
 import PermissionWrapper from '../context/PermissionWrapper';
 import { Permissions } from '../enums';
 
@@ -43,9 +43,9 @@ const router = createBrowserRouter([
   {
     path: ROUTES.HOME,
     element: (
-      <ProtectedRoute>
+      <PermissionWrapper requiredPermission={Permissions.ViewDashboard}>
         <MainLayout />
-      </ProtectedRoute>
+      </PermissionWrapper>
     ),
     children: [
       {

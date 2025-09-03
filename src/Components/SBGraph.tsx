@@ -90,7 +90,6 @@ export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps)
         const salesCollection = collection(db, 'sales');
         const salesQuery = query(
           salesCollection,
-          where('userId', '==', currentUser.uid),
           where('createdAt', '>=', startTimestamp),
           orderBy('createdAt', 'asc'),
         );
