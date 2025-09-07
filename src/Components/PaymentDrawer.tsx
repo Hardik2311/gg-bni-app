@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { FloatingLabelInput } from './ui/FloatingLabelInput';
 export interface PaymentDetails {
     [key: string]: number;
 }
@@ -114,18 +115,6 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
         }
     };
 
-    const handleModeToggle = (modeId: string) => {
-        setSelectedPayments(prev => {
-            const newPayments = { ...prev };
-            if (newPayments[modeId] !== undefined) {
-                delete newPayments[modeId];
-            } else {
-                newPayments[modeId] = Object.keys(newPayments).length === 0 ? finalPayableAmount : 0;
-            }
-            return newPayments;
-        });
-    };
-
     const handleAmountChange = (modeId: string, amount: string) => {
         const numAmount = parseFloat(amount);
         setSelectedPayments(prev => ({ ...prev, [modeId]: isNaN(numAmount) ? 0 : numAmount }));
@@ -170,6 +159,22 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
             <div className="fixed bottom-0 left-0 right-0 bg-gray-50 rounded-t-2xl shadow-xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
                 <div className="p-4 sticky top-0 bg-gray-50 z-10 border-b">
                     <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-2"></div>
+                    <button
+                        onClick={onClose}
+                        className="rounded-full bg-gray-200 p-2 text-gray-900"
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                        >
+                            <path d="M18 6 6 18M6 6l12 12" />
+                        </svg>
+                    </button>
                     <h2 className="text-xl font-bold text-center text-gray-800">Payment</h2>
                 </div>
                 <div className="overflow-y-auto p-3 space-y-3">
@@ -178,25 +183,18 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
                         <input type="text" placeholder="Party Name*" value={partyName} onChange={(e) => setPartyName(e.target.value)} className="w-full bg-gray-100 p-2 text-sm rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500" />
                         <input type="text" placeholder="Party Number (Optional)" value={partyNumber} onChange={(e) => setPartyNumber(e.target.value)} className="w-full bg-gray-100 p-2 text-sm rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500" />
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                        {transactionModes.map((mode) => {
-                            const isSelected = selectedPayments[mode.id] !== undefined;
-                            return (
-                                <div key={mode.id}>
-                                    <div onClick={() => handleModeToggle(mode.id)} className={`p-3 rounded-lg shadow-sm cursor-pointer aspect-auto flex flex-col items-center justify-center text-center transition-all duration-200 ${isSelected ? 'bg-blue-600 text-white border-2 border-blue-700' : 'bg-white text-gray-800 border'}`}>
-                                        <h3 className="font-semibold text-sm">{mode.name}</h3>
-                                        <p className={`text-xs mt-1 ${isSelected ? 'text-gray-300' : 'text-gray-500'}`}>{mode.description}</p>
-                                    </div>
-                                    {isSelected && (
-                                        <div className="mt-2 flex items-center gap-1">
-                                            <span className="font-bold text-gray-700">₹</span>
-                                            <input type="number" placeholder="0.00" value={selectedPayments[mode.id] || ''} onChange={(e) => handleAmountChange(mode.id, e.target.value)} className="flex-grow w-full bg-gray-100 p-1 text-sm rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500" />
-                                            {remainingAmount > 0.01 && <button onClick={() => handleFillRemaining(mode.id)} className="text-xs bg-blue-100 text-blue-700 font-semibold px-2 py-1 rounded-full hover:bg-blue-200">Fill</button>}
-                                        </div>
-                                    )}
-                                </div>
-                            )
-                        })}
+                    <div className="grid grid-cols-2 gap-4">
+                        {transactionModes.map((mode) => (
+                            <FloatingLabelInput
+                                key={mode.id}
+                                id={mode.id}
+                                label={mode.name}
+                                value={selectedPayments[mode.id]?.toString() || ''}
+                                onChange={(e) => handleAmountChange(mode.id, e.target.value)}
+                                onFill={() => handleFillRemaining(mode.id)}
+                                showFillButton={remainingAmount > 0.01}
+                            />
+                        ))}
                     </div>
                 </div>
                 <div className="p-4 mt-auto sticky bottom-0 bg-white border-t">

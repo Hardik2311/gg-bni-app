@@ -181,3 +181,20 @@ export const deleteItem = async (id: string): Promise<void> => {
     throw e;
   }
 };
+export const getItemByBarcode = async (barcode: string): Promise<Item | null> => {
+  try {
+    const q = query(itemCollectionRef, where('barcode', '==', barcode));
+    const querySnapshot = await getDocs(q);
+
+    if (!querySnapshot.empty) {
+      // Assuming barcode is unique, return the first document found.
+      const doc = querySnapshot.docs[0];
+      return { id: doc.id, ...(doc.data() as Item) };
+    } else {
+      return null; // No item with the given barcode was found
+    }
+  } catch (e) {
+    console.error('Error getting item by barcode: ', e);
+    throw e;
+  }
+};

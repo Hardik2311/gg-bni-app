@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp, arrayUnion, increment, onSnapshot, Timestamp } from 'firebase/firestore';
-import { db } from '../lib/firebase'; // FIX: Reverted to a direct import for reliability
+import { db } from '../lib/firebase';
 
 // --- Helper Functions ---
 
@@ -161,24 +161,22 @@ export const useAttendance = (userId?: string): UseAttendanceReturn => {
     const [elapsedTime, setElapsedTime] = useState<number>(0);
     const [log, setLog] = useState<LogEntry[]>([]);
 
+    // Effect to set up the real-time listener
     useEffect(() => {
         if (!userId) {
             setLoading(false);
             return;
         }
 
+        setLoading(true); // Start loading when we have a userId
         const today = new Date().toISOString().split('T')[0];
-        const docRef = doc(db, 'attendance', `${userId}_${today}`);
-        let timerId: NodeJS.Timeout | undefined;
+        const documentId = `${userId}_${today}`;
+        const docRef = doc(db, 'attendance', documentId);
 
         const unsubscribe = onSnapshot(docRef, (docSnap) => {
-            setLoading(true);
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 const serverStatus = data.status || 'Checked Out';
-                const lastCheckIn = data.lastCheckInTime instanceof Timestamp ? data.lastCheckInTime.toDate() : null;
-                let liveElapsedTime = data.totalElapsedTime || 0;
-
                 setStatus(serverStatus);
 
                 const currentLog = data.log?.map((l: any) => ({
@@ -187,13 +185,13 @@ export const useAttendance = (userId?: string): UseAttendanceReturn => {
                 })) || [];
                 setLog(currentLog);
 
-                const lastLogEntry = currentLog[currentLog.length - 1];
-                if (lastLogEntry) {
-                    setCheckInTime(lastLogEntry.checkIn);
-                    setCheckOutTime(lastLogEntry.checkOut);
-                }
+                const lastLogEntry = currentLog.length > 0 ? currentLog[currentLog.length - 1] : null;
+                setCheckInTime(lastLogEntry?.checkIn || null);
+                setCheckOutTime(lastLogEntry?.checkOut || null);
 
-                if (serverStatus === 'Checked In' && lastCheckIn) {
+                let liveElapsedTime = data.totalElapsedTime || 0;
+                if (serverStatus === 'Checked In' && data.lastCheckInTime) {
+                    const lastCheckIn = data.lastCheckInTime.toDate();
                     const sessionSeconds = Math.floor((Date.now() - lastCheckIn.getTime()) / 1000);
                     liveElapsedTime += sessionSeconds;
                 }
@@ -212,21 +210,28 @@ export const useAttendance = (userId?: string): UseAttendanceReturn => {
             setLoading(false);
         });
 
-        // This client-side timer just ticks the seconds display up
+        return () => unsubscribe();
+    }, [userId]);
+
+    // Effect for the client-side timer tick
+    useEffect(() => {
+        let timerId: NodeJS.Timeout | undefined;
         if (status === 'Checked In') {
             timerId = setInterval(() => {
                 setElapsedTime(prev => prev + 1);
             }, 1000);
         }
-
         return () => {
-            unsubscribe();
             if (timerId) clearInterval(timerId);
         };
-    }, [userId, status]);
+    }, [status]);
+
 
     const handleCheckIn = async () => {
-        if (!userId) return;
+        if (!userId) {
+            console.error("Cannot check in: User ID is not available.");
+            return;
+        }
         setLoading(true);
         const today = new Date().toISOString().split('T')[0];
         const docRef = doc(db, 'attendance', `${userId}_${today}`);
@@ -245,7 +250,6 @@ export const useAttendance = (userId?: string): UseAttendanceReturn => {
                     log: [newLogEntry],
                 });
             } else {
-                // FIX: Use arrayUnion for safer updates
                 await updateDoc(docRef, {
                     status: 'Checked In',
                     lastCheckInTime: serverTimestamp(),
@@ -253,14 +257,21 @@ export const useAttendance = (userId?: string): UseAttendanceReturn => {
                 });
             }
         } catch (error) {
-            console.error("Error checking in:", error);
-        } finally {
-            setLoading(false);
+            console.error("FIREBASE WRITE ERROR:", error);
+            if (error instanceof Error) {
+                alert("Failed to check in. Error: " + error.message);
+            } else {
+                alert("An unknown error occurred while checking in.");
+            }
+            setLoading(false); // Stop loading on error
         }
     };
 
     const handleCheckOut = async () => {
-        if (!userId) return;
+        if (!userId) {
+            console.error("Cannot check out: User ID is not available.");
+            return;
+        }
         setLoading(true);
         const today = new Date().toISOString().split('T')[0];
         const docRef = doc(db, 'attendance', `${userId}_${today}`);
@@ -281,13 +292,11 @@ export const useAttendance = (userId?: string): UseAttendanceReturn => {
 
             const sessionSeconds = Math.floor((Date.now() - lastCheckInTime.getTime()) / 1000);
 
-            // FIX: More robust log update
-            const updatedLog = data.log.map((entry: any, index: number) => {
-                if (index === data.log.length - 1 && entry.checkOut === null) {
-                    return { ...entry, checkOut: serverTimestamp() };
-                }
-                return entry;
-            });
+            const updatedLog = [...data.log];
+            const lastLogEntryIndex = updatedLog.length - 1;
+            if (lastLogEntryIndex >= 0 && updatedLog[lastLogEntryIndex].checkOut === null) {
+                updatedLog[lastLogEntryIndex].checkOut = serverTimestamp();
+            }
 
             await updateDoc(docRef, {
                 status: 'Checked Out',
@@ -295,9 +304,13 @@ export const useAttendance = (userId?: string): UseAttendanceReturn => {
                 log: updatedLog,
             });
         } catch (error) {
-            console.error("Error checking out:", error);
-        } finally {
-            setLoading(false);
+            console.error("FIREBASE WRITE ERROR:", error);
+            if (error instanceof Error) {
+                alert("Failed to check out. Error: " + error.message);
+            } else {
+                alert("An unknown error occurred while checking out.");
+            }
+            setLoading(false); // Stop loading on error
         }
     };
 

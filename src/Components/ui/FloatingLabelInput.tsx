@@ -5,12 +5,14 @@ import { Input } from './input';
 interface FloatingLabelInputProps
   extends React.InputHTMLAttributes<HTMLInputElement> {
   label: string;
+  onFill?: () => void;
+  showFillButton?: boolean;
 }
 
 const FloatingLabelInput = React.forwardRef<
   HTMLInputElement,
   FloatingLabelInputProps
->(({ className, label, id, ...props }, ref) => {
+>(({ className, label, id, onFill, showFillButton, ...props }, ref) => {
   const inputId = id || label.replace(/\s+/g, '-').toLowerCase();
 
   return (
@@ -32,6 +34,14 @@ const FloatingLabelInput = React.forwardRef<
         {label}
         {props.required && <span className="text-red-500">*</span>}
       </label>
+      {showFillButton && onFill && (
+        <button
+          onClick={onFill}
+          className="absolute top-1/2 right-3 -translate-y-1/2 text-xs bg-blue-100 text-blue-700 font-semibold px-2 py-1 rounded-full hover:bg-blue-200"
+        >
+          Fill
+        </button>
+      )}
     </div>
   );
 });
