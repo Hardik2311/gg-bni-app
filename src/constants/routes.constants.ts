@@ -25,4 +25,7 @@ export const ROUTES = {
   PAYMENT: '/payment',
   PERMSETTING: '/permsetting',
   UNAUTHORIZED: '/unauthorized',
+  SALESETTING: '/sales-setting',
+  PURCHASESETTING: '/purchase-setting',
+  HISTORY: '/history',
 };
