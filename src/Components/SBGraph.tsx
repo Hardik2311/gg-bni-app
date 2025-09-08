@@ -90,7 +90,6 @@ export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps)
         const salesCollection = collection(db, 'sales');
         const salesQuery = query(
           salesCollection,
-          where('userId', '==', currentUser.uid),
           where('createdAt', '>=', startTimestamp),
           orderBy('createdAt', 'asc'),
         );
@@ -165,8 +164,9 @@ export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps)
       </CardHeader>
       <CardContent>
         {isDataVisible ? (
-          <ChartContainer config={chartConfig} className="h-[250px] w-full">
-            <LineChart accessibilityLayer data={chartData} margin={{ top: 30 }}>
+          <ChartContainer config={chartConfig} >
+            <LineChart accessibilityLayer data={chartData}
+              margin={{ top: 30, left: 12, right: 12 }}>
               <CartesianGrid vertical={false} />
               <XAxis
                 dataKey="date"
