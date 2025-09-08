@@ -2,28 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../lib/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { Spinner } from '../../constants/Spinner';
+import { Modal } from '../../constants/Modal';
+import { State } from '../../enums';
 
-// Assuming you have these components from previous snippets
-const Spinner: React.FC<{ size?: string }> = ({ size = 'h-5 w-5' }) => (
-    <svg className={`animate-spin text-white ${size}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-    </svg>
-);
-
-const Modal: React.FC<{ message: string; onClose: () => void; type: 'success' | 'error' | 'info'; }> = ({ message, onClose, type }) => (
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm text-center">
-            <div className={`mx-auto mb-4 w-12 h-12 rounded-full flex items-center justify-center ${type === 'success' ? 'bg-green-100' : type === 'error' ? 'bg-red-100' : 'bg-blue-100'}`}>
-                {type === 'success' && <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>}
-                {type === 'error' && <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>}
-                {type === 'info' && <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>}
-            </div>
-            <p className="text-lg font-medium text-gray-800 mb-4">{message}</p>
-            <button onClick={onClose} className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">OK</button>
-        </div>
-    </div>
-);
 
 // Define the type for your purchase settings
 interface PurchaseSettings {
@@ -33,7 +15,6 @@ interface PurchaseSettings {
     zeroValueValidation?: boolean;
     enableBarcodePrinting?: boolean;
     copyVoucherAfterSaving?: boolean;
-    // New fields for voucher numbering
     voucherName?: string;
     voucherPrefix?: string;
     currentVoucherNumber?: number;
@@ -44,7 +25,7 @@ const PurchaseSettingsPage: React.FC = () => {
     const [settings, setSettings] = useState<PurchaseSettings>({});
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [isSaving, setIsSaving] = useState<boolean>(false);
-    const [modal, setModal] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+    const [modal, setModal] = useState<{ message: string; type: State } | null>(null);
 
     const settingsDocRef = doc(db, 'settings', 'purchase-settings');
 
@@ -70,7 +51,7 @@ const PurchaseSettingsPage: React.FC = () => {
                 }
             } catch (err) {
                 console.error('Failed to fetch purchase settings:', err);
-                setModal({ message: 'Failed to load settings. Please try again.', type: 'error' });
+                setModal({ message: 'Failed to load settings. Please try again.', type: State.ERROR });
             } finally {
                 setIsLoading(false);
             }
@@ -83,10 +64,10 @@ const PurchaseSettingsPage: React.FC = () => {
         setIsSaving(true);
         try {
             await updateDoc(settingsDocRef, settings as { [key: string]: any });
-            setModal({ message: 'Settings saved successfully!', type: 'success' });
+            setModal({ message: 'Settings saved successfully!', type: State.SUCCESS });
         } catch (err) {
             console.error('Failed to save settings:', err);
-            setModal({ message: 'Failed to save settings. Please try again.', type: 'error' });
+            setModal({ message: 'Failed to save settings. Please try again.', type: State.ERROR });
         } finally {
             setIsSaving(false);
         }
@@ -95,7 +76,7 @@ const PurchaseSettingsPage: React.FC = () => {
     if (isLoading) {
         return (
             <div className="flex flex-col min-h-screen items-center justify-center">
-                <Spinner size="h-10 w-10" />
+                <Spinner />
                 <p className="mt-4 text-gray-600">Loading settings...</p>
             </div>
         );

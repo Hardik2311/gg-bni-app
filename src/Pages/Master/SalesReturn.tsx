@@ -16,6 +16,9 @@ import { ROUTES } from '../../constants/routes.constants';
 import { Html5Qrcode } from 'html5-qrcode';
 import { getItems } from '../../lib/items_firebase';
 import type { Item, SalesItem as OriginalSalesItem } from '../../constants/models';
+import { Modal } from '../../constants/Modal';
+import { State } from '../../enums';
+
 
 // --- Interface Definitions ---
 interface SalesData {
@@ -34,21 +37,6 @@ interface ReturnItem {
   unitPrice: number;
   amount: number;
 }
-
-// --- Reusable Components ---
-const Modal: React.FC<{ message: string; onClose: () => void; type: 'success' | 'error' | 'info' }> = ({ message, onClose, type }) => (
-  <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-    <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm text-center">
-      <div className={`mx-auto mb-4 w-12 h-12 rounded-full flex items-center justify-center ${type === 'success' ? 'bg-green-100' : type === 'error' ? 'bg-red-100' : 'bg-blue-100'}`}>
-        {type === 'success' && <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>}
-        {type === 'error' && <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>}
-        {type === 'info' && <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>}
-      </div>
-      <p className="text-lg font-medium text-gray-800 mb-4">{message}</p>
-      <button onClick={onClose} className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">OK</button>
-    </div>
-  </div>
-);
 
 const BarcodeScanner: React.FC<{ isOpen: boolean; onClose: () => void; onScanSuccess: (decodedText: string) => void; }> = ({ isOpen, onClose, onScanSuccess }) => {
   const scannerRef = useRef<Html5Qrcode | null>(null);
@@ -102,7 +90,7 @@ const SalesReturnPage: React.FC = () => {
   // UI State
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [modal, setModal] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [modal, setModal] = useState<{ message: string; type: State } | null>(null);
   const [isSaleScannerOpen, setIsSaleScannerOpen] = useState(false);
   const [isItemScannerOpen, setIsItemScannerOpen] = useState(false);
 
@@ -179,7 +167,7 @@ const SalesReturnPage: React.FC = () => {
     if (foundSale) {
       handleSelectSale(foundSale);
     } else {
-      setModal({ message: 'No sale found with this ID.', type: 'error' });
+      setModal({ message: 'No sale found with this ID.', type: State.ERROR });
     }
   };
 
@@ -247,18 +235,18 @@ const SalesReturnPage: React.FC = () => {
           amount: itemToAdd.mrp
         }
       ]);
-      setModal({ message: `Added: ${itemToAdd.name}`, type: 'success' });
+      setModal({ message: `Added: ${itemToAdd.name}`, type: State.SUCCESS });
     } else {
-      setModal({ message: 'Item not found for this barcode.', type: 'error' });
+      setModal({ message: 'Item not found for this barcode.', type: State.ERROR });
     }
   };
 
   const totalReturnAmount = useMemo(() => returnItems.reduce((sum, item) => sum + item.amount, 0), [returnItems]);
 
   const handleSaveReturn = async () => {
-    if (!currentUser) return setModal({ type: 'error', message: 'You must be logged in.' });
+    if (!currentUser) return setModal({ type: State.ERROR, message: 'You must be logged in.' });
     if (!partyName.trim() || returnItems.length === 0 || returnItems.some(item => !item.name.trim() || item.quantity <= 0)) {
-      return setModal({ type: 'error', message: 'Please fill Party Name and ensure all items have a name and quantity.' });
+      return setModal({ type: State.ERROR, message: 'Please fill Party Name and ensure all items have a name and quantity.' });
     }
 
     try {
@@ -286,12 +274,12 @@ const SalesReturnPage: React.FC = () => {
 
       await batch.commit();
 
-      setModal({ type: 'success', message: 'Sales Return saved successfully!' });
+      setModal({ type: State.SUCCESS, message: 'Sales Return saved successfully!' });
       handleClear();
 
     } catch (error) {
       console.error('Error saving sales return:', error);
-      setModal({ type: 'error', message: 'Failed to save sales return. Please try again.' });
+      setModal({ type: State.ERROR, message: 'Failed to save sales return. Please try again.' });
     }
   };
 

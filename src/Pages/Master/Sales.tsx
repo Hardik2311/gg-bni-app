@@ -8,29 +8,15 @@ import { addDoc, collection, serverTimestamp, doc, updateDoc, increment as fireb
 import { useAuth } from '../../context/auth-context';
 import BarcodeScanner from '../../UseComponents/BarcodeScanner';
 import PaymentDrawer, { type PaymentCompletionData } from '../../Components/PaymentDrawer';
-// FIX: Import the new invoice number generator
 import { generateNextInvoiceNumber } from '../../UseComponents/InvoiceCounter';
-
-// --- Reusable Components (specific to this page) ---
-const Modal: React.FC<{ message: string; onClose: () => void; type: 'success' | 'error' | 'info'; }> = ({ message, onClose, type }) => (
-  <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-    <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm text-center">
-      <div className={`mx-auto mb-4 w-12 h-12 rounded-full flex items-center justify-center ${type === 'success' ? 'bg-green-100' : type === 'error' ? 'bg-red-100' : 'bg-blue-100'}`}>
-        {type === 'success' && <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>}
-        {type === 'error' && <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>}
-        {type === 'info' && <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>}
-      </div>
-      <p className="text-lg font-medium text-gray-800 mb-4">{message}</p>
-      <button onClick={onClose} className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">OK</button>
-    </div>
-  </div>
-);
+import { Modal } from '../../constants/Modal';
+import { State } from '../../enums';
 
 // --- Main Sales Page Component ---
 const Sales: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const [modal, setModal] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [modal, setModal] = useState<{ message: string; type: State } | null>(null);
   const [items, setItems] = useState<SalesItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<string>('');
   const [availableItems, setAvailableItems] = useState<Item[]>([]);
@@ -111,9 +97,9 @@ const Sales: React.FC = () => {
     const itemToAdd = await getItemByBarcode(barcode);
     if (itemToAdd) {
       addItemToCart(itemToAdd);
-      setModal({ message: `Added: ${itemToAdd.name}`, type: 'success' });
+      setModal({ message: `Added: ${itemToAdd.name}`, type: State.SUCCESS });
     } else {
-      setModal({ message: 'Item not found for this barcode.', type: 'error' });
+      setModal({ message: 'Item not found for this barcode.', type: State.ERROR });
     }
   };
 
@@ -155,7 +141,7 @@ const Sales: React.FC = () => {
 
   const handleProceedToPayment = () => {
     if (items.length === 0) {
-      setModal({ message: 'Please add at least one item to the cart.', type: 'info' });
+      setModal({ message: 'Please add at least one item to the cart.', type: State.INFO });
       return;
     }
     setIsDrawerOpen(true);
@@ -189,7 +175,7 @@ const Sales: React.FC = () => {
     setItems([]);
     setSelectedItem('');
     setSearchQuery('');
-    setModal({ message: `Sale #${newInvoiceNumber} completed!`, type: 'success' });
+    setModal({ message: `Sale #${newInvoiceNumber} completed!`, type: State.SUCCESS });
   };
 
   const filteredItems = useMemo(() => {

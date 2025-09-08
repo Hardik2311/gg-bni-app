@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { FloatingLabelInput } from './ui/FloatingLabelInput';
+import { transactiontypes } from '../constants/Transactiontype';
+import { Modal } from '../constants/Modal';
+import { State } from '../enums';
 export interface PaymentDetails {
     [key: string]: number;
 }
@@ -10,36 +13,12 @@ export interface PaymentCompletionData {
     discount: number;
     finalAmount: number;
 }
-interface ModalProps {
-    message: string;
-    onClose: () => void;
-    type: 'success' | 'error' | 'info';
-}
 interface PaymentDrawerProps {
     isOpen: boolean;
     onClose: () => void;
     subtotal: number;
     onPaymentComplete: (data: PaymentCompletionData) => Promise<void>;
 }
-interface ModalState {
-    message: string;
-    type: 'success' | 'error' | 'info';
-}
-
-const Modal: React.FC<ModalProps> = ({ message, onClose, type }) => (
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm text-center">
-            <div className={`mx-auto mb-4 w-12 h-12 rounded-full flex items-center justify-center ${type === 'success' ? 'bg-green-100' : type === 'error' ? 'bg-red-100' : 'bg-blue-100'}`}>
-                {type === 'success' && <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>}
-                {type === 'error' && <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>}
-                {type === 'info' && <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>}
-            </div>
-            <p className="text-lg font-medium text-gray-800 mb-4">{message}</p>
-            <button onClick={onClose} className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">OK</button>
-        </div>
-    </div>
-);
-
 
 // --- Main PaymentDrawer Component ---
 const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal, onPaymentComplete }) => {
@@ -47,25 +26,15 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
     const [partyNumber, setPartyNumber] = useState('');
     const [discount, setDiscount] = useState(0);
     const [selectedPayments, setSelectedPayments] = useState<PaymentDetails>({});
-    // Fix: Typed the modal state
-    const [modal, setModal] = useState<ModalState | null>(null);
+    const [modal, setModal] = useState<{ message: string; type: State } | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isDiscountLocked, setIsDiscountLocked] = useState(true);
-    // Fix: Typed the timer state to handle the return value of setTimeout
     const longPressTimer = useRef<NodeJS.Timeout | null>(null);
-
     const finalPayableAmount = useMemo(() => Math.max(0, subtotal - discount), [subtotal, discount]);
-    // Fix: Added types for the reduce function's parameters to resolve 'unknown' type errors
     const totalEnteredAmount = useMemo(() => Object.values(selectedPayments).reduce((sum: number, amount: number) => sum + (amount || 0), 0), [selectedPayments]);
     const remainingAmount = useMemo(() => finalPayableAmount - totalEnteredAmount, [finalPayableAmount, totalEnteredAmount]);
     const [discountInfo, setDiscountInfo] = useState<string | null>(null);
 
-    const transactionModes = [
-        { id: 'cash', name: 'Cash', description: 'Pay with physical currency' },
-        { id: 'upi', name: 'UPI', description: 'Google Pay, PhonePe, etc.' },
-        { id: 'card', name: 'Card', description: 'Credit or Debit Card' },
-        { id: 'due', name: 'Due', description: 'Record as outstanding' },
-    ];
 
     useEffect(() => {
         if (isOpen) {
@@ -128,11 +97,11 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
 
     const handleConfirm = async () => {
         if (!partyName.trim()) {
-            setModal({ message: 'Party Name is required.', type: 'error' });
+            setModal({ message: 'Party Name is required.', type: State.ERROR });
             return;
         }
         if (Math.abs(remainingAmount) > 0.01) {
-            setModal({ message: `Amount mismatch. Remaining: ₹${remainingAmount.toFixed(2)}`, type: 'error' });
+            setModal({ message: `Amount mismatch. Remaining: ₹${remainingAmount.toFixed(2)}`, type: State.ERROR });
             return;
         }
         setIsSubmitting(true);
@@ -145,7 +114,7 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
                 finalAmount: finalPayableAmount,
             });
         } catch (error) {
-            setModal({ message: (error as Error).message || 'Failed to save sale.', type: 'error' });
+            setModal({ message: (error as Error).message || 'Failed to save sale.', type: State.ERROR });
         } finally {
             setIsSubmitting(false);
         }
@@ -184,7 +153,7 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
                         <input type="text" placeholder="Party Number (Optional)" value={partyNumber} onChange={(e) => setPartyNumber(e.target.value)} className="w-full bg-gray-100 p-2 text-sm rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500" />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                        {transactionModes.map((mode) => (
+                        {transactiontypes.map((mode) => (
                             <FloatingLabelInput
                                 key={mode.id}
                                 id={mode.id}

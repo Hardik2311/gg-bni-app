@@ -4,11 +4,13 @@ import { getItems } from '../../lib/items_firebase';
 import type { Item } from '../../constants/models';
 import { ROUTES } from '../../constants/routes.constants';
 import { db } from '../../lib/firebase';
-// ✅ Import getDoc and setDoc for party creation logic
 import { addDoc, collection, serverTimestamp, doc, updateDoc, increment as firebaseIncrement } from 'firebase/firestore';
 import { useAuth } from '../../context/auth-context';
 import BarcodeScanner from '../../UseComponents/BarcodeScanner'; // Adjust path
 import PaymentDrawer, { type PaymentCompletionData } from '../../Components/PaymentDrawer'; // Adjust path
+import { Modal } from '../../constants/Modal';
+import { State } from '../../enums';
+
 
 // --- Helper Types & Interfaces ---
 interface PurchaseItem {
@@ -18,28 +20,11 @@ interface PurchaseItem {
   quantity: number;
 }
 
-// --- Reusable Modal Component ---
-const Modal: React.FC<{ message: string; onClose: () => void; type: 'success' | 'error' | 'info'; }> = ({ message, onClose, type }) => (
-  <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-    <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm text-center">
-      <div className={`mx-auto mb-4 w-12 h-12 rounded-full flex items-center justify-center ${type === 'success' ? 'bg-green-100' : type === 'error' ? 'bg-red-100' : 'bg-blue-100'}`}>
-        {type === 'success' && <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>}
-        {type === 'error' && <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>}
-        {type === 'info' && <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>}
-      </div>
-      <p className="text-lg font-medium text-gray-800 mb-4">{message}</p>
-      <button onClick={onClose} className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">OK</button>
-    </div>
-  </div>
-);
-
 // --- Main Purchase Page Component ---
 const PurchasePage: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const [modal, setModal] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-  // Party name and number are no longer needed in the page's state,
-  // as they are now managed by the PaymentDrawer.
+  const [modal, setModal] = useState<{ message: string; type: State } | null>(null);
   const [items, setItems] = useState<PurchaseItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<string>('');
   const [availableItems, setAvailableItems] = useState<Item[]>([]);
@@ -106,7 +91,7 @@ const PurchasePage: React.FC = () => {
         addItemToCart(matchedItem);
         setSearchQuery('');
         setIsDropdownOpen(false);
-        setModal({ message: `Added: ${matchedItem.name}`, type: 'success' });
+        setModal({ message: `Added: ${matchedItem.name}`, type: State.SUCCESS });
       }
     }
   }, [searchQuery, availableItems]);
@@ -119,7 +104,7 @@ const PurchasePage: React.FC = () => {
 
   const handleProceedToPayment = () => {
     if (items.length === 0) {
-      setModal({ message: 'Please add at least one item to the cart.', type: 'error' });
+      setModal({ message: 'Please add at least one item to the cart.', type: State.ERROR });
       return;
     }
     setIsDrawerOpen(true);
@@ -143,22 +128,6 @@ const PurchasePage: React.FC = () => {
     const { paymentDetails, discount, finalAmount, partyName, partyNumber } = completionData;
 
     const trimmedPartyName = partyName.trim();
-
-    // --- THIS LOGIC HAS BEEN REMOVED ---
-    // if (trimmedPartyName) {
-    //     const partyRef = doc(db, "parties", trimmedPartyName);
-    //     const partySnap = await getDoc(partyRef);
-
-    //     if (!partySnap.exists()) {
-    //         await setDoc(partyRef, {
-    //             name: trimmedPartyName,
-    //             contactNumber: partyNumber.trim(),
-    //             createdAt: serverTimestamp(),
-    //         });
-    //     }
-    // }
-    // --- END OF REMOVED LOGIC ---
-
     const purchaseData = {
       userId: currentUser.uid,
       partyName: trimmedPartyName,
@@ -179,7 +148,7 @@ const PurchasePage: React.FC = () => {
       await Promise.all(updatePromises);
 
       setIsDrawerOpen(false);
-      setModal({ message: 'Purchase saved successfully!', type: 'success' });
+      setModal({ message: 'Purchase saved successfully!', type: State.SUCCESS });
 
       setTimeout(() => {
         setModal(null);
@@ -198,9 +167,9 @@ const PurchasePage: React.FC = () => {
     const itemToAdd = availableItems.find(item => item.barcode === barcode);
     if (itemToAdd) {
       addItemToCart(itemToAdd);
-      setModal({ message: `Added: ${itemToAdd.name}`, type: 'success' });
+      setModal({ message: `Added: ${itemToAdd.name}`, type: State.SUCCESS });
     } else {
-      setModal({ message: 'Item not found for this barcode.', type: 'error' });
+      setModal({ message: 'Item not found for this barcode.', type: State.ERROR });
     }
   };
 

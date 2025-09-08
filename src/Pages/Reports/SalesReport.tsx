@@ -5,7 +5,6 @@ import {
   collection,
   query,
   getDocs,
-  where,
   Timestamp,
 } from 'firebase/firestore';
 import { useAuth } from '../../context/auth-context';
@@ -117,7 +116,7 @@ const SalesReport: React.FC = () => {
       setIsLoading(true);
       try {
         const salesCollection = collection(db, 'sales');
-        const q = query(salesCollection, where('userId', '==', currentUser.uid));
+        const q = query(salesCollection);
         const querySnapshot = await getDocs(q);
         const fetchedSales: SaleRecord[] = querySnapshot.docs.map(doc => {
           const data = doc.data();
