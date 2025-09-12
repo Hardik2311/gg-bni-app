@@ -3,30 +3,29 @@ import { useAuth } from '../context/auth-context'; // Or your new hook path
 import Loading from '../Pages/Loading/Loading';
 import AccessDeniedPage from '../Pages/Unauthorized';
 import { Permissions } from '../enums';
+import { Navigate } from 'react-router-dom';
+import { ROUTES } from '../constants/routes.constants';
 
 interface WrapperProps {
     children: React.ReactNode;
     requiredPermission: Permissions;
-    // FIX: Add an optional 'behavior' prop
     behavior?: 'showPage' | 'hide';
 }
 
 const PermissionWrapper = ({ children, requiredPermission, behavior = 'showPage' }: WrapperProps) => {
     const { currentUser, loading, hasPermission } = useAuth();
+    let redirectPath = ROUTES.LANDING;
 
     if (loading) {
         return <Loading />;
     }
-
-    // FIX: Use the 'behavior' prop to decide what to do on failure
-    if (!currentUser || !hasPermission(requiredPermission)) {
-        // If behavior is 'showPage' (default), show the full page.
-        // If behavior is 'hide', render nothing (null).
+    else if (!hasPermission(requiredPermission)) {
         return behavior === 'showPage' ? <AccessDeniedPage /> : null;
+    };
+
+    if (!currentUser) {
+        return <Navigate to={redirectPath} replace />;
     }
-
-    // If permission is granted, render the children as normal.
     return <>{children}</>;
-};
-
+}
 export default PermissionWrapper;

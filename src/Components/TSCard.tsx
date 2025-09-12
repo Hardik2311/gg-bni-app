@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { collection, query, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { Spinner } from '../constants/Spinner';
+import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
 
 // --- Data Types ---
 interface SaleDoc {
@@ -85,20 +86,6 @@ const useTopSalesperson = () => {
 
   return { topSalesperson, loading, error };
 };
-
-// --- Mock Card Components ---
-const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
-  <div className={`bg-white rounded-xl shadow-md ${className}`}>{children}</div>
-);
-const CardHeader: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
-  <div className={`p-6 border-b border-gray-200 ${className}`}>{children}</div>
-);
-const CardTitle: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
-  <h3 className={`text-lg font-semibold text-gray-800 ${className}`}>{children}</h3>
-);
-const CardContent: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
-  <div className={`p-6 ${className}`}>{children}</div>
-);
 
 // FIX: Define props for the component
 interface TopSalespersonCardProps {

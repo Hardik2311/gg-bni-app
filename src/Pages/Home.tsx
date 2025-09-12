@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { useAuth } from '../context/auth-context';
-import { AttendanceCard, AttendanceLogCard } from '../Components/AttendaceCard';
+import { AttendancePage } from '../Components/AttendaceCard';
 import { SalesBarChartReport } from '../Components/SBGraph';
 import { SalesCard } from '../Components/SCard';
 import { TopSoldItemsCard } from '../Components/TFCard';
@@ -54,90 +54,31 @@ const useBusinessName = (userId?: string) => {
   return { businessName, loading };
 };
 
-// ADDED: Interface for the attendance log
-interface LogEntry {
-  checkIn: Date;
-  checkOut: Date | null;
-}
 
 const Home = () => {
-  // ADDED: `userName` is now retrieved from useAuth
   const { currentUser, loading: authLoading } = useAuth();
   const { businessName, loading: nameLoading } = useBusinessName(currentUser?.uid);
 
-  const [isDataVisible, setIsDataVisible] = useState<boolean>(false); // Changed default to true
+  const [isDataVisible, setIsDataVisible] = useState<boolean>(true);
   const isLoading = authLoading || nameLoading;
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [filterType, setFilterType] = useState('today');
 
-  // ADDED: State management for the Attendance Card
-  const [status, setStatus] = useState<'Checked Out' | 'Checked In'>('Checked Out');
-  const [checkInTime, setCheckInTime] = useState<Date | null>(null);
-  const [checkOutTime, setCheckOutTime] = useState<Date | null>(null);
-  const [elapsedTime, setElapsedTime] = useState<number>(0);
-  const [attendanceLog, setAttendanceLog] = useState<LogEntry[]>([]);
-
-  // ADDED: Timer effect for the attendance duration
-  useEffect(() => {
-    let timer: NodeJS.Timeout | undefined;
-    if (status === 'Checked In') {
-      timer = setInterval(() => {
-        setElapsedTime(prevTime => prevTime + 1);
-      }, 1000);
-    }
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [status]);
-
-  // ADDED: Handlers for check-in and check-out logic
-  const handleCheckIn = () => {
-    const now = new Date();
-    setStatus('Checked In');
-    setCheckInTime(now);
-    setCheckOutTime(null);
-    setAttendanceLog(prevLog => [...prevLog, { checkIn: now, checkOut: null }]);
-  };
-
-  const handleCheckOut = () => {
-    const now = new Date();
-    setStatus('Checked Out');
-    setCheckOutTime(now);
-    setAttendanceLog(prevLog => {
-      const newLog = [...prevLog];
-      const lastEntry = newLog[newLog.length - 1];
-      if (lastEntry && lastEntry.checkOut === null) {
-        lastEntry.checkOut = now;
-      }
-      return newLog;
-    });
-  };
   const handleApplyFilters = () => {
-    // This function now commits the selected dates to the 'applied' state.
-    // Child components will re-render with the new date range.
-    // setAppliedStartDate(startDate);
-    // setAppliedEndDate(endDate);
     console.log("Applying filters with date range:", { startDate, endDate });
   };
 
   return (
-    <div className="flex min-h-screen w-full flex-col overflow-hidden bg-slate-100 shadow-sm">
-      {/* Top Bar */}
-      <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white p-4 shadow-sm">
+    <div className="flex min-h-screen w-full flex-col bg-slate-100">
+      {/* Header */}
+      <header className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white p-4 shadow-sm">
         <div className="w-8"></div>
-        <div className="flex flex-col text-center">
-          <h1 className="text-2xl font-bold text-slate-800">
-            Dashboard
-          </h1>
-          <p className="text-slate-500 text-sm">
-            {isLoading ? 'Loading...' : ` ${businessName}`}
-          </p>
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
+          <p className="text-sm text-slate-500">{isLoading ? 'Loading...' : businessName}</p>
         </div>
-        <PermissionWrapper
-          requiredPermission={Permissions.ViewSalescard}
-          behavior="hide"
-        >
+        <PermissionWrapper requiredPermission={Permissions.ViewSalescard} behavior="hide">
           <button
             onClick={() => setIsDataVisible(!isDataVisible)}
             className="p-2 rounded-full hover:bg-slate-200 transition-colors"
@@ -150,84 +91,49 @@ const Home = () => {
             )}
           </button>
         </PermissionWrapper>
-      </div>
-      <PermissionWrapper
-        requiredPermission={Permissions.ViewSalescard}
-        behavior="hide"
-      >
-        <div className="bg-white p-4 rounded-lg shadow-md m-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <FilterDateInput value={startDate} onChange={(e) => setStartDate(e.target.value)} placeholder="From Date" />
-            <FilterDateInput value={endDate} onChange={(e) => setEndDate(e.target.value)} placeholder="To Date" />
-            <FilterSelect value={filterType} onChange={(e) => setFilterType(e.target.value)} />
-            <button onClick={handleApplyFilters} className="w-full p-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 transition">
-              Apply
-            </button>
-          </div>
-        </div>
-      </PermissionWrapper>
+      </header>
 
-      <div className="flex-grow overflow-y-auto p-4 sm:p-6">
-        <div className="flex w-full items-start justify-center gap-4 mb-6">
-          <div className="flex-1 min-w-0">
-            <PermissionWrapper
-              requiredPermission={Permissions.ViewSalescard}
-              behavior="hide"
-            >
+      {/* Main Content Area */}
+      <main className="flex-grow overflow-y-auto p-4 sm:p-6">
+        {/* Centering Container */}
+        <div className="mx-auto max-w-7xl">
+
+          {/* Filters */}
+          <PermissionWrapper requiredPermission={Permissions.ViewSalescard} behavior="hide">
+            <div className="bg-white p-4 rounded-lg shadow-md mb-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <FilterDateInput value={startDate} onChange={(e) => setStartDate(e.target.value)} placeholder="From Date" />
+                <FilterDateInput value={endDate} onChange={(e) => setEndDate(e.target.value)} placeholder="To Date" />
+                <FilterSelect value={filterType} onChange={(e) => setFilterType(e.target.value)} />
+                <button onClick={handleApplyFilters} className="w-full p-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 transition">
+                  Apply
+                </button>
+              </div>
+            </div>
+          </PermissionWrapper>
+
+          {/* All Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <PermissionWrapper requiredPermission={Permissions.ViewSalescard} behavior="hide">
               <SalesCard isDataVisible={isDataVisible} />
             </PermissionWrapper>
-          </div>
-        </div>
-        <div className="mb-6">
-          <PermissionWrapper
-            requiredPermission={Permissions.ViewSalesbarchart}
-            behavior="hide"
-          >
-            <SalesBarChartReport isDataVisible={isDataVisible} />
-          </PermissionWrapper>
-        </div>
-        <div className="flex w-full flex-wrap items-start justify-center gap-6 mb-6">
-          <div className="flex-1 min-w-[280px]">
-            <PermissionWrapper
-              requiredPermission={Permissions.ViewTopSoldItems}
-              behavior="hide"
-            >
+            <PermissionWrapper requiredPermission={Permissions.ViewSalesbarchart} behavior="hide">
+              <SalesBarChartReport isDataVisible={isDataVisible} />
+            </PermissionWrapper>
+            <PermissionWrapper requiredPermission={Permissions.ViewTopSoldItems} behavior="hide">
               <TopSoldItemsCard isDataVisible={isDataVisible} />
             </PermissionWrapper>
-          </div>
-          <div className="flex-1 min-w-[280px] space-y-6">
-            <PermissionWrapper
-              requiredPermission={Permissions.ViewSalescard}
-              behavior="hide"
-            >
+            <PermissionWrapper requiredPermission={Permissions.ViewSalescard} behavior="hide">
               <TopSalespersonCard isDataVisible={isDataVisible} />
             </PermissionWrapper>
-
-            {/* ADDED: The complete, functional AttendanceCard and Log */}
-            <PermissionWrapper
-              requiredPermission={Permissions.ViewAttendance} // Assumes you have this permission
-              behavior="hide"
-            >
-              <>
-                <AttendanceCard
-                  userName={'Work Hours'}
-                  status={status}
-                  checkInTime={checkInTime}
-                  checkOutTime={checkOutTime}
-                  elapsedTime={elapsedTime}
-                  onCheckIn={handleCheckIn}
-                  onCheckOut={handleCheckOut}
-                  loading={false} // You can implement loading state if needed
-                />
-                <AttendanceLogCard log={attendanceLog} />
-              </>
+            <PermissionWrapper requiredPermission={Permissions.ViewAttendance} behavior="hide">
+              <AttendancePage />
             </PermissionWrapper>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 };
 
 export default Home;
-

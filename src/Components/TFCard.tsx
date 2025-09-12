@@ -6,7 +6,6 @@ import { db } from '../lib/firebase';
 import {
   collection,
   query,
-  where,
   onSnapshot,
   Timestamp,
 } from 'firebase/firestore';
@@ -41,8 +40,7 @@ const useTopSoldItems = (userId?: string) => {
     }
 
     const salesQuery = query(
-      collection(db, 'sales'),
-      where('userId', '==', userId),
+      collection(db, 'sales')
     );
 
     const unsubscribe = onSnapshot(
