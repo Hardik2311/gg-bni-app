@@ -20,6 +20,7 @@ import {
 } from './ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from './ui/chart';
 import type { ChartConfig } from './ui/chart';
+import { useFilter } from './Filter';
 
 // --- Type Definitions ---
 interface SaleRecord {
@@ -43,10 +44,10 @@ interface SalesBarChartReportProps {
 
 export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps) {
   const { currentUser } = useAuth();
+  const { filters } = useFilter(); // ✅ Use the global filter
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filterRange, setFilterRange] = useState('7days');
 
   useEffect(() => {
     const fetchSalesData = async () => {
@@ -55,42 +56,29 @@ export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps)
         setError('Please log in to view sales data.');
         return;
       }
+      if (!filters.startDate || !filters.endDate) {
+        setIsLoading(false);
+        setChartData([]);
+        return;
+      }
       setIsLoading(true);
       setError(null);
-      const now = new Date();
-      let startTimestamp;
-      switch (filterRange) {
-        case 'today': {
-          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          startTimestamp = Timestamp.fromDate(today);
-          break;
-        }
-        case '7days': {
-          const sevenDaysAgo = new Date(now);
-          sevenDaysAgo.setDate(now.getDate() - 7);
-          startTimestamp = Timestamp.fromDate(sevenDaysAgo);
-          break;
-        }
-        case '14days': {
-          const fourteenDaysAgo = new Date(now);
-          fourteenDaysAgo.setDate(now.getDate() - 14);
-          startTimestamp = Timestamp.fromDate(fourteenDaysAgo);
-          break;
-        }
-        case 'month': {
-          const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
-          startTimestamp = Timestamp.fromDate(oneMonthAgo);
-          break;
-        }
-        default:
-          startTimestamp = Timestamp.fromDate(new Date());
-          break;
-      }
+
+      // ✅ Use dates from the global filter
+      const start = new Date(filters.startDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(filters.endDate);
+      end.setHours(23, 59, 59, 999);
+
+      const startTimestamp = Timestamp.fromDate(start);
+      const endTimestamp = Timestamp.fromDate(end);
+
       try {
         const salesCollection = collection(db, 'sales');
         const salesQuery = query(
           salesCollection,
           where('createdAt', '>=', startTimestamp),
+          where('createdAt', '<=', endTimestamp),
           orderBy('createdAt', 'asc'),
         );
         const querySnapshot = await getDocs(salesQuery);
@@ -100,7 +88,7 @@ export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps)
         });
         const salesByDate: { [key: string]: number } = {};
         fetchedSales.forEach((sale) => {
-          const date = sale.createdAt.toDate().toLocaleDateString('en-US');
+          const date = sale.createdAt.toDate().toLocaleDateString('en-CA'); // Use YYYY-MM-DD for sorting
           if (!salesByDate[date]) {
             salesByDate[date] = 0;
           }
@@ -120,102 +108,47 @@ export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps)
       }
     };
     fetchSalesData();
-  }, [currentUser, filterRange]);
+  }, [currentUser, filters]); // ✅ Re-run when the global filter changes
 
-  if (isLoading) {
-    return (
-      <Card>
-        <CardContent className="flex h-[350px] items-center justify-center">
-          <p className="text-gray-500">Loading sales data...</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (error) {
-    return (
-      <Card>
-        <CardContent className="flex h-[350px] items-center justify-center">
-          <p className="text-red-500">{error}</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
+  // ... (rest of the component's JSX remains the same)
   return (
     <Card>
       <CardHeader className="pb-4">
         <CardTitle>Daily Sales Chart</CardTitle>
         <CardDescription>Sales amount for the selected period</CardDescription>
-        <div className="flex gap-2 pt-2">
-          {['today', '7days', '14days', 'month'].map((range) => (
-            <button
-              key={range}
-              onClick={() => setFilterRange(range)}
-              className={`px-3 py-1 rounded-md text-sm transition ${filterRange === range
-                ? 'bg-blue-500 text-white'
-                : 'bg-gray-200 hover:bg-gray-300'
-                }`}
-            >
-              {range.charAt(0).toUpperCase() + range.slice(1).replace('days', ' Days')}
-            </button>
-          ))}
-        </div>
+        {/* ❌ The local filter buttons are removed from here */}
       </CardHeader>
       <CardContent>
-        {isDataVisible ? (
-          <ChartContainer config={chartConfig} >
-            <LineChart accessibilityLayer data={chartData}
-              margin={{ top: 30, left: 12, right: 12 }}>
-              <CartesianGrid vertical={false} />
-              <XAxis
-                dataKey="date"
-                tickLine={false}
-                tickMargin={10}
-                axisLine={false}
-                tickFormatter={(value) =>
-                  new Date(value).toLocaleDateString('en-US', {
-                    day: 'numeric',
-                    month: 'short',
-                  })
-                }
-              />
-              <ChartTooltip
-                cursor={false}
-                content={<ChartTooltipContent hideLabel />}
-              />
-              <Line
-                dataKey="sales"
-                type="monotone"
-                stroke="var(--color-sales)"
-                strokeWidth={2}
-                dot={{ r: 4 }}
-              >
-                <LabelList
-                  position="top"
-                  offset={12}
-                  className="fill-foreground"
-                  fontSize={12}
-                  formatter={(value: number) => `₹${value.toLocaleString()}`}
-                />
-              </Line>
-            </LineChart>
-          </ChartContainer>
-        ) : (
-          <div className="flex h-[250px] w-full flex-col items-center justify-center rounded-lg bg-gray-100">
-            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400 mb-2"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" /><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" /><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" /><line x1="2" x2="22" y1="2" y2="22" /></svg>
-            <p className="text-gray-500">Data is hidden</p>
-          </div>
-        )}
+        {isLoading ? <div className="flex h-[250px] items-center justify-center"><p>Loading Chart...</p></div> :
+          error ? <div className="flex h-[250px] items-center justify-center"><p className="text-red-500">{error}</p></div> :
+            isDataVisible ? (
+              <ChartContainer config={chartConfig} >
+                <LineChart accessibilityLayer data={chartData} margin={{ top: 30, left: 12, right: 12 }}>
+                  <CartesianGrid vertical={false} />
+                  <XAxis dataKey="date" tickLine={false} tickMargin={10} axisLine={false}
+                    tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}
+                  />
+                  <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+                  <Line dataKey="sales" type="monotone" stroke="var(--color-sales)" strokeWidth={2} dot={{ r: 4 }}>
+                    <LabelList position="top" offset={12} className="fill-foreground" fontSize={12}
+                      formatter={(value: number) => `₹${value.toLocaleString()}`}
+                    />
+                  </Line>
+                </LineChart>
+              </ChartContainer>
+            ) : (
+              <div className="flex h-[250px] w-full flex-col items-center justify-center rounded-lg bg-gray-100">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400 mb-2"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" /><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" /><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" /><line x1="2" x2="22" y1="2" y2="22" /></svg>
+                <p className="text-gray-500">Data is hidden</p>
+              </div>
+            )}
       </CardContent>
       <CardFooter className="flex-col items-start gap-2 text-sm">
         <div className="flex gap-2 leading-none font-medium">
           Total sales for this period:
           {isDataVisible ? (
             ` ₹${chartData.reduce((sum, data) => sum + data.sales, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
-          ) : (
-            ' ₹ ******'
-          )}
+          ) : (' ₹ ******')}
         </div>
         <div className="text-muted-foreground leading-none">
           Showing sales data grouped by day for the selected period.

@@ -19,13 +19,13 @@ const PermissionWrapper = ({ children, requiredPermission, behavior = 'showPage'
     if (loading) {
         return <Loading />;
     }
+    if (!currentUser) {
+        return <Navigate to={redirectPath} replace />;
+    }
     else if (!hasPermission(requiredPermission)) {
         return behavior === 'showPage' ? <AccessDeniedPage /> : null;
     };
 
-    if (!currentUser) {
-        return <Navigate to={redirectPath} replace />;
-    }
     return <>{children}</>;
 }
 export default PermissionWrapper;

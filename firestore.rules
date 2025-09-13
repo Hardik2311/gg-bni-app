@@ -3,8 +3,8 @@ service cloud.firestore {match /databases/{database}/documents
 {
   // Rule for the 'users' collection
 match /users/{userId} {
-  allow read, update: if request.auth != null && request.auth.uid == userId;
-  allow create: if request.auth != null;
+  allow  update: if request.auth != null && request.auth.uid == userId;
+  allow read,create: if request.auth != null;
 }
 
 // Rule for 'business_info' collection

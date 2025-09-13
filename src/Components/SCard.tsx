@@ -1,128 +1,114 @@
 import React, { useState, useEffect, useMemo } from 'react';
-// Import your Auth context hook
 import { useAuth } from '../context/auth-context';
-// Import the db instance from your central firebase config file
 import { db } from '../lib/firebase';
 import {
   collection,
   query,
   where,
   onSnapshot,
-  getDocs,
 } from 'firebase/firestore';
 import type { FirestoreError } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
+import { useFilter } from './Filter';
 
-
-// --- Data Fetching Hook for Sales Data (unchanged) ---
 const useSalesComparison = (userId: string | undefined) => {
-  const [todaySales, setTodaySales] = useState(0);
-  const [yesterdaySales, setYesterdaySales] = useState(0);
+  const { filters } = useFilter(); // Use the global filter state
+  const [sales, setSales] = useState(0);
+  const [comparisonSales, setComparisonSales] = useState(0); // For "vs yesterday", etc.
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!db || !userId) {
+    if (!db || !userId || !filters.startDate || !filters.endDate) {
       setLoading(false);
       return;
     }
-
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-
-    const yesterdayStart = new Date(todayStart);
-    yesterdayStart.setDate(todayStart.getDate() - 1);
+    setLoading(true);
 
     const salesCollection = collection(db, 'sales');
 
-    const baseQueryToday = [
-      where('createdAt', '>=', todayStart),
-    ];
-    const baseQueryYesterday = [
-      where('createdAt', '>=', yesterdayStart),
-      where('createdAt', '<', todayStart),
-    ];
+    // --- Main Date Range (from filter) ---
+    const startDate = new Date(filters.startDate);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(filters.endDate);
+    endDate.setHours(23, 59, 59, 999);
 
-    const fetchYesterdaySales = async () => {
-      const q = query(salesCollection, ...baseQueryYesterday);
-      try {
-        const querySnapshot = await getDocs(q);
-        let total = 0;
-        querySnapshot.forEach((doc) => {
-          total += doc.data().totalAmount || 0;
-        });
-        setYesterdaySales(total);
-      } catch (err) {
-        console.error("Error fetching yesterday's sales: ", err);
-        throw new Error("Failed to fetch yesterday's sales.");
-      }
-    };
+    // --- Comparison Date Range ---
+    const dateDiff = (endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24);
+    const comparisonStartDate = new Date(startDate);
+    comparisonStartDate.setDate(startDate.getDate() - (dateDiff + 1));
+    const comparisonEndDate = new Date(startDate);
+    comparisonEndDate.setDate(startDate.getDate() - 1);
+    comparisonEndDate.setHours(23, 59, 59, 999);
 
-    const qToday = query(salesCollection, ...baseQueryToday);
-    const unsubscribeToday = onSnapshot(
-      qToday,
-      (snapshot) => {
-        let total = 0;
-        snapshot.forEach((doc) => {
-          total += doc.data().totalAmount || 0;
-        });
-        setTodaySales(total);
-      },
-      (snapshotError: FirestoreError) => {
-        console.error("Error listening to today's sales: ", snapshotError);
-        setError(`Failed to listen to today's sales: ${snapshotError.message}`);
-      },
+
+    // Query for the main sales period
+    const qSales = query(
+      salesCollection,
+      where('createdAt', '>=', startDate),
+      where('createdAt', '<=', endDate)
     );
 
-    const runFetch = async () => {
-      try {
-        await fetchYesterdaySales();
-      } catch (e: unknown) {
-        if (e instanceof Error) {
-          setError(e.message);
-        } else {
-          setError('An unknown error occurred');
-        }
-      } finally {
-        setLoading(false);
-      }
+    // Query for the comparison sales period
+    const qComparison = query(
+      salesCollection,
+      where('createdAt', '>=', comparisonStartDate),
+      where('createdAt', '<=', comparisonEndDate)
+    );
+
+    const unsubscribeSales = onSnapshot(qSales, (snapshot) => {
+      let total = 0;
+      snapshot.forEach((doc) => total += doc.data().totalAmount || 0);
+      setSales(total);
+      setLoading(false);
+    }, (err: FirestoreError) => {
+      console.error("Sales snapshot error: ", err);
+      setError(`Failed to load sales data: ${err.message}`);
+      setLoading(false);
+    });
+
+    const unsubscribeComparison = onSnapshot(qComparison, (snapshot) => {
+      let total = 0;
+      snapshot.forEach((doc) => total += doc.data().totalAmount || 0);
+      setComparisonSales(total);
+    }, (err: FirestoreError) => {
+      console.error("Comparison sales snapshot error: ", err);
+      // Don't set a fatal error, just log it.
+    });
+
+    return () => {
+      unsubscribeSales();
+      unsubscribeComparison();
     };
+  }, [userId, filters]); // Re-run when the global filter changes
 
-    runFetch();
-
-    return () => unsubscribeToday();
-  }, [userId]);
-
-  return { todaySales, yesterdaySales, loading, error };
+  return { sales, comparisonSales, loading, error };
 };
-
-// FIX: Define props for the SalesCard component
 interface SalesCardProps {
   isDataVisible: boolean;
+
 }
 
-// --- The Sales Card Component ---
-// FIX: Update the component to accept the isDataVisible prop
 export const SalesCard: React.FC<SalesCardProps> = ({ isDataVisible }) => {
   const { currentUser } = useAuth();
-  const { todaySales, yesterdaySales, loading, error } = useSalesComparison(
+  const { sales, comparisonSales, loading, error } = useSalesComparison(
     currentUser?.uid,
   );
 
   const percentageChange = useMemo(() => {
     if (loading || error) return 0;
-    if (yesterdaySales === 0) {
-      return todaySales > 0 ? 100 : 0;
+    if (comparisonSales === 0) {
+      return sales > 0 ? 100 : 0;
     }
-    return ((todaySales - yesterdaySales) / yesterdaySales) * 100;
-  }, [todaySales, yesterdaySales, loading, error]);
+    return ((sales - comparisonSales) / comparisonSales) * 100;
+  }, [sales, comparisonSales, loading, error]);
 
   const isPositive = percentageChange >= 0;
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Today's Sales</CardTitle>
+        <CardTitle>Total Sales</CardTitle>
       </CardHeader>
       <CardContent>
         {loading ? (
@@ -132,22 +118,13 @@ export const SalesCard: React.FC<SalesCardProps> = ({ isDataVisible }) => {
         ) : (
           <div className="text-center">
             <p className="text-4xl font-bold text-blue-600">
-              {/* FIX: Conditionally render the sales total */}
-              {isDataVisible ? `₹${todaySales.toLocaleString('en-IN')}` : '₹ ******'}
+              {isDataVisible ? `₹${sales.toLocaleString('en-IN')}` : '₹ ******'}
             </p>
             <p className="text-md text-gray-500 mt-2">
-              <span
-                className={`font-bold ${
-                  // FIX: Use a neutral color when data is hidden
-                  isDataVisible
-                    ? isPositive ? 'text-green-600' : 'text-red-600'
-                    : 'text-gray-500'
-                  }`}
-              >
-                {/* FIX: Conditionally render the percentage change */}
+              <span className={`font-bold ${isDataVisible ? (isPositive ? 'text-green-600' : 'text-red-600') : 'text-gray-500'}`}>
                 {isDataVisible ? `${percentageChange.toFixed(1)}%` : '**.*%'}
               </span>{' '}
-              from yesterday
+              vs. previous period
             </p>
           </div>
         )}
