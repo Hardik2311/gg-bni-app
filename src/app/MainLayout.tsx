@@ -79,12 +79,12 @@ const MainLayout = () => {
       </FloatingButton>
 
       <nav className="fixed bottom-0 left-0 w-full border-t border-slate-200 bg-white">
-        <div className="flex justify-around items-center px-4 pt-2 pb-3">
+        <div className="flex justify-around items-center gap-4 px-4 pt-2 pb-3">
           {navItems.map(({ to, icon, label }) => (
             <Link
               key={to}
               to={to}
-              className={`flex-1 flex flex-row items-center justify-center gap-1 py-2 rounded-lg text-sm transition-colors duration-200 ${location.pathname === to ? 'bg-sky-100 text-sky-600' : 'text-gray-500 hover:bg-gray-100'}`}
+              className={`flex-1 flex flex-row items-center justify-center gap-1 py-2 rounded-lg text-sm transition-colors border border-[rgba(0,0,0,0.15)] duration-200 ${location.pathname === to ? 'bg-sky-500 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
             >
               <div>{icon}</div>
               <span className="font-medium">{label}</span>

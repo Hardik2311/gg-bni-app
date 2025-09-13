@@ -125,7 +125,7 @@ const Sales: React.FC = () => {
 
   const handleDiscountClick = () => {
     if (isDiscountLocked) {
-      setDiscountInfo("Press and hold to edit the discount.");
+      setDiscountInfo("Cannot edit the discount.");
       setTimeout(() => setDiscountInfo(null), 3000);
     }
   };

@@ -39,10 +39,10 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
     useEffect(() => {
         if (isOpen) {
             const initialDiscount = 0;
-            const newFinalAmount = subtotal - initialDiscount;
+
 
             setDiscount(initialDiscount);
-            setSelectedPayments({ cash: subtotal > 0 ? newFinalAmount : 0 });
+            setSelectedPayments({});
             setPartyName('Cash'); // Reset party name to 'Cash' on open
             setPartyNumber('');
             setIsDiscountLocked(true); // Always re-lock discount when opening

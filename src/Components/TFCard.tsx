@@ -1,16 +1,21 @@
 import React, { useState, useEffect } from 'react';
-// Import your Auth context hook
 import { useAuth } from '../context/auth-context';
-// Import the db instance from your central firebase config file
 import { db } from '../lib/firebase';
 import {
   collection,
   query,
-  where,
   onSnapshot,
   Timestamp,
 } from 'firebase/firestore';
 import { Spinner } from '../constants/Spinner';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from './ui/card';
+import { where } from 'firebase/firestore';
+import { useFilter } from './Filter';
 
 // --- Data Types ---
 interface SalesItem {
@@ -28,115 +33,75 @@ interface AggregatedItem {
   totalQuantity: number;
 }
 
-// --- Custom Hook to Fetch and Process Top Sold Items ---
 const useTopSoldItems = (userId?: string) => {
+  const { filters } = useFilter(); // ✅ Use the global filter
   const [topItems, setTopItems] = useState<AggregatedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!userId) {
+    if (!userId || !filters.startDate || !filters.endDate) {
       setLoading(false);
       return;
     }
+    setLoading(true);
 
+    const start = new Date(filters.startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(filters.endDate);
+    end.setHours(23, 59, 59, 999);
+
+    // ✅ Query now includes the date range from the filter
     const salesQuery = query(
       collection(db, 'sales'),
-      where('userId', '==', userId),
+      where('createdAt', '>=', start),
+      where('createdAt', '<=', end)
     );
 
-    const unsubscribe = onSnapshot(
-      salesQuery,
-      (snapshot) => {
-        const itemMap = new Map<string, number>();
+    const unsubscribe = onSnapshot(salesQuery, (snapshot) => {
+      const itemMap = new Map<string, number>();
+      snapshot.docs.forEach((doc) => {
+        const sale = doc.data() as SaleDoc;
+        if (sale.items && Array.isArray(sale.items)) {
+          sale.items.forEach((item) => {
+            const currentQuantity = itemMap.get(item.name) || 0;
+            itemMap.set(item.name, currentQuantity + (item.quantity || 0));
+          });
+        }
+      });
 
-        snapshot.docs.forEach((doc) => {
-          const sale = doc.data() as SaleDoc;
-          if (sale.items && Array.isArray(sale.items)) {
-            sale.items.forEach((item) => {
-              const currentQuantity = itemMap.get(item.name) || 0;
-              itemMap.set(item.name, currentQuantity + item.quantity);
-            });
-          }
-        });
+      const aggregatedList: AggregatedItem[] = Array.from(itemMap.entries())
+        .map(([name, totalQuantity]) => ({ name, totalQuantity }));
 
-        const aggregatedList: AggregatedItem[] = Array.from(
-          itemMap.entries(),
-        ).map(([name, totalQuantity]) => ({
-          name,
-          totalQuantity,
-        }));
-
-        aggregatedList.sort((a, b) => b.totalQuantity - a.totalQuantity);
-        setTopItems(aggregatedList.slice(0, 5));
-        setLoading(false);
-      },
-      (err) => {
-        console.error('Error fetching sales for top items:', err);
-        setError('Failed to load top sold items.');
-        setLoading(false);
-      },
-    );
+      aggregatedList.sort((a, b) => b.totalQuantity - a.totalQuantity);
+      setTopItems(aggregatedList.slice(0, 5));
+      setLoading(false);
+    }, (err: Error) => {
+      console.error('Error fetching sales for top items:', err);
+      setError(`Failed to load top items: ${err.message}`);
+      setLoading(false);
+    });
 
     return () => unsubscribe();
-  }, [userId]);
+  }, [userId, filters]); // ✅ Re-run when the global filter changes
 
   return { topItems, loading, error };
 };
 
-// --- Mock Card Components for self-contained example ---
-const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({
-  children,
-  className,
-}) => (
-  <div className={`bg-white rounded-xl shadow-md ${className}`}>{children}</div>
-);
-const CardHeader: React.FC<{ children: React.ReactNode; className?: string }> = ({
-  children,
-  className,
-}) => (
-  <div className={`p-6 border-b border-gray-200 ${className}`}>{children}</div>
-);
-const CardTitle: React.FC<{ children: React.ReactNode; className?: string }> = ({
-  children,
-  className,
-}) => (
-  <h3 className={`text-lg font-semibold text-gray-800 ${className}`}>
-    {children}
-  </h3>
-);
-const CardContent: React.FC<{ children: React.ReactNode; className?: string }> = ({
-  children,
-  className,
-}) => (
-  <div className={`p-6 ${className}`}>{children}</div>
-);
 
-// FIX: Define props for the component
+// --- 4. Main Top Sold Items Card Component ---
 interface TopSoldItemsCardProps {
   isDataVisible: boolean;
 }
 
-// --- Main Top Sold Items Card Component ---
-export const TopSoldItemsCard: React.FC<TopSoldItemsCardProps> = ({
-  isDataVisible,
-}) => {
-  const { currentUser, loading: authLoading } = useAuth();
-  const {
-    topItems,
-    loading: dataLoading,
-    error,
-  } = useTopSoldItems(currentUser?.uid);
+export const TopSoldItemsCard: React.FC<TopSoldItemsCardProps> = ({ isDataVisible }) => {
+  const { currentUser } = useAuth();
+  const { topItems, loading, error } = useTopSoldItems(currentUser?.uid);
 
   const renderContent = () => {
-    if (authLoading || dataLoading) {
-      return <Spinner />;
-    }
-    if (error) {
-      return <p className="text-center text-red-500">{error}</p>;
-    }
+    if (loading) return <Spinner />;
+    if (error) return <p className="text-center text-red-500">{error}</p>;
 
-    // FIX: Check if data should be hidden
     if (!isDataVisible) {
       return (
         <div className="flex flex-col items-center justify-center text-center text-gray-500 py-4">
@@ -147,11 +112,7 @@ export const TopSoldItemsCard: React.FC<TopSoldItemsCardProps> = ({
     }
 
     if (topItems.length === 0) {
-      return (
-        <p className="text-center text-gray-500">
-          No sales data available to determine top items.
-        </p>
-      );
+      return <p className="text-center text-gray-500">No sales data for this period.</p>;
     }
 
     return (
@@ -159,14 +120,11 @@ export const TopSoldItemsCard: React.FC<TopSoldItemsCardProps> = ({
         {topItems.map((item, index) => (
           <li key={item.name} className="flex items-center justify-between">
             <div className="flex items-center">
-              <span className="text-sm font-bold text-blue-600 bg-blue-100 rounded-full h-6 w-6 flex items-center justify-center mr-3">
-                {index + 1}
-              </span>
+              <span className="text-sm font-bold text-blue-600 bg-blue-100 rounded-full h-6 w-6 flex items-center justify-center mr-3">{index + 1}</span>
               <span className="font-medium text-gray-700">{item.name}</span>
             </div>
             <span className="font-semibold text-gray-800">
-              {item.totalQuantity}{' '}
-              <span className="text-sm font-normal text-gray-500">sold</span>
+              {item.totalQuantity} <span className="text-sm font-normal text-gray-500">sold</span>
             </span>
           </li>
         ))}
@@ -183,4 +141,6 @@ export const TopSoldItemsCard: React.FC<TopSoldItemsCardProps> = ({
     </Card>
   );
 };
+
+
 export default TopSoldItemsCard;

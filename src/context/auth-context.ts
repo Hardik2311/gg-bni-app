@@ -4,17 +4,16 @@ import { Permissions } from '../enums';
 
 // Define the shape of your AuthContext
 export interface AuthContextType {
-  currentUser: User | null;
+  currentUser: User;
   loading: boolean;
   hasPermission: (permission: Permissions) => boolean;
 }
 
-// Create the context
 export const AuthContext = createContext<AuthContextType | undefined>(
   undefined,
 );
 
-// Custom hook to use the AuthContext
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {

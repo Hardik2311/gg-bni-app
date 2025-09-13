@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
+import { useAuth } from '../context/auth-context';
 import { collection, query, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { Spinner } from '../constants/Spinner';
+import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
+import { useFilter } from './Filter';
+import { where } from 'firebase/firestore';
 
 // --- Data Types ---
 interface SaleDoc {
@@ -12,112 +16,102 @@ interface TopSalesperson {
   billCount: number;
 }
 
-// --- Custom Hook to Fetch and Process Top Salesperson ---
-const useTopSalesperson = () => {
-  const [topSalesperson, setTopSalesperson] = useState<TopSalesperson | null>(null);
+const useTopSalespeople = (userId?: string) => {
+  const { filters } = useFilter();
+  const [topSalespeople, setTopSalespeople] = useState<TopSalesperson[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const salesQuery = query(collection(db, 'sales'));
+    if (!userId || !filters.startDate || !filters.endDate) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
 
-    const unsubscribe = onSnapshot(
-      salesQuery,
-      async (snapshot) => {
-        if (snapshot.empty) {
-          setTopSalesperson(null);
-          setLoading(false);
-          return;
-        }
+    const start = new Date(filters.startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(filters.endDate);
+    end.setHours(23, 59, 59, 999);
 
-        const billCounts = new Map<string, number>();
-        snapshot.docs.forEach((doc) => {
-          const sale = doc.data() as SaleDoc;
-          if (sale.userId) {
-            const currentCount = billCounts.get(sale.userId) || 0;
-            billCounts.set(sale.userId, currentCount + 1);
-          }
-        });
-
-        if (billCounts.size === 0) {
-          setTopSalesperson(null);
-          setLoading(false);
-          return;
-        }
-
-        const topUserEntry = [...billCounts.entries()].reduce((a, b) =>
-          b[1] > a[1] ? b : a,
-        );
-        const [topUserId, billCount] = topUserEntry;
-
-        try {
-          const userDocRef = doc(db, 'users', topUserId);
-          const userDocSnap = await getDoc(userDocRef);
-
-          if (userDocSnap.exists()) {
-            const userData = userDocSnap.data();
-            setTopSalesperson({
-              name: userData.name || userData.displayName || 'Unknown User',
-              billCount: billCount,
-            });
-          } else {
-            setTopSalesperson({
-              name: 'Unknown User',
-              billCount: billCount,
-            });
-          }
-        } catch (err) {
-          console.error('Error fetching user profile:', err);
-          setError("Failed to fetch top salesperson's name.");
-        } finally {
-          setLoading(false);
-        }
-      },
-      (err) => {
-        console.error('Error fetching sales for top salesperson:', err);
-        setError('Failed to load sales data.');
-        setLoading(false);
-      },
+    const salesQuery = query(
+      collection(db, 'sales'),
+      where('createdAt', '>=', start),
+      where('createdAt', '<=', end)
     );
 
-    return () => unsubscribe();
-  }, []);
+    const unsubscribe = onSnapshot(salesQuery, async (snapshot) => {
+      if (snapshot.empty) {
+        setTopSalespeople([]);
+        setLoading(false);
+        return;
+      }
 
-  return { topSalesperson, loading, error };
+      const billCounts = new Map<string, number>();
+      snapshot.docs.forEach((doc) => {
+        const sale = doc.data() as SaleDoc;
+        if (sale.userId) {
+          const currentCount = billCounts.get(sale.userId) || 0;
+          billCounts.set(sale.userId, currentCount + 1);
+        }
+      });
+
+      if (billCounts.size === 0) {
+        setTopSalespeople([]);
+        setLoading(false);
+        return;
+      }
+
+      // Sort by bill count and take the top 5
+      const topUsers = Array.from(billCounts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
+
+      try {
+        // Fetch user profiles for the top 5
+        const topSalespeopleData = await Promise.all(
+          topUsers.map(async ([userId, billCount]) => {
+            const userDocRef = doc(db, 'users', userId);
+            const userDocSnap = await getDoc(userDocRef);
+            const name = userDocSnap.exists()
+              ? userDocSnap.data().name || userDocSnap.data().displayName || 'Unknown User'
+              : 'Unknown User';
+            return { name, billCount };
+          })
+        );
+        setTopSalespeople(topSalespeopleData);
+      } catch (err) {
+        console.error('Error fetching user profiles:', err);
+        setError("Failed to fetch salesperson names.");
+      } finally {
+        setLoading(false);
+      }
+    }, (err: Error) => {
+      console.error('Error fetching sales for top salespeople:', err);
+      setError(`Failed to load sales data: ${err.message}`);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [userId, filters]);
+
+  return { topSalespeople, loading, error };
 };
 
-// --- Mock Card Components ---
-const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
-  <div className={`bg-white rounded-xl shadow-md ${className}`}>{children}</div>
-);
-const CardHeader: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
-  <div className={`p-6 border-b border-gray-200 ${className}`}>{children}</div>
-);
-const CardTitle: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
-  <h3 className={`text-lg font-semibold text-gray-800 ${className}`}>{children}</h3>
-);
-const CardContent: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
-  <div className={`p-6 ${className}`}>{children}</div>
-);
 
-// FIX: Define props for the component
+// --- 4. Main Top Salesperson Card Component ---
 interface TopSalespersonCardProps {
   isDataVisible: boolean;
 }
 
-// --- Main Top Salesperson Card Component ---
 export const TopSalespersonCard: React.FC<TopSalespersonCardProps> = ({ isDataVisible }) => {
-  const { topSalesperson, loading, error } = useTopSalesperson();
+  const { currentUser } = useAuth();
+  const { topSalespeople, loading, error } = useTopSalespeople(currentUser?.uid);
 
   const renderContent = () => {
-    if (loading) {
-      return <Spinner />;
-    }
-    if (error) {
-      return <p className="text-center text-red-500">{error}</p>;
-    }
+    if (loading) return <Spinner />;
+    if (error) return <p className="text-center text-red-500">{error}</p>;
 
-    // FIX: Check if data should be hidden
     if (!isDataVisible) {
       return (
         <div className="flex flex-col items-center justify-center text-center text-gray-500 py-8">
@@ -127,32 +121,33 @@ export const TopSalespersonCard: React.FC<TopSalespersonCardProps> = ({ isDataVi
       );
     }
 
-    if (!topSalesperson) {
-      return (
-        <p className="text-center text-gray-500">No sales data available.</p>
-      );
+    if (topSalespeople.length === 0) {
+      return <p className="text-center text-gray-500">No sales data for this period.</p>;
     }
 
     return (
-      <div className="text-center">
-        <p className="text-4xl font-bold text-blue-600 truncate">
-          {topSalesperson.name}
-        </p>
-        <p className="text-md text-gray-500 mt-2">
-          with{' '}
-          <span className="font-bold text-gray-700">
-            {topSalesperson.billCount}
-          </span>{' '}
-          sales
-        </p>
-      </div>
+      <ul className="space-y-4">
+        {topSalespeople.map((person, index) => (
+          <li key={person.name + index} className="flex items-center justify-between">
+            <div className="flex items-center">
+              <span className="text-sm font-bold text-blue-600 bg-blue-100 rounded-full h-6 w-6 flex items-center justify-center mr-3">
+                {index + 1}
+              </span>
+              <span className="font-medium text-gray-700 truncate">{person.name}</span>
+            </div>
+            <span className="font-semibold text-gray-800">
+              {person.billCount} <span className="text-sm font-normal text-gray-500">sales</span>
+            </span>
+          </li>
+        ))}
+      </ul>
     );
   };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Top Salesperson</CardTitle>
+        <CardTitle>Top 5 Salespeople</CardTitle>
       </CardHeader>
       <CardContent>{renderContent()}</CardContent>
     </Card>
