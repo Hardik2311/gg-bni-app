@@ -4,7 +4,7 @@ import MainLayout from '../app/MainLayout';
 import { ROUTES } from '../constants/routes.constants';
 import { AuthProvider } from '../context/Authcontext'; // Import AuthProvider
 // import ProtectedRoute from '../constants/ProtectedRoutes';
-import PermissionWrapper from '../context/PermissionWrapper';
+import PermissionWrapper, { PublicRoute } from '../context/PermissionWrapper';
 import { Permissions } from '../enums';
 
 import Loading from '../Pages/Loading/Loading';
@@ -220,15 +220,21 @@ const router = createBrowserRouter([
   },
   {
     path: ROUTES.LANDING,
-    element: <Landing />,
+    element: (
+      <>
+        <PublicRoute />
+        <Landing />
+      </>
+    ),
   },
   {
     path: ROUTES.SIGNUP,
-    element: <Signup />,
+    element:
+      <><PublicRoute /><Signup /></>,
   },
   {
     path: ROUTES.BUSINESS_INFO,
-    element: <BusInfo />,
+    element: <><PublicRoute /><BusInfo /></>,
   },
   {
     path: ROUTES.BUSINESS_ADDRESS,
@@ -236,7 +242,7 @@ const router = createBrowserRouter([
   },
   {
     path: ROUTES.LOGIN,
-    element: <Login />,
+    element: <><PublicRoute /><Login /></>,
   },
 ]);
 const AppRouter: React.FC = () => {
