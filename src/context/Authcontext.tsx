@@ -1,78 +1,86 @@
 import React, { useEffect, useState, type ReactNode } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-// Assuming your path aliases are set up in tsconfig.json
 import { auth, db } from '../lib/firebase';
-import { AuthContext, type AuthContextType } from '../context/auth-context';
+import { AuthContext, type AuthContextType } from './auth-context';
 import { Permissions } from '../enums';
 import type { User } from '../Role/permission';
+import Loading from '../Pages/Loading/Loading'; // Import your loading component
 
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({
-  children,
-}) => {
-  // This state holds your custom User object, which includes the 'role'
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  // This state holds the permissions array fetched from Firestore
-  const [userPermissions, setUserPermissions] = useState<Permissions[]>([]);
+interface AuthState {
+  status: 'pending' | 'authenticated' | 'unauthenticated';
+  user: User | null;
+}
+
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  // Use a single state object to manage the entire authentication flow
+  const [authState, setAuthState] = useState<AuthState>({
+    status: 'pending',
+    user: null,
+  });
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        // 1. Fetch the user's role from the 'users' collection
-        const userDocRef = doc(db, 'users', firebaseUser.uid);
-        const userDoc = await getDoc(userDocRef);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+      try {
+        if (firebaseUser) {
+          const userDocRef = doc(db, 'users', firebaseUser.uid);
+          const userDoc = await getDoc(userDocRef);
 
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          // Create our custom user object that matches the 'User' interface
-          const appUser: User = {
-            uid: firebaseUser.uid,
-            name: firebaseUser.displayName || 'No Name',
-            role: userData.role,
-            permissions: [], // This will be populated by the next step
-          };
-          setCurrentUser(appUser);
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            let permissions: Permissions[] = [];
 
-          // 2. Fetch the permissions for that role
-          if (userData.role) {
-            const permissionDocRef = doc(db, 'permissions', userData.role);
-            const permissionDoc = await getDoc(permissionDocRef);
-            if (permissionDoc.exists()) {
-              setUserPermissions(permissionDoc.data().allowedPermissions);
+            if (userData.role) {
+              const permissionDocRef = doc(db, 'permissions', userData.role);
+              const permissionDoc = await getDoc(permissionDocRef);
+              if (permissionDoc.exists()) {
+                permissions = permissionDoc.data().allowedPermissions || [];
+              }
             }
+
+            const appUser: User = {
+              uid: firebaseUser.uid,
+              name: firebaseUser.displayName || userData.name || 'Anonymous',
+              role: userData.role,
+              permissions: permissions,
+            };
+            // Make a single, atomic state update for an authenticated user.
+            setAuthState({ status: 'authenticated', user: appUser });
+          } else {
+            // User exists in Auth, but not in our database. Treat as unauthenticated.
+            setAuthState({ status: 'unauthenticated', user: null });
           }
         } else {
-          // If no user document, treat as logged out
-          setCurrentUser(null);
-          setUserPermissions([]);
+          // No user is signed in. Treat as unauthenticated.
+          setAuthState({ status: 'unauthenticated', user: null });
         }
-      } else {
-        // User is signed out
-        setCurrentUser(null);
-        setUserPermissions([]);
+      } catch (error) {
+        console.error("Error during authentication check:", error);
+        // On any error, treat as unauthenticated.
+        setAuthState({ status: 'unauthenticated', user: null });
       }
-      setLoading(false);
     });
-    return unsubscribe;
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
   }, []);
 
-  // 3. Implement the real 'hasPermission' function
-  const hasPermission = (permissionToCheck: Permissions): boolean => {
-    // Check if the permission exists in the user's fetched permissions array
-    return userPermissions.includes(permissionToCheck);
+  // The context value is now derived from the single source of truth: authState.
+  const value: AuthContextType = {
+    currentUser: authState.user,
+    loading: authState.status === 'pending',
+    hasPermission: (permission: Permissions) => authState.user?.permissions?.includes(permission) ?? false,
   };
 
-  // 4. Create the value object that now correctly matches the AuthContextType
-  const value = {
-    currentUser,
-    loading,
-    hasPermission,
-  } as unknown as AuthContextType;
+  // The "gate" now checks the 'pending' status. The router and the rest of the app
+  // will not be rendered until this status changes.
+  if (authState.status === 'pending') {
+    return <Loading />;
+  }
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };

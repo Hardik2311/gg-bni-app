@@ -4,7 +4,7 @@ import { Permissions } from '../enums';
 
 // Define the shape of your AuthContext
 export interface AuthContextType {
-  currentUser: User;
+  currentUser: User | null;
   loading: boolean;
   hasPermission: (permission: Permissions) => boolean;
 }

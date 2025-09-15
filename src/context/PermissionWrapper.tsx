@@ -1,9 +1,8 @@
 import React from 'react';
-import { useAuth } from '../context/auth-context'; // Or your new hook path
-import Loading from '../Pages/Loading/Loading';
+import { useAuth } from '../context/auth-context';
 import AccessDeniedPage from '../Pages/Unauthorized';
 import { Permissions } from '../enums';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Outlet } from 'react-router-dom';
 import { ROUTES } from '../constants/routes.constants';
 
 interface WrapperProps {
@@ -13,19 +12,32 @@ interface WrapperProps {
 }
 
 const PermissionWrapper = ({ children, requiredPermission, behavior = 'showPage' }: WrapperProps) => {
-    const { currentUser, loading, hasPermission } = useAuth();
-    let redirectPath = ROUTES.LANDING;
+    // FIX: The 'loading' state is no longer needed here.
+    const { currentUser, hasPermission } = useAuth();
+    const redirectPath = ROUTES.LANDING;
 
-    if (loading) {
-        return <Loading />;
-    }
+
     if (!currentUser) {
         return <Navigate to={redirectPath} replace />;
     }
-    else if (!hasPermission(requiredPermission)) {
+
+    if (!hasPermission(requiredPermission)) {
         return behavior === 'showPage' ? <AccessDeniedPage /> : null;
-    };
+    }
 
     return <>{children}</>;
 }
+
 export default PermissionWrapper;
+
+export const PublicRoute: React.FC = () => {
+    const { currentUser } = useAuth();
+    const redirectPath = ROUTES.HOME;
+
+    if (currentUser) {
+
+        return <Navigate to={redirectPath} replace />;
+    }
+
+    return <Outlet />; // Renders the child route (e.g., Login page)
+};
