@@ -10,7 +10,8 @@ import BarcodeScanner from '../../UseComponents/BarcodeScanner';
 import PaymentDrawer, { type PaymentCompletionData } from '../../Components/PaymentDrawer';
 import { generateNextInvoiceNumber } from '../../UseComponents/InvoiceCounter';
 import { Modal } from '../../constants/Modal';
-import { State } from '../../enums';
+import { State, Variant } from '../../enums';
+import { CustomButton } from '../../Components';
 
 // --- Main Sales Page Component ---
 const Sales: React.FC = () => {
@@ -211,9 +212,10 @@ const Sales: React.FC = () => {
           <label className="block text-gray-700 text-sm font-medium mb-1">Search or Scan Barcode</label>
           <div className="flex gap-2">
             <input type="text" value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setIsDropdownOpen(true); }} onFocus={() => setIsDropdownOpen(true)} placeholder="Search for an item by name or barcode..." className="flex-grow w-full p-3 border border-gray-300 rounded-md focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-200" autoComplete="off" />
-            <button onClick={() => setIsScannerOpen(true)} className="bg-gray-700 text-white p-3 rounded-md font-semibold transition hover:bg-gray-800" title="Scan Barcode">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>            </button>
-            <button onClick={handleAddItemToCart} className="bg-blue-600 text-white py-3 px-5 rounded-md font-semibold hover:bg-blue-700 disabled:bg-blue-300" disabled={!selectedItem}>Add</button>
+            <CustomButton onClick={() => setIsScannerOpen(true)} variant={Variant.Filled} className='flex-shrink-0' title="Scan Barcode">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>
+            </CustomButton>
+            <CustomButton onClick={handleAddItemToCart} variant={Variant.Filled} className="flex-shrink-0" disabled={!selectedItem}>Add</CustomButton>
           </div>
           {isDropdownOpen && searchQuery && (
             <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-52 overflow-y-auto">
@@ -279,9 +281,9 @@ const Sales: React.FC = () => {
           <p className="text-lg font-medium">Total Amount</p>
           <p className="text-2xl font-bold">₹{finalAmount.toFixed(2)}</p>
         </div>
-        <button onClick={handleProceedToPayment} className="w-full bg-green-600 text-white p-3 rounded-lg text-lg font-semibold shadow-md hover:bg-green-700 disabled:opacity-50" disabled={items.length === 0}>
+        <CustomButton onClick={handleProceedToPayment} variant={Variant.Filled} className="w-full py-4 text-xl font-semibold">
           Proceed to Payment
-        </button>
+        </CustomButton>
       </div>
       <PaymentDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} subtotal={finalAmount} onPaymentComplete={handleSavePayment} />
     </div>

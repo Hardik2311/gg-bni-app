@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
 import { useFilter } from './Filter';
 import { where } from 'firebase/firestore';
 
-// --- Data Types ---
+
 interface SaleDoc {
   userId: string;
 }
@@ -37,7 +37,8 @@ const useTopSalespeople = (userId?: string) => {
     const salesQuery = query(
       collection(db, 'sales'),
       where('createdAt', '>=', start),
-      where('createdAt', '<=', end)
+      where('createdAt', '<=', end),
+      where('userRole', '==', 'salesman')
     );
 
     const unsubscribe = onSnapshot(salesQuery, async (snapshot) => {
@@ -62,13 +63,11 @@ const useTopSalespeople = (userId?: string) => {
         return;
       }
 
-      // Sort by bill count and take the top 5
       const topUsers = Array.from(billCounts.entries())
         .sort((a, b) => b[1] - a[1])
         .slice(0, 5);
 
       try {
-        // Fetch user profiles for the top 5
         const topSalespeopleData = await Promise.all(
           topUsers.map(async ([userId, billCount]) => {
             const userDocRef = doc(db, 'users', userId);
@@ -99,7 +98,6 @@ const useTopSalespeople = (userId?: string) => {
 };
 
 
-// --- 4. Main Top Salesperson Card Component ---
 interface TopSalespersonCardProps {
   isDataVisible: boolean;
 }

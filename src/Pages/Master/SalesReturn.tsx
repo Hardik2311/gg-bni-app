@@ -17,7 +17,8 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { getItems } from '../../lib/items_firebase';
 import type { Item, SalesItem as OriginalSalesItem } from '../../constants/models';
 import { Modal } from '../../constants/Modal';
-import { State } from '../../enums';
+import { State, Variant } from '../../enums';
+import { CustomButton } from '../../Components';
 
 
 // --- Interface Definitions ---
@@ -316,9 +317,6 @@ const SalesReturnPage: React.FC = () => {
                 className="flex-grow p-3 border rounded-lg"
                 autoComplete="off"
               />
-              <button onClick={() => setIsSaleScannerOpen(true)} className="p-3 bg-gray-700 text-white rounded-lg" title="Scan Sale ID Barcode">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>
-              </button>
             </div>
             {isSalesDropdownOpen && (
               <div className="absolute top-full w-full z-20 mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-y-auto">
@@ -347,6 +345,7 @@ const SalesReturnPage: React.FC = () => {
               <select id="mode-of-return" value={modeOfReturn} onChange={(e) => setModeOfReturn(e.target.value)} className="w-full p-2 border rounded bg-white">
                 <option>Cash Refund</option>
                 <option>Credit Note</option>
+                <option>Exchange</option>
               </select>
             </div>
           </div>
@@ -403,9 +402,9 @@ const SalesReturnPage: React.FC = () => {
       </div>
 
       <div className="sticky bottom-0 p-4 bg-white border-t">
-        <button onClick={handleSaveReturn} className="w-full max-w-xs mx-auto block py-3 bg-blue-600 text-white rounded-lg text-lg font-semibold">
+        <CustomButton onClick={handleSaveReturn} variant={Variant.Filled} className="w-full py-4 text-xl font-semibold">
           Save Return
-        </button>
+        </CustomButton>
       </div>
     </div>
   );
