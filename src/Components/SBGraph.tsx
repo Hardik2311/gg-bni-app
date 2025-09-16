@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../context/auth-context';
 import { db } from '../lib/firebase';
 import {
   collection,
@@ -9,6 +8,7 @@ import {
   Timestamp,
   orderBy,
 } from 'firebase/firestore';
+import { useAuth } from '../context/auth-context';
 import { Line, LineChart, CartesianGrid, LabelList, XAxis } from 'recharts';
 import {
   Card,
@@ -22,7 +22,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from './ui/chart';
 import type { ChartConfig } from './ui/chart';
 import { useFilter } from './Filter';
 
-// --- Type Definitions ---
+
 interface SaleRecord {
   totalAmount: number;
   createdAt: { toDate: () => Date };
@@ -44,7 +44,7 @@ interface SalesBarChartReportProps {
 
 export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps) {
   const { currentUser } = useAuth();
-  const { filters } = useFilter(); // ✅ Use the global filter
+  const { filters } = useFilter();
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +64,6 @@ export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps)
       setIsLoading(true);
       setError(null);
 
-      // ✅ Use dates from the global filter
       const start = new Date(filters.startDate);
       start.setHours(0, 0, 0, 0);
       const end = new Date(filters.endDate);
@@ -86,19 +85,30 @@ export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps)
         querySnapshot.forEach((doc) => {
           fetchedSales.push(doc.data() as SaleRecord);
         });
+
         const salesByDate: { [key: string]: number } = {};
+        const currentDate = new Date(start);
+        while (currentDate <= end) {
+          const dateKey = currentDate.toLocaleDateString('en-CA'); // YYYY-MM-DD format
+          salesByDate[dateKey] = 0;
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+
         fetchedSales.forEach((sale) => {
-          const date = sale.createdAt.toDate().toLocaleDateString('en-CA'); // Use YYYY-MM-DD for sorting
-          if (!salesByDate[date]) {
-            salesByDate[date] = 0;
+          const date = sale.createdAt.toDate().toLocaleDateString('en-CA');
+          if (salesByDate.hasOwnProperty(date)) {
+            salesByDate[date] += sale.totalAmount;
           }
-          salesByDate[date] += sale.totalAmount;
         });
+
         const newChartData: ChartData[] = Object.keys(salesByDate).map((date) => ({
           date,
           sales: salesByDate[date],
         }));
+
+
         newChartData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
         setChartData(newChartData);
       } catch (err) {
         console.error('Error fetching sales data:', err);
@@ -108,15 +118,13 @@ export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps)
       }
     };
     fetchSalesData();
-  }, [currentUser, filters]); // ✅ Re-run when the global filter changes
+  }, [currentUser, filters]);
 
-  // ... (rest of the component's JSX remains the same)
   return (
     <Card>
       <CardHeader className="pb-4">
         <CardTitle>Daily Sales Chart</CardTitle>
         <CardDescription>Sales amount for the selected period</CardDescription>
-        {/* ❌ The local filter buttons are removed from here */}
       </CardHeader>
       <CardContent>
         {isLoading ? <div className="flex h-[250px] items-center justify-center"><p>Loading Chart...</p></div> :

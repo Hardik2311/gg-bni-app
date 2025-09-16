@@ -84,7 +84,7 @@ const MainLayout = () => {
             <Link
               key={to}
               to={to}
-              className={`flex-1 flex flex-row items-center justify-center gap-1 py-2 rounded-lg text-sm transition-colors border border-[rgba(0,0,0,0.15)] duration-200 ${location.pathname === to ? 'bg-sky-500 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+              className={`flex-1 flex flex-row items-center justify-center gap-1 py-2 rounded-lg text-sm transition-colors border border-[rgba(0,0,0,0.15)] duration-200 ${location.pathname === to ? 'bg-sky-500 text-white' : 'text-black-500 hover:bg-gray-100'}`}
             >
               <div>{icon}</div>
               <span className="font-medium">{label}</span>

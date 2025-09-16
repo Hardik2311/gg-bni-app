@@ -23,16 +23,16 @@ const Reports = () => {
         {isDefaultReportsView ? (
           <>
             {/* Display list of master options if no specific sub-page is selected */}
-            <Link to={ROUTES.ITEM_REPORT} className="master-option-link">
-              <span className="master-option-text">Item Report </span>
-              <span className="master-option-arrow">→</span>
-            </Link>
             <Link to={ROUTES.SALES_REPORT} className="master-option-link">
               <span className="master-option-text">Sales Report </span>
               <span className="master-option-arrow">→</span>
             </Link>
             <Link to={ROUTES.PURCHASE_REPORT} className="master-option-link">
               <span className="master-option-text">Purchase Report </span>
+              <span className="master-option-arrow">→</span>
+            </Link>
+            <Link to={ROUTES.ITEM_REPORT} className="master-option-link">
+              <span className="master-option-text">Item Report </span>
               <span className="master-option-arrow">→</span>
             </Link>
             <Link to={ROUTES.PNL_REPORT} className="master-option-link">

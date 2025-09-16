@@ -44,12 +44,10 @@ const useUnpaidJournalData = (userId?: string) => {
         // FIX: Modified queries to only fetch documents where due amount > 0
         const salesQuery = query(
             collection(db, 'sales'),
-            where('userId', '==', userId),
             where('paymentMethods.due', '>', 0)
         );
         const purchasesQuery = query(
             collection(db, 'purchases'),
-            where('userId', '==', userId),
             where('paymentMethods.due', '>', 0)
         );
 

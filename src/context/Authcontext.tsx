@@ -5,7 +5,7 @@ import { auth, db } from '../lib/firebase';
 import { AuthContext, type AuthContextType } from './auth-context';
 import { Permissions } from '../enums';
 import type { User } from '../Role/permission';
-import Loading from '../Pages/Loading/Loading'; // Import your loading component
+import Loading from '../Pages/Loading/Loading';
 
 interface AuthState {
   status: 'pending' | 'authenticated' | 'unauthenticated';
@@ -13,7 +13,7 @@ interface AuthState {
 }
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // Use a single state object to manage the entire authentication flow
+
   const [authState, setAuthState] = useState<AuthState>({
     status: 'pending',
     user: null,
@@ -44,36 +44,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               role: userData.role,
               permissions: permissions,
             };
-            // Make a single, atomic state update for an authenticated user.
+
             setAuthState({ status: 'authenticated', user: appUser });
           } else {
-            // User exists in Auth, but not in our database. Treat as unauthenticated.
+
             setAuthState({ status: 'unauthenticated', user: null });
           }
         } else {
-          // No user is signed in. Treat as unauthenticated.
+
           setAuthState({ status: 'unauthenticated', user: null });
         }
       } catch (error) {
         console.error("Error during authentication check:", error);
-        // On any error, treat as unauthenticated.
+
         setAuthState({ status: 'unauthenticated', user: null });
       }
     });
 
-    // Cleanup subscription on unmount
     return () => unsubscribe();
   }, []);
 
-  // The context value is now derived from the single source of truth: authState.
   const value: AuthContextType = {
     currentUser: authState.user,
     loading: authState.status === 'pending',
     hasPermission: (permission: Permissions) => authState.user?.permissions?.includes(permission) ?? false,
   };
 
-  // The "gate" now checks the 'pending' status. The router and the rest of the app
-  // will not be rendered until this status changes.
   if (authState.status === 'pending') {
     return <Loading />;
   }
