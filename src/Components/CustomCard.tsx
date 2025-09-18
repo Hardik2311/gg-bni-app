@@ -2,7 +2,8 @@ import React from 'react';
 
 const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
 
-interface CustomCardProps {
+// MODIFIED: Extend React.HTMLAttributes<HTMLDivElement>
+interface CustomCardProps extends React.HTMLAttributes<HTMLDivElement> {
     children: React.ReactNode;
     className?: string;
 }

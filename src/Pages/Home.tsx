@@ -10,6 +10,7 @@ import { TopSalespersonCard } from '../Components/TSCard';
 import PermissionWrapper from '../context/PermissionWrapper';
 import { Permissions } from '../enums';
 import { FilterControls, FilterProvider } from '../Components/Filter';
+import { PaymentChart } from '../Components/PaymentChart';
 
 
 const useBusinessName = (userId?: string) => {
@@ -83,6 +84,9 @@ const Home = () => {
               </PermissionWrapper>
               <PermissionWrapper requiredPermission={Permissions.ViewSalesbarchart} behavior="hide">
                 <SalesBarChartReport isDataVisible={isDataVisible} />
+              </PermissionWrapper>
+              <PermissionWrapper requiredPermission={Permissions.ViewSalescard} behavior="hide">
+                <PaymentChart isDataVisible={isDataVisible} />
               </PermissionWrapper>
               <PermissionWrapper requiredPermission={Permissions.ViewTopSoldItems} behavior="hide">
                 <TopSoldItemsCard isDataVisible={isDataVisible} />

@@ -6,7 +6,6 @@ import {
   query,
   getDocs,
   Timestamp,
-  where,
 } from 'firebase/firestore';
 import { useAuth } from '../../context/auth-context';
 import { jsPDF } from 'jspdf';
@@ -221,7 +220,7 @@ const SalesReport: React.FC = () => {
     const fetchSales = async () => {
       setIsLoading(true);
       try {
-        const q = query(collection(db, 'sales'), where('userId', '==', currentUser.uid));
+        const q = query(collection(db, 'sales'));
         const querySnapshot = await getDocs(q);
         const fetchedSales: SaleRecord[] = querySnapshot.docs.map(doc => {
           const data = doc.data();

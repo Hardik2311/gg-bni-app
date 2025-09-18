@@ -121,7 +121,7 @@ export const TopSoldItemsCard: React.FC<TopSoldItemsCardProps> = ({ isDataVisibl
           <li key={item.name} className="flex items-center justify-between">
             <div className="flex items-center">
               <span className="text-sm font-bold text-blue-600 bg-blue-100 rounded-full h-6 w-6 flex items-center justify-center mr-3">{index + 1}</span>
-              <span className="font-medium text-gray-700">{item.name}</span>
+              <span className="font-medium text-gray-700">{item.name.slice(0, 18)}</span>
             </div>
             <span className="font-semibold text-gray-800">
               {item.totalQuantity} <span className="text-sm font-normal text-gray-500">sold</span>

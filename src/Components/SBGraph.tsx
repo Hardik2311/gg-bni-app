@@ -9,7 +9,7 @@ import {
   orderBy,
 } from 'firebase/firestore';
 import { useAuth } from '../context/auth-context';
-import { Line, LineChart, CartesianGrid, LabelList, XAxis } from 'recharts';
+import { Line, LineChart, CartesianGrid, XAxis } from 'recharts';
 import {
   Card,
   CardContent,
@@ -137,10 +137,7 @@ export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps)
                     tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}
                   />
                   <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
-                  <Line dataKey="sales" type="monotone" stroke="var(--color-sales)" strokeWidth={2} dot={{ r: 4 }}>
-                    <LabelList position="top" offset={12} className="fill-foreground" fontSize={12}
-                      formatter={(value: number) => `₹${value.toLocaleString()}`}
-                    />
+                  <Line dataKey="sales" type="monotone" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }}>
                   </Line>
                 </LineChart>
               </ChartContainer>
