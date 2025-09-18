@@ -9,19 +9,40 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 
+// --- Data Types ---
 interface Transaction {
   id: string;
+  partyName: string;
   invoiceNumber: string;
-  totalAmount: number;
+  totalAmount: number; // For sales, this is revenue. For purchases, it's cost.
   createdAt: Date;
+  costOfGoodsSold?: number;
 }
+
 interface TransactionDetail extends Transaction {
   type: 'Revenue' | 'Cost';
 }
 
+interface Item {
+  id: string;
+  purchasePrice: number;
+}
+
+// --- Helper Functions ---
 const formatDateForInput = (date: Date): string => {
   return date.toISOString().split('T')[0];
 };
+
+const formatDate = (date: Date): string => {
+  if (!date) return 'N/A';
+  return date.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+  });
+};
+
+// --- Reusable Components ---
 
 const SummaryCard: React.FC<{ title: string; value: string; valueClassName?: string }> =
   ({ title, value, valueClassName = 'text-gray-900' }) => (
@@ -49,6 +70,7 @@ const FilterSelect: React.FC<{
   </div>
 );
 
+// PnlListTable Component (MODIFIED for whole number rounding)
 const PnlListTable: React.FC<{
   transactions: TransactionDetail[];
   sortConfig: { key: keyof TransactionDetail; direction: 'asc' | 'desc' };
@@ -75,27 +97,35 @@ const PnlListTable: React.FC<{
         <table className="w-full text-sm text-left">
           <thead className="text-xs text-slate-500 bg-slate-100 sticky top-0">
             <tr>
-              <SortableHeader sortKey="invoiceNumber">Invoice No.</SortableHeader>
+              <SortableHeader sortKey="createdAt">Date</SortableHeader>
+              <SortableHeader sortKey="invoiceNumber">Invoice</SortableHeader>
               <SortableHeader sortKey="totalAmount" className="text-right">Sales</SortableHeader>
-              <SortableHeader sortKey="totalAmount" className="text-right">Purchases</SortableHeader>
-              <SortableHeader sortKey="totalAmount" className="text-right">Profit</SortableHeader>
+              <SortableHeader sortKey="costOfGoodsSold" className="text-right">Cost</SortableHeader>
+              <th className="py-3 px-4 text-right uppercase">Profit</th>
             </tr>
           </thead>
           <tbody className="divide-y">
-            {transactions.map(t => (
-              <tr key={t.id + t.type} className="hover:bg-slate-50">
-                <td className="py-3 px-4 font-medium">{t.invoiceNumber}</td>
-                <td className="py-3 px-4 text-green-600 text-right">
-                  {t.type === 'Revenue' ? `₹${t.totalAmount.toLocaleString('en-IN')}` : '-'}
-                </td>
-                <td className="py-3 px-4 text-red-600 text-right">
-                  {t.type === 'Cost' ? `₹${t.totalAmount.toLocaleString('en-IN')}` : '-'}
-                </td>
-                <td className={`py-3 px-4 text-right font-medium ${t.type === 'Revenue' ? 'text-green-600' : 'text-red-600'}`}>
-                  {t.type === 'Revenue' ? `₹${t.totalAmount.toLocaleString('en-IN')}` : `-₹${t.totalAmount.toLocaleString('en-IN')}`}
-                </td>
-              </tr>
-            ))}
+            {transactions.filter(t => t.type === 'Revenue').map(t => {
+              const profit = t.totalAmount - (t.costOfGoodsSold || 0);
+              return (
+                <tr key={t.id} className="hover:bg-slate-50">
+                  <td className="py-3 px-4 text-slate-600">{formatDate(t.createdAt)}</td>
+                  <td className="py-3 px-4 font-medium">{t.invoiceNumber}</td>
+                  <td className="py-3 px-4 text-green-600 text-right">
+                    {/* MODIFIED: Round to whole number */}
+                    {`₹${t.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+                  </td>
+                  <td className="py-3 px-4 text-red-600 text-right">
+                    {/* MODIFIED: Round to whole number */}
+                    {`₹${(t.costOfGoodsSold || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+                  </td>
+                  <td className={`py-3 px-4 text-right font-medium ${profit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                    {/* MODIFIED: Round to whole number */}
+                    {`₹${profit.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -103,9 +133,11 @@ const PnlListTable: React.FC<{
   );
 };
 
+// --- Custom Hook for P&L Data ---
 const usePnlReport = (userId: string | undefined) => {
   const [sales, setSales] = useState<Transaction[]>([]);
   const [purchases, setPurchases] = useState<Transaction[]>([]);
+  const [itemsMap, setItemsMap] = useState<Map<string, Item>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -114,44 +146,72 @@ const usePnlReport = (userId: string | undefined) => {
       setLoading(false);
       return;
     }
-    const salesCollectionRef = collection(db, 'sales');
-    const purchasesCollectionRef = collection(db, 'purchases');
-    const qSales = query(salesCollectionRef);
-    const qPurchases = query(purchasesCollectionRef);
+    const itemsCollectionRef = collection(db, 'items');
+    const qItems = query(itemsCollectionRef);
+    const unsubscribeItems = onSnapshot(qItems, (snapshot) => {
+      const newItemsMap = new Map<string, Item>();
+      snapshot.docs.forEach(doc => {
+        newItemsMap.set(doc.id, {
+          id: doc.id,
+          purchasePrice: doc.data().purchasePrice || 0,
+        });
+      });
+      setItemsMap(newItemsMap);
+    }, (_err) => setError('Failed to fetch item data.'));
 
+    const salesCollectionRef = collection(db, 'sales');
+    const qSales = query(salesCollectionRef);
     const unsubscribeSales = onSnapshot(qSales, (snapshot) => {
-      setSales(snapshot.docs.map(doc => ({
-        id: doc.id,
-        totalAmount: doc.data().totalAmount || 0,
-        createdAt: doc.data().createdAt instanceof Timestamp ? doc.data().createdAt.toDate() : new Date(),
-        invoiceNumber: doc.data().invoiceNumber || 'N/A',
-      })));
+      if (itemsMap.size === 0) return;
+
+      setSales(snapshot.docs.map(doc => {
+        const saleData = doc.data();
+        const costOfGoodsSold = (saleData.items || []).reduce((sum: number, item: { id: string; quantity: number }) => {
+          const itemDetails = itemsMap.get(item.id);
+          const itemCost = itemDetails ? itemDetails.purchasePrice : 0;
+          return sum + (itemCost * (item.quantity || 0));
+        }, 0);
+
+        return {
+          id: doc.id,
+          totalAmount: saleData.totalAmount || 0,
+          createdAt: saleData.createdAt instanceof Timestamp ? saleData.createdAt.toDate() : new Date(),
+          invoiceNumber: saleData.invoiceNumber || 'N/A',
+          partyName: saleData.partyName || 'N/A',
+          costOfGoodsSold: costOfGoodsSold,
+        };
+      }));
     }, (_err) => setError('Failed to fetch sales data.'));
 
+    const purchasesCollectionRef = collection(db, 'purchases');
+    const qPurchases = query(purchasesCollectionRef);
     const unsubscribePurchases = onSnapshot(qPurchases, (snapshot) => {
       setPurchases(snapshot.docs.map(doc => ({
         id: doc.id,
         totalAmount: doc.data().totalAmount || 0,
         createdAt: doc.data().createdAt instanceof Timestamp ? doc.data().createdAt.toDate() : new Date(),
         invoiceNumber: doc.data().invoiceNumber || 'N/A',
+        partyName: doc.data().partyName || 'N/A',
       })));
       setLoading(false);
     }, (_err) => setError('Failed to fetch purchases data.'));
 
     return () => {
+      unsubscribeItems();
       unsubscribeSales();
       unsubscribePurchases();
     };
-  }, [userId]);
+  }, [userId, itemsMap]);
 
   return { sales, purchases, loading, error };
 };
 
 
+// --- Main P&L Report Component (MODIFIED for whole number rounding) ---
 const PnlReportPage: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser, loading: authLoading } = useAuth();
-  const { sales, purchases, loading: dataLoading, error } = usePnlReport(currentUser?.uid);
+  const { sales, loading: dataLoading, error } = usePnlReport(currentUser?.uid);
 
   const [datePreset, setDatePreset] = useState<string>('today');
   const [startDate, setStartDate] = useState<string>('');
@@ -165,7 +225,6 @@ const PnlReportPage: React.FC = () => {
     const formattedToday = formatDateForInput(today);
     setStartDate(formattedToday);
     setEndDate(formattedToday);
-
     const startTimestamp = new Date(formattedToday);
     startTimestamp.setHours(0, 0, 0, 0);
     const endTimestamp = new Date(formattedToday);
@@ -176,35 +235,26 @@ const PnlReportPage: React.FC = () => {
   const { pnlSummary, filteredTransactions } = useMemo(() => {
     const startTimestamp = appliedFilters.start ? new Date(appliedFilters.start).getTime() : 0;
     const endTimestamp = appliedFilters.end ? new Date(appliedFilters.end).getTime() : Infinity;
-
     const filteredSales = sales.filter(s => s.createdAt.getTime() >= startTimestamp && s.createdAt.getTime() <= endTimestamp);
-    const filteredPurchases = purchases.filter(p => p.createdAt.getTime() >= startTimestamp && p.createdAt.getTime() <= endTimestamp);
-
     const totalRevenue = filteredSales.reduce((sum, sale) => sum + sale.totalAmount, 0);
-    const totalCost = filteredPurchases.reduce((sum, purchase) => sum + purchase.totalAmount, 0);
-    const netProfit = totalRevenue - totalCost;
-
-    let combinedTransactions: TransactionDetail[] = [
-      ...filteredSales.map(s => ({ ...s, type: 'Revenue' as const })),
-      ...filteredPurchases.map(p => ({ ...p, type: 'Cost' as const })),
-    ];
-
-    combinedTransactions.sort((a, b) => {
+    const totalCostOfGoodsSold = filteredSales.reduce((sum, sale) => sum + (sale.costOfGoodsSold || 0), 0);
+    const netProfit = totalRevenue - totalCostOfGoodsSold;
+    let salesTransactions: TransactionDetail[] = filteredSales.map(s => ({ ...s, type: 'Revenue' as const }));
+    salesTransactions.sort((a, b) => {
       const key = sortConfig.key;
       const direction = sortConfig.direction === 'asc' ? 1 : -1;
-      const valA = a[key] ?? '';
-      const valB = b[key] ?? '';
-      if (typeof valA === 'string' && typeof valB === 'string') { return valA.localeCompare(valB) * direction; }
+      const valA = a[key] as any ?? (typeof a[key] === 'number' ? 0 : '');
+      const valB = b[key] as any ?? (typeof b[key] === 'number' ? 0 : '');
       if (valA instanceof Date && valB instanceof Date) { return (valA.getTime() - valB.getTime()) * direction; }
       if (typeof valA === 'number' && typeof valB === 'number') { return (valA - valB) * direction; }
+      if (typeof valA === 'string' && typeof valB === 'string') { return valA.localeCompare(valB) * direction; }
       return 0;
     });
-
     return {
-      pnlSummary: { totalRevenue, totalCost, netProfit },
-      filteredTransactions: combinedTransactions
+      pnlSummary: { totalRevenue, totalCost: totalCostOfGoodsSold, netProfit },
+      filteredTransactions: salesTransactions
     };
-  }, [sales, purchases, appliedFilters, sortConfig]);
+  }, [sales, appliedFilters, sortConfig]);
 
   const handleSort = (key: keyof TransactionDetail) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -230,7 +280,11 @@ const PnlReportPage: React.FC = () => {
   };
 
   const handleApplyFilters = () => {
-    setAppliedFilters({ start: startDate, end: endDate });
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+    setAppliedFilters({ start: start.toISOString(), end: end.toISOString() });
   };
 
   if (authLoading || dataLoading) {
@@ -265,13 +319,13 @@ const PnlReportPage: React.FC = () => {
           <input
             type="date"
             value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
+            onChange={(e) => { setStartDate(e.target.value); setDatePreset('custom'); }}
             className="w-full p-2 text-sm bg-gray-50 border border-gray-300 rounded-md"
           />
           <input
             type="date"
             value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
+            onChange={(e) => { setEndDate(e.target.value); setDatePreset('custom'); }}
             className="w-full p-2 text-sm bg-gray-50 border border-gray-300 rounded-md"
           />
         </div>
@@ -286,23 +340,26 @@ const PnlReportPage: React.FC = () => {
       <div className="flex flex-col gap-6">
         <SummaryCard
           title="Total Revenue"
-          value={`₹${pnlSummary.totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
+          // MODIFIED: Round to whole number
+          value={`₹${pnlSummary.totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
           valueClassName="text-green-600"
         />
         <SummaryCard
-          title="Total Costs"
-          value={`₹${pnlSummary.totalCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
+          title="Cost of Goods Sold"
+          // MODIFIED: Round to whole number
+          value={`₹${pnlSummary.totalCost.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
           valueClassName="text-red-600"
         />
         <SummaryCard
           title="Net Profit / Loss"
-          value={`₹${pnlSummary.netProfit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
+          // MODIFIED: Round to whole number
+          value={`₹${pnlSummary.netProfit.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
           valueClassName={pnlSummary.netProfit >= 0 ? "text-blue-600" : "text-red-600"}
         />
       </div>
 
       <div className="bg-white p-4 rounded-lg shadow-md flex justify-between items-center mt-6">
-        <h2 className="text-lg font-semibold text-gray-700">Transaction Details</h2>
+        <h2 className="text-lg font-semibold text-gray-700">Sales Details</h2>
         <button onClick={() => setIsListVisible(!isListVisible)} className="px-4 py-2 bg-slate-200 text-slate-800 font-semibold rounded-md hover:bg-slate-300 transition">
           {isListVisible ? 'Hide List' : 'Show List'}
         </button>

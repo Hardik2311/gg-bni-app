@@ -22,7 +22,7 @@ interface PaymentDrawerProps {
 
 // --- Main PaymentDrawer Component ---
 const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal, onPaymentComplete }) => {
-    const [partyName, setPartyName] = useState('cash');
+    const [partyName, setPartyName] = useState('NA');
     const [partyNumber, setPartyNumber] = useState('');
     const [discount, setDiscount] = useState(0);
     const [selectedPayments, setSelectedPayments] = useState<PaymentDetails>({});
@@ -43,7 +43,7 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
 
             setDiscount(initialDiscount);
             setSelectedPayments({});
-            setPartyName('Cash'); // Reset party name to 'Cash' on open
+            setPartyName('NA'); // Reset party name to 'NA' on open
             setPartyNumber('');
             setIsDiscountLocked(true); // Always re-lock discount when opening
         }
