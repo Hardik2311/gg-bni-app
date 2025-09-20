@@ -157,7 +157,7 @@ const SalesListTable: React.FC<{
             <tr>
               <SortableHeader sortKey="createdAt">Date</SortableHeader>
               <SortableHeader sortKey="partyName">Party Name</SortableHeader>
-              <th className="py-3 px-4 uppercase">Items</th>
+              <SortableHeader sortKey="totalAmount" className="text-right"><th className="py-3 px-4 uppercase">Items</th></SortableHeader>
               <SortableHeader sortKey="totalAmount" className="text-right">Amount</SortableHeader>
             </tr>
           </thead>

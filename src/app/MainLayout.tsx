@@ -13,8 +13,9 @@ const MainLayout = () => {
   const navigate = useNavigate();
 
   return (
-    <>
-      <main style={{ padding: '1rem', paddingBottom: '60px' }}>
+    <div className="h-screen w-screen flex flex-col overflow-hidden bg-gray-50">
+
+      <main className="flex-1 min-h-0 overflow-y-auto p-4">
         <Suspense fallback={<div>Loading...</div>}>
           <Outlet />
         </Suspense>
@@ -78,7 +79,7 @@ const MainLayout = () => {
         </PermissionWrapper>
       </FloatingButton>
 
-      <nav className="fixed bottom-0 left-0 w-full border-t border-slate-200 bg-white">
+      <nav className="flex-shrink-0 border-t border-slate-200 bg-white">
         <div className="flex justify-around items-center gap-4 px-4 pt-2 pb-3">
           {navItems.map(({ to, icon, label }) => (
             <Link
@@ -92,7 +93,7 @@ const MainLayout = () => {
           ))}
         </div>
       </nav>
-    </>
+    </div>
   );
 };
 

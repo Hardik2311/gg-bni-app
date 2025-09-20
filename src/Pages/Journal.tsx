@@ -7,8 +7,8 @@ import {
   onSnapshot,
   Timestamp,
   QuerySnapshot,
-  doc,      // ++ ADDED
-  deleteDoc // ++ ADDED
+  doc,
+  deleteDoc
 } from 'firebase/firestore';
 import { useAuth } from '../context/auth-context';
 import { CustomToggle, CustomToggleItem } from '../Components/CustomToggle';
@@ -18,7 +18,6 @@ import { Variant } from '../enums';
 import { Spinner } from '../constants/Spinner';
 import { ROUTES } from '../constants/routes.constants';
 
-// --- Interfaces and Helper Functions ---
 interface InvoiceItem {
   name: string;
   quantity: number;
@@ -41,14 +40,14 @@ interface Invoice {
 
 const formatDate = (date: Date): string => {
   if (!date) return 'N/A';
-  return date.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
+  return date.toLocaleDateString('en-US', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
   });
 };
 
 const useJournalData = (userId?: string) => {
-  // ... Hook remains the same
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -124,7 +123,6 @@ const useJournalData = (userId?: string) => {
 };
 
 
-// --- Main Journal Component ---
 const Journal: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'Paid' | 'Unpaid'>('Paid');
   const [activeType, setActiveType] = useState<'Debit' | 'Credit'>('Credit');
@@ -139,7 +137,6 @@ const Journal: React.FC = () => {
   const { currentUser, loading: authLoading } = useAuth();
   const { invoices, loading: dataLoading, error } = useJournalData(currentUser?.uid);
 
-  // ++ ADDED: Navigation hook ++
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -153,7 +150,6 @@ const Journal: React.FC = () => {
   }, []);
 
   const filteredInvoices = useMemo(() => {
-    // ... filtering logic remains the same ...
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
@@ -198,13 +194,11 @@ const Journal: React.FC = () => {
     setExpandedInvoiceId(prevId => (prevId === invoiceId ? null : invoiceId));
   };
 
-  // ++ ADDED: Handler for deleting an invoice ++
   const handleDeleteInvoice = async (invoiceId: string, invoiceType: 'Credit' | 'Debit') => {
     if (window.confirm("Are you sure you want to delete this invoice? This action cannot be undone.")) {
       try {
         const collectionName = invoiceType === 'Credit' ? 'sales' : 'purchases';
         await deleteDoc(doc(db, collectionName, invoiceId));
-        // The UI will update automatically due to the onSnapshot listener
       } catch (err) {
         console.error("Error deleting invoice: ", err);
         alert("Failed to delete invoice.");
@@ -212,10 +206,13 @@ const Journal: React.FC = () => {
     }
   };
 
-  // ++ ADDED: Handler for navigating to sales return page ++
   const handleSalesReturn = (invoice: Invoice) => {
     navigate(`${ROUTES.SALES_RETURN}`, { state: { invoiceData: invoice } });
   };
+  const handlePurchaseReturn = (invoice: Invoice) => {
+    navigate(`${ROUTES.PURCHASE_RETURN}`, { state: { invoiceData: invoice } });
+  };
+
 
   const renderContent = () => {
     if (authLoading || dataLoading) {
@@ -233,7 +230,6 @@ const Journal: React.FC = () => {
             onClick={() => handleInvoiceClick(invoice.id)}
             className="cursor-pointer transition-shadow hover:shadow-md"
           >
-            {/* ++ MODIFIED: Arrow position reverted to the top right ++ */}
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-base font-semibold text-slate-800">{invoice.invoiceNumber}</p>
@@ -300,6 +296,17 @@ const Journal: React.FC = () => {
                       className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
                     >
                       Sales Return
+                    </button>
+                  )}
+                  {invoice.type === 'Debit' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePurchaseReturn(invoice);
+                      }}
+                      className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                    >
+                      Purchase Return
                     </button>
                   )}
                 </div>

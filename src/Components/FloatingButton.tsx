@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useState } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { cn } from '../lib/utils';
 
@@ -11,11 +12,13 @@ const FloatingButton: React.FC<IFloatingButtonProps> = ({
   className,
   children,
 }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
   return (
-    <Popover>
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger
         className={cn(
-          'fixed bottom-20 right-4 z-30 bg-sky-500 text-white p-5 w-4 h-4 rounded-full flex items-center justify-center',
+          'fixed bottom-20 right-4 z-30 bg-sky-500 text-white w-[50px] h-[50px] rounded-full flex items-center justify-center text-4xl font-light shadow-lg hover:bg-sky-600 transition-colors',
           className,
         )}
       >
@@ -27,7 +30,7 @@ const FloatingButton: React.FC<IFloatingButtonProps> = ({
           side="top"
           className="bg-transparent p-4 border-none shadow-none"
         >
-          {children}
+          <div onClick={() => setIsOpen(false)}>{children}</div>
         </PopoverContent>
       )}
     </Popover>

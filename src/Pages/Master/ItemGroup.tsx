@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, NavLink } from 'react-router-dom';
-import type { ItemGroup } from '../../constants/models';
+import type { Item, ItemGroup } from '../../constants/models';
 import {
   createItemGroup,
   getItemGroups,
   updateItemGroup,
   deleteItemGroup,
+  getItems,
 } from '../../lib/items_firebase';
 import { ROUTES } from '../../constants/routes.constants';
 
@@ -17,29 +18,56 @@ const ItemGroupPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  // 1. Added back state for the manual input field
   const [newItemGroupName, setNewItemGroupName] = useState<string>('');
 
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editingGroupName, setEditingGroupName] = useState<string>('');
 
   useEffect(() => {
-    const fetchAndListenToItemGroups = async () => {
+    const syncItemGroups = async () => {
       setLoading(true);
       setError(null);
       try {
-        const groups = await getItemGroups();
-        setItemGroups(groups);
+        const [allItems, existingGroups] = await Promise.all([
+          getItems(),
+          getItemGroups(),
+        ]);
+
+        const groupNamesFromItems = new Set(
+          allItems
+            .map((item: Item) => item.itemGroupId?.trim())
+            .filter((groupName): groupName is string => !!groupName)
+        );
+
+        const existingGroupNames = new Set(existingGroups.map(g => g.name));
+        const groupsToCreate = [...groupNamesFromItems].filter(
+          name => !existingGroupNames.has(name)
+        );
+
+        if (groupsToCreate.length > 0) {
+          console.log('Creating new groups:', groupsToCreate);
+          const createPromises = groupsToCreate.map(name =>
+            createItemGroup({ name, description: '' })
+          );
+          await Promise.all(createPromises);
+        }
+
+        const finalGroups = await getItemGroups();
+        setItemGroups(finalGroups);
+
       } catch (err) {
-        console.error('Error fetching item groups:', err);
-        setError('Failed to load item groups. Please try again.');
+        console.error('Error synchronizing item groups:', err);
+        setError('Failed to load and sync item groups. Please try again.');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchAndListenToItemGroups();
+    syncItemGroups();
   }, []);
 
+  // 2. Added back the handler for manual creation
   const handleAddItemGroup = async () => {
     if (newItemGroupName.trim() === '') {
       setError('Item group name cannot be empty.');
@@ -48,12 +76,12 @@ const ItemGroupPage: React.FC = () => {
     setError(null);
 
     try {
-      const newGroupId = await createItemGroup({
+      await createItemGroup({
         name: newItemGroupName.trim(),
         description: '',
       });
-      console.log('New Item Group added with ID:', newGroupId);
-      setNewItemGroupName('');
+      setNewItemGroupName(''); // Clear the input field
+      // Refetch all groups to update the list
       const groups = await getItemGroups();
       setItemGroups(groups);
     } catch (err) {
@@ -76,7 +104,6 @@ const ItemGroupPage: React.FC = () => {
 
     try {
       await updateItemGroup(id, { name: editingGroupName.trim() });
-      console.log('Item Group updated:', id);
       setEditingGroupId(null);
       setEditingGroupName('');
       const groups = await getItemGroups();
@@ -102,7 +129,6 @@ const ItemGroupPage: React.FC = () => {
       setError(null);
       try {
         await deleteItemGroup(id);
-        console.log('Item Group deleted:', id);
         const groups = await getItemGroups();
         setItemGroups(groups);
       } catch (err) {
@@ -125,8 +151,8 @@ const ItemGroupPage: React.FC = () => {
           <NavLink
             to={`${ROUTES.ITEM_ADD}`}
             className={`flex-1 cursor-pointer border-b-2 py-3 text-center text-base font-medium transition hover:text-slate-700 ${activeTab === 'Item Add'
-                ? 'border-blue-600 font-semibold text-blue-600'
-                : 'border-transparent text-slate-500'
+              ? 'border-blue-600 font-semibold text-blue-600'
+              : 'border-transparent text-slate-500'
               }`}
             onClick={() => setActiveTab('Item Add')}
           >
@@ -135,8 +161,8 @@ const ItemGroupPage: React.FC = () => {
           <NavLink
             to={`${ROUTES.ITEM_GROUP}`}
             className={`flex-1 cursor-pointer border-b-2 py-3 text-center text-base font-medium transition hover:text-slate-700 ${activeTab === 'Item Groups'
-                ? 'border-blue-600 font-semibold text-blue-600'
-                : 'border-transparent text-slate-500'
+              ? 'border-blue-600 font-semibold text-blue-600'
+              : 'border-transparent text-slate-500'
               }`}
             onClick={() => setActiveTab('Item Groups')}
           >
@@ -153,14 +179,14 @@ const ItemGroupPage: React.FC = () => {
           </div>
         )}
         <div className="p-6 bg-white rounded-lg shadow-md">
-          {/* Add New Item Group Section */}
-          <div className="flex flex-col gap-2 mb-4">
+          {/* 3. Added back the input field and button for manual adding */}
+          <div className="flex flex-col sm:flex-row gap-2 mb-6">
             <input
               type="text"
-              placeholder="New Item Group Name"
+              placeholder="Add New Item Group Manually"
               value={newItemGroupName}
               onChange={(e) => setNewItemGroupName(e.target.value)}
-              className="flex-1 w-full p-3 border border-gray-300 rounded-lg bg-blue-50 text-gray-800 text-base pl-4 box-border placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+              className="flex-grow w-full p-3 border border-gray-300 rounded-lg bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
               onKeyPress={(e) => {
                 if (e.key === 'Enter') {
                   handleAddItemGroup();
@@ -170,7 +196,7 @@ const ItemGroupPage: React.FC = () => {
             />
             <button
               onClick={handleAddItemGroup}
-              className="bg-green-600 text-white py-3 px-6 rounded-lg text-base font-semibold shadow-sm transition hover:bg-green-700 disabled:bg-green-300 disabled:cursor-not-allowed whitespace-nowrap"
+              className="bg-green-600 text-white py-3 px-6 rounded-lg font-semibold shadow-sm transition hover:bg-green-700 disabled:bg-green-300 disabled:cursor-not-allowed"
               disabled={loading || newItemGroupName.trim() === ''}
             >
               {loading ? 'Adding...' : 'Add Group'}
@@ -179,11 +205,11 @@ const ItemGroupPage: React.FC = () => {
 
           {loading ? (
             <p className="text-gray-500 text-center py-8">
-              Loading item groups...
+              Syncing and loading item groups...
             </p>
           ) : itemGroups.length === 0 ? (
             <p className="text-gray-500 text-center py-8">
-              No item groups found. Add a new one!
+              No item groups found. Add one manually or assign a 'group' to your items.
             </p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -222,52 +248,21 @@ const ItemGroupPage: React.FC = () => {
                     </div>
                   ) : (
                     <>
-                      <span className="text-gray-800 font-medium">
+                      <span className="text-gray-800 font-medium break-all">
                         {group.name}
                       </span>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-shrink-0 ml-2">
                         <button
                           onClick={() => handleEditClick(group)}
-                          className="text-gray-600 hover:text-blue-500 transition-colors duration-200"
+                          className="text-gray-600 hover:text-blue-500 transition-colors"
                         >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="20"
-                            height="20"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="lucide lucide-edit"
-                          >
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4Z"></path>
-                          </svg>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4Z" /></svg>
                         </button>
                         <button
                           onClick={() => handleDeleteItemGroup(group.id!)}
-                          className="text-gray-600 hover:text-red-500 transition-colors duration-200"
+                          className="text-gray-600 hover:text-red-500 transition-colors"
                         >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="20"
-                            height="20"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="lucide lucide-trash-2"
-                          >
-                            <path d="M3 6h18"></path>
-                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
-                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
-                            <line x1="10" x2="10" y1="11" y2="17"></line>
-                            <line x1="14" x2="14" y1="11" y2="17"></line>
-                          </svg>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" /></svg>
                         </button>
                       </div>
                     </>
@@ -278,15 +273,7 @@ const ItemGroupPage: React.FC = () => {
           )}
         </div>
       </div>
-
-      <div className="sticky bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-up flex justify-center items-center z-10 w-full box-border">
-        <button
-          onClick={() => navigate(-1)}
-          className="w-full max-w-xs py-3 px-6 bg-blue-600 text-white rounded-lg text-lg font-semibold shadow-md transition hover:bg-blue-700"
-        >
-          Done
-        </button>
-      </div>
+      {/* 4. The "Done" button and its container have been removed from the bottom */}
     </div>
   );
 };
