@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom'; // ++ ADDED
+import { useNavigate } from 'react-router-dom';
 import { db } from '../lib/firebase';
 import {
   collection,
@@ -7,18 +7,20 @@ import {
   onSnapshot,
   Timestamp,
   QuerySnapshot,
-  doc,      // ++ ADDED
-  deleteDoc // ++ ADDED
+  doc,
+  deleteDoc,
+  where, // Make sure 'where' is imported
 } from 'firebase/firestore';
 import { useAuth } from '../context/auth-context';
 import { CustomToggle, CustomToggleItem } from '../Components/CustomToggle';
 import { CustomCard } from '../Components/CustomCard';
 import { CustomButton } from '../Components/CustomButton';
-import { Variant } from '../enums';
+import { Variant, State } from '../enums';
 import { Spinner } from '../constants/Spinner';
 import { ROUTES } from '../constants/routes.constants';
+import { Modal } from '../constants/Modal';
 
-// --- Interfaces and Helper Functions ---
+// --- Data Types ---
 interface InvoiceItem {
   name: string;
   quantity: number;
@@ -47,22 +49,28 @@ const formatDate = (date: Date): string => {
   });
 };
 
-const useJournalData = (userId?: string) => {
-  // ... Hook remains the same
+/**
+ * Custom hook to fetch sales and purchase data for a specific company.
+ * @param companyId The ID of the company to fetch transactions for.
+ */
+const useJournalData = (companyId?: string) => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!userId) {
+    // --- FIX 1: Wait for companyId before running the query ---
+    if (!companyId) {
       setLoading(false);
+      setInvoices([]); // Clear invoices if no companyId
       return;
     }
 
-    const salesQuery = query(collection(db, 'sales'));
-    const purchasesQuery = query(collection(db, 'purchases'));
+    // --- FIX 2: Add a 'where' clause to filter by companyId for both queries ---
+    const salesQuery = query(collection(db, 'sales'), where('companyId', '==', companyId));
+    const purchasesQuery = query(collection(db, 'purchases'), where('companyId', '==', companyId));
 
-    const processSnapshot = (snapshot: QuerySnapshot, type: 'Credit' | 'Debit') => {
+    const processSnapshot = (snapshot: QuerySnapshot, type: 'Credit' | 'Debit'): Invoice[] => {
       return snapshot.docs.map((doc) => {
         const data = doc.data();
         const createdAt = data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date();
@@ -93,11 +101,13 @@ const useJournalData = (userId?: string) => {
 
     const unsubscribeSales = onSnapshot(salesQuery, (snapshot) => {
       const salesData = processSnapshot(snapshot, 'Credit');
+      // A safer way to update state to prevent race conditions
       setInvoices((prev) => [...prev.filter((inv) => inv.type !== 'Credit'), ...salesData]);
       setLoading(false);
     }, (err) => {
       console.error("Error fetching sales:", err);
       setError("Failed to load sales data.");
+      setLoading(false);
     });
 
     const unsubscribePurchases = onSnapshot(purchasesQuery, (snapshot) => {
@@ -108,13 +118,15 @@ const useJournalData = (userId?: string) => {
       (err) => {
         console.error("Error fetching purchases:", err);
         setError("Failed to load purchase data.");
+        setLoading(false);
       });
 
     return () => {
       unsubscribeSales();
       unsubscribePurchases();
     };
-  }, [userId]);
+    // --- FIX 3: Add companyId to the dependency array ---
+  }, [companyId]);
 
   const sortedInvoices = useMemo(() => {
     return invoices.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
@@ -128,16 +140,18 @@ const useJournalData = (userId?: string) => {
 const Journal: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'Paid' | 'Unpaid'>('Paid');
   const [activeType, setActiveType] = useState<'Debit' | 'Credit'>('Credit');
-
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [activeDateFilter, setActiveDateFilter] = useState<string>('today');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
   const [expandedInvoiceId, setExpandedInvoiceId] = useState<string | null>(null);
+  const [modal, setModal] = useState<{ message: string; type: State } | null>(null);
+  const [invoiceToDelete, setInvoiceToDelete] = useState<Invoice | null>(null);
 
   const { currentUser, loading: authLoading } = useAuth();
-  const { invoices, loading: dataLoading, error } = useJournalData(currentUser?.uid);
+  // --- FIX 4: Pass currentUser.companyId to the hook ---
+  const { invoices, loading: dataLoading, error } = useJournalData(currentUser?.companyId);
 
   // ++ ADDED: Navigation hook ++
   const navigate = useNavigate();
@@ -198,23 +212,36 @@ const Journal: React.FC = () => {
     setExpandedInvoiceId(prevId => (prevId === invoiceId ? null : invoiceId));
   };
 
-  // ++ ADDED: Handler for deleting an invoice ++
-  const handleDeleteInvoice = async (invoiceId: string, invoiceType: 'Credit' | 'Debit') => {
-    if (window.confirm("Are you sure you want to delete this invoice? This action cannot be undone.")) {
-      try {
-        const collectionName = invoiceType === 'Credit' ? 'sales' : 'purchases';
-        await deleteDoc(doc(db, collectionName, invoiceId));
-        // The UI will update automatically due to the onSnapshot listener
-      } catch (err) {
-        console.error("Error deleting invoice: ", err);
-        alert("Failed to delete invoice.");
-      }
+  const promptDeleteInvoice = (invoice: Invoice) => {
+    setInvoiceToDelete(invoice);
+    setModal({ message: "Are you sure you want to delete this invoice? This action cannot be undone.", type: State.INFO });
+  };
+
+  const confirmDeleteInvoice = async () => {
+    if (!invoiceToDelete) return;
+    try {
+      const collectionName = invoiceToDelete.type === 'Credit' ? 'sales' : 'purchases';
+      await deleteDoc(doc(db, collectionName, invoiceToDelete.id));
+    } catch (err) {
+      console.error("Error deleting invoice: ", err);
+      alert("Failed to delete invoice.");
+    } finally {
+      setInvoiceToDelete(null);
+      setModal(null);
     }
   };
 
-  // ++ ADDED: Handler for navigating to sales return page ++
+  const cancelDelete = () => {
+    setInvoiceToDelete(null);
+    setModal(null);
+  };
+
   const handleSalesReturn = (invoice: Invoice) => {
     navigate(`${ROUTES.SALES_RETURN}`, { state: { invoiceData: invoice } });
+  };
+
+  const handlePurchaseReturn = (invoice: Invoice) => {
+    navigate(`${ROUTES.PURCHASE_RETURN}`, { state: { invoiceData: invoice } });
   };
 
   const renderContent = () => {
@@ -237,7 +264,7 @@ const Journal: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-base font-semibold text-slate-800">{invoice.invoiceNumber}</p>
-                <p className="text-sm text-slate-800 mt-1">{invoice.partyName}</p>
+                <p className="text-sm text-slate-500 mt-1">{invoice.partyName}</p>
               </div>
               <div className="flex items-center space-x-3">
                 <div className="text-right">
@@ -285,7 +312,7 @@ const Journal: React.FC = () => {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleDeleteInvoice(invoice.id, invoice.type);
+                      promptDeleteInvoice(invoice);
                     }}
                     className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
                   >
@@ -302,6 +329,17 @@ const Journal: React.FC = () => {
                       Sales Return
                     </button>
                   )}
+                  {invoice.type === 'Debit' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePurchaseReturn(invoice);
+                      }}
+                      className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors"
+                    >
+                      Purchase Return
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -316,9 +354,17 @@ const Journal: React.FC = () => {
     );
   };
 
-
   return (
     <div className="flex min-h-screen w-full flex-col overflow-hidden bg-white shadow-md">
+      {modal && (
+        <Modal
+          message={modal.message}
+          type={modal.type}
+          onClose={cancelDelete}
+          onConfirm={confirmDeleteInvoice}
+          showConfirmButton={true}
+        />
+      )}
       <div className="flex items-center justify-between p-4 px-6">
         <div className="flex flex-1 items-center">
           <button onClick={() => setShowSearch(!showSearch)} className="text-slate-500 hover:text-slate-800 transition-colors mr-4">

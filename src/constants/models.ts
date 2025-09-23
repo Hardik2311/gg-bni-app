@@ -16,6 +16,8 @@ export interface Item {
   hsnSac?: string; // HSN/SAC code
   gst?: number; // GST percentage
   unit?: string; // Unit of measure (e.g., Pcs.)
+  companyId?: string | null; // Link to Company
+  restockQuantity: number;
 }
 
 export interface ItemGroup {

@@ -11,6 +11,7 @@ import PermissionWrapper from '../context/PermissionWrapper';
 import { Permissions } from '../enums';
 import { FilterControls, FilterProvider } from '../Components/Filter';
 import { PaymentChart } from '../Components/PaymentChart';
+import { RestockAlertsCard } from '../Components/RestockItems';
 
 
 const useBusinessName = (userId?: string) => {
@@ -76,8 +77,6 @@ const Home = () => {
                 <FilterControls />
               </div>
             </PermissionWrapper>
-
-            {/* All Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <PermissionWrapper requiredPermission={Permissions.ViewSalescard} behavior="hide">
                 <SalesCard isDataVisible={isDataVisible} />
@@ -93,6 +92,9 @@ const Home = () => {
               </PermissionWrapper>
               <PermissionWrapper requiredPermission={Permissions.ViewSalescard} behavior="hide">
                 <TopSalespersonCard isDataVisible={isDataVisible} />
+              </PermissionWrapper>
+              <PermissionWrapper requiredPermission={Permissions.Viewrestockcard} behavior="hide">
+                <RestockAlertsCard isDataVisible={isDataVisible} />
               </PermissionWrapper>
               <PermissionWrapper requiredPermission={Permissions.ViewAttendance} behavior="hide">
                 <AttendancePage />

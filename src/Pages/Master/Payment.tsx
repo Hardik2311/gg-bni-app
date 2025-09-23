@@ -13,6 +13,7 @@ import {
 import type { DocumentData } from 'firebase/firestore';
 import { useAuth } from '../../context/auth-context';
 import { Spinner } from '../../constants/Spinner';
+
 // --- Data Types & Helpers ---
 interface Invoice {
     id: string;
@@ -30,24 +31,28 @@ const formatDate = (date: Date): string => {
 };
 
 // --- Custom Hook for Fetching UNPAID Journal Data ---
-const useUnpaidJournalData = (userId?: string) => {
+const useUnpaidJournalData = (companyId?: string) => {
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!userId) {
+        // --- FIX 1: Wait for companyId before running the effect ---
+        if (!companyId) {
             setLoading(false);
+            setInvoices([]);
             return;
         }
 
-        // FIX: Modified queries to only fetch documents where due amount > 0
+        // --- FIX 2: Add companyId filter to both queries ---
         const salesQuery = query(
             collection(db, 'sales'),
+            where('companyId', '==', companyId),
             where('paymentMethods.due', '>', 0)
         );
         const purchasesQuery = query(
             collection(db, 'purchases'),
+            where('companyId', '==', companyId),
             where('paymentMethods.due', '>', 0)
         );
 
@@ -101,7 +106,8 @@ const useUnpaidJournalData = (userId?: string) => {
             unsubscribeSales();
             unsubscribePurchases();
         };
-    }, [userId]);
+        // --- FIX 3: Add companyId to the dependency array ---
+    }, [companyId]);
 
     const sortedInvoices = useMemo(
         () => invoices.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()),
@@ -111,7 +117,7 @@ const useUnpaidJournalData = (userId?: string) => {
     return { invoices: sortedInvoices, loading, error };
 };
 
-// FIX: New component for the payment modal
+// --- Payment Modal Component ---
 const PaymentModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
@@ -186,7 +192,8 @@ const PaymentModal: React.FC<{
                         >
                             <option value="cash">Cash</option>
                             <option value="upi">UPI</option>
-                            <option value="bank">Bank Transfer</option>
+                            <option value="card">Card</option>
+                            <option value="Due">Due</option>
                         </select>
                     </div>
                     {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
@@ -206,11 +213,11 @@ const PaymentModal: React.FC<{
 const Journal: React.FC = () => {
     const [activeType, setActiveType] = useState<'Debit' | 'Credit'>('Credit');
     const { currentUser, loading: authLoading } = useAuth();
+    // --- FIX 4: Pass currentUser.companyId to the hook ---
     const { invoices, loading: dataLoading, error } = useUnpaidJournalData(
-        currentUser?.uid
+        currentUser?.companyId
     );
 
-    // State for the modal
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
@@ -219,7 +226,6 @@ const Journal: React.FC = () => {
         [invoices, activeType]
     );
 
-    // FIX: Function to handle the payment submission and update Firestore
     const handleSettlePayment = async (
         invoice: Invoice,
         amount: number,
@@ -239,10 +245,8 @@ const Journal: React.FC = () => {
                 const currentPaymentMethods = data.paymentMethods || {};
                 const currentDue = currentPaymentMethods.due || 0;
                 const currentMethodTotal = currentPaymentMethods[method] || 0;
-
                 const newDue = currentDue - amount;
 
-                // Ensure newDue doesn't go below zero
                 if (newDue < 0) {
                     throw 'Payment exceeds due amount.';
                 }
@@ -258,7 +262,7 @@ const Journal: React.FC = () => {
             console.log('Transaction successfully committed!');
         } catch (e) {
             console.error('Transaction failed: ', e);
-            throw e; // Re-throw to be caught in the modal
+            throw e;
         }
     };
 
@@ -288,7 +292,6 @@ const Journal: React.FC = () => {
                             ₹{invoice.dueAmount.toLocaleString('en-IN')}
                         </p>
                     </div>
-                    {/* FIX: Add Settle Payment Button */}
                     <div className="mt-3 pt-3 border-t border-slate-200 text-right">
                         <button onClick={() => openPaymentModal(invoice)} className="text-sm font-semibold text-blue-600 hover:text-blue-800">
                             Settle Payment
@@ -307,7 +310,6 @@ const Journal: React.FC = () => {
                 <h1 className="text-3xl font-bold text-slate-800 ">Unpaid Invoices</h1>
             </div>
 
-            {/* Debit/Credit Tabs */}
             <div className="flex justify-around border-b border-slate-200 bg-white px-6 shadow-sm">
                 <button
                     className={`flex-1 cursor-pointer border-b-2 py-3 text-center text-base font-medium transition hover:text-slate-700 ${activeType === 'Credit' ? 'border-blue-600 font-semibold text-blue-600' : 'border-transparent text-slate-500'}`}
@@ -322,8 +324,6 @@ const Journal: React.FC = () => {
                     To Pay (-)
                 </button>
             </div>
-
-            {/* FIX: Removed Paid/Unpaid Tabs */}
 
             <div className="flex-grow overflow-y-auto bg-slate-100 p-6">
                 {renderContent()}
@@ -340,3 +340,4 @@ const Journal: React.FC = () => {
 };
 
 export default Journal;
+

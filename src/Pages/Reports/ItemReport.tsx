@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getItems } from '../../lib/items_firebase';
-import type { Item } from '../../constants/models';
+// --- FIX 1: Import the factory function and auth hook ---
+import { useAuth } from '../../context/auth-context';
+import { getFirestoreOperations } from '../../lib/items_firebase';
+import type { Item, ItemGroup } from '../../constants/models';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { Spinner } from '../../constants/Spinner'; // Assuming a Spinner component exists
 
-
+// --- SummaryCard Component ---
 const SummaryCard: React.FC<{ title: string; value: string }> = ({
   title,
   value,
@@ -16,6 +19,7 @@ const SummaryCard: React.FC<{ title: string; value: string }> = ({
   </div>
 );
 
+// --- FilterSelect Component ---
 const FilterSelect: React.FC<{
   label: string;
   value: string;
@@ -36,12 +40,12 @@ const FilterSelect: React.FC<{
   </div>
 );
 
+// --- ItemListTable Component ---
 const ItemListTable: React.FC<{
   items: Item[];
   sortConfig: { key: keyof Item; direction: 'asc' | 'desc' };
   onSort: (key: keyof Item) => void;
 }> = ({ items, sortConfig, onSort }) => {
-
   const SortableHeader: React.FC<{ sortKey: keyof Item; children: React.ReactNode; className?: string; }> = ({ sortKey, children, className }) => {
     const isSorted = sortConfig.key === sortKey;
     const directionIcon = sortConfig.direction === 'asc' ? '▲' : '▼';
@@ -50,7 +54,6 @@ const ItemListTable: React.FC<{
       <th className={`py-3 px-4 ${className || ''}`}>
         <button onClick={() => onSort(sortKey)} className="flex items-center gap-2 uppercase">
           {children}
-          {/* MODIFIED: This span now ensures an icon is always visible */}
           <span className="w-4">
             {isSorted ? (
               <span className="text-blue-600 text-xs">{directionIcon}</span>
@@ -95,41 +98,58 @@ const ItemListTable: React.FC<{
   );
 };
 
+// --- Main ItemReport Component ---
 const ItemReport: React.FC = () => {
   const navigate = useNavigate();
+  const { currentUser, loading: authLoading } = useAuth();
+
+  // --- FIX 2: Create a memoized, company-scoped API object ---
+  const firestoreApi = useMemo(() => {
+    if (currentUser?.companyId) {
+      return getFirestoreOperations(currentUser.companyId);
+    }
+    return null;
+  }, [currentUser?.companyId]);
+
   const [items, setItems] = useState<Item[]>([]);
+  const [itemGroups, setItemGroups] = useState<ItemGroup[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-
-  // State for filter dropdowns (temporary values)
   const [itemGroupId, setItemGroupId] = useState<string>('');
-
-  // State for sorting (applies instantly)
   const [sortConfig, setSortConfig] = useState<{ key: keyof Item; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
-
-  // State to hold the filters after clicking "Apply"
   const [appliedItemGroupId, setAppliedItemGroupId] = useState<string>('');
-
   const [isListVisible, setIsListVisible] = useState(false);
 
+  // --- FIX 3: useEffect now fetches data using the company-scoped API ---
   useEffect(() => {
-    const fetchAllItems = async () => {
+    // Don't fetch if the API isn't ready
+    if (!firestoreApi) {
+      setIsLoading(authLoading);
+      return;
+    }
+
+    const fetchAllData = async () => {
+      setIsLoading(true);
       try {
-        setIsLoading(true);
-        const fetchedItems = await getItems();
+        // Fetch both items and item groups securely
+        const [fetchedItems, fetchedGroups] = await Promise.all([
+          firestoreApi.getItems(),
+          firestoreApi.getItemGroups(),
+        ]);
         setItems(fetchedItems);
+        setItemGroups(fetchedGroups);
       } catch (err) {
         setError('Failed to load item data.');
+        console.error(err);
       } finally {
         setIsLoading(false);
       }
     };
-    fetchAllItems();
-  }, []);
+    fetchAllData();
+  }, [firestoreApi, authLoading]); // Re-run effect when the API is ready
 
-  const { filteredItems, summary, uniqueItemGroupIds } = useMemo(() => {
+  const { filteredItems, summary } = useMemo(() => {
     let newFilteredItems = [...items];
-    const allItemGroupIds = [...new Set(items.map((item) => item.itemGroupId || 'Uncategorized'))];
 
     if (appliedItemGroupId) {
       newFilteredItems = newFilteredItems.filter(
@@ -140,7 +160,6 @@ const ItemReport: React.FC = () => {
     newFilteredItems.sort((a, b) => {
       const key = sortConfig.key;
       const direction = sortConfig.direction === 'asc' ? 1 : -1;
-
       const valA = a[key] === null || a[key] === undefined ? '' : a[key];
       const valB = b[key] === null || b[key] === undefined ? '' : b[key];
 
@@ -162,18 +181,15 @@ const ItemReport: React.FC = () => {
     const averageDiscount = totalItems > 0 ? totalDiscount / totalItems : 0;
     const averageSalePrice = averageMrp - (averageMrp * (averageDiscount / 100));
     const averageprofitmargin = averageSalePrice - averagePurchasePrice;
-    const averagemarginpercentage = averageprofitmargin / averageSalePrice * 100;
+    const averagemarginpercentage = averageSalePrice > 0 ? (averageprofitmargin / averageSalePrice) * 100 : 0;
 
     return {
       filteredItems: newFilteredItems,
       summary: { totalItems, averageMrp, averagePurchasePrice, averageSalePrice, averageprofitmargin, averagemarginpercentage },
-      uniqueItemGroupIds: allItemGroupIds,
     };
   }, [appliedItemGroupId, sortConfig, items]);
 
-  const handleApplyFilters = () => {
-    setAppliedItemGroupId(itemGroupId);
-  };
+  const handleApplyFilters = () => setAppliedItemGroupId(itemGroupId);
 
   const handleSort = (key: keyof Item) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -199,7 +215,7 @@ const ItemReport: React.FC = () => {
     doc.save('item_report.pdf');
   };
 
-  if (isLoading) return <div className="p-4">Loading...</div>;
+  if (isLoading) return <Spinner />;
   if (error) return <div className="p-4 text-red-500">{error}</div>;
 
   return (
@@ -216,7 +232,7 @@ const ItemReport: React.FC = () => {
         <div className="flex space-x-3 items-end">
           <FilterSelect label="Item Group" value={itemGroupId} onChange={(e) => setItemGroupId(e.target.value)}>
             <option value="">All Groups</option>
-            {uniqueItemGroupIds.map((id) => (<option key={id} value={id}>{id}</option>))}
+            {itemGroups.map((group) => (<option key={group.id} value={group.id}>{group.name}</option>))}
           </FilterSelect>
           <button onClick={handleApplyFilters} className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-md shadow-sm hover:bg-blue-700 transition">
             Apply
@@ -229,7 +245,7 @@ const ItemReport: React.FC = () => {
         <SummaryCard title="Average MRP (Filtered)" value={`₹${summary.averageMrp.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`} />
         <SummaryCard title="Avg. Purchase Price (Filtered)" value={`₹${summary.averagePurchasePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`} />
         <SummaryCard title="Average Sale Price" value={`₹${summary.averageSalePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`} />
-        <SummaryCard title="Average Profit Margin" value={`${summary.averageprofitmargin.toLocaleString('en-IN', { minimumFractionDigits: 2 })} `} />
+        <SummaryCard title="Average Profit Margin" value={`₹${summary.averageprofitmargin.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`} />
         <SummaryCard title="Average Margin Percentage" value={`${summary.averagemarginpercentage.toLocaleString('en-IN', { minimumFractionDigits: 2 })} %`} />
       </div>
 
