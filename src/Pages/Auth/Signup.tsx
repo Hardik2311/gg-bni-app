@@ -11,16 +11,12 @@ import { CustomButton } from '../../Components/CustomButton';
 import { FloatingLabelInput } from '../../Components/ui/FloatingLabelInput';
 import { ROLES, Variant } from '../../enums';
 
-
-// --- Main Owner Info Page Component (Step 3) ---
 const OwnerInfoPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Retrieve all business and address info from the previous steps
   const combinedData = location.state;
 
-  // State for this page's form fields
   const [ownerName, setOwnerName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
@@ -41,24 +37,20 @@ const OwnerInfoPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      // 1. Create the user account in Firebase Auth
       const user = await registerUserWithDetails(ownerName, phoneNumber, email, password, ROLES.OWNER);
 
-      // 2. Prepare the final business info document
       const finalBusinessData = {
-        ...combinedData, // Data from step 1 & 2
+        ...combinedData,
         ownerUID: user.uid,
         ownerName: ownerName,
-        phoneNumber: phoneNumber, // Include phone number
+        phoneNumber: phoneNumber,
         ownerEmail: email,
         createdAt: serverTimestamp(),
       };
 
-      // 3. Save the complete business profile to Firestore
       const docRef = doc(db, 'business_info', user.uid);
       await setDoc(docRef, finalBusinessData);
 
-      // 4. Navigate to the home page on success
       navigate(ROUTES.HOME);
 
     } catch (err: any) {
@@ -72,7 +64,7 @@ const OwnerInfoPage: React.FC = () => {
   return (
     <div className="flex flex-col min-h-screen bg-white p-6">
       <button
-        onClick={() => navigate(-1)} // Go back to the address page
+        onClick={() => navigate(-1)}
         className="self-start mb-8"
       >
         <CustomIcon iconName={ICONS.BACK_CURVE} />

@@ -16,7 +16,6 @@ const ItemGroupPage: React.FC = () => {
   const [itemGroups, setItemGroups] = useState<ItemGroup[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-
   const [newItemGroupName, setNewItemGroupName] = useState<string>('');
 
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
@@ -39,7 +38,6 @@ const ItemGroupPage: React.FC = () => {
 
     fetchAndListenToItemGroups();
   }, []);
-
   const handleAddItemGroup = async () => {
     if (newItemGroupName.trim() === '') {
       setError('Item group name cannot be empty.');
@@ -52,7 +50,6 @@ const ItemGroupPage: React.FC = () => {
         name: newItemGroupName.trim(),
         description: '',
       });
-      console.log('New Item Group added with ID:', newGroupId);
       setNewItemGroupName('');
       const groups = await getItemGroups();
       setItemGroups(groups);
@@ -125,8 +122,8 @@ const ItemGroupPage: React.FC = () => {
           <NavLink
             to={`${ROUTES.ITEM_ADD}`}
             className={`flex-1 cursor-pointer border-b-2 py-3 text-center text-base font-medium transition hover:text-slate-700 ${activeTab === 'Item Add'
-                ? 'border-blue-600 font-semibold text-blue-600'
-                : 'border-transparent text-slate-500'
+              ? 'border-blue-600 font-semibold text-blue-600'
+              : 'border-transparent text-slate-500'
               }`}
             onClick={() => setActiveTab('Item Add')}
           >
@@ -135,8 +132,8 @@ const ItemGroupPage: React.FC = () => {
           <NavLink
             to={`${ROUTES.ITEM_GROUP}`}
             className={`flex-1 cursor-pointer border-b-2 py-3 text-center text-base font-medium transition hover:text-slate-700 ${activeTab === 'Item Groups'
-                ? 'border-blue-600 font-semibold text-blue-600'
-                : 'border-transparent text-slate-500'
+              ? 'border-blue-600 font-semibold text-blue-600'
+              : 'border-transparent text-slate-500'
               }`}
             onClick={() => setActiveTab('Item Groups')}
           >

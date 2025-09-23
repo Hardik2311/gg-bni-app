@@ -22,10 +22,10 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from './ui/chart';
 import type { ChartConfig } from './ui/chart';
 import { useFilter } from './Filter';
 
-
 interface SaleRecord {
   totalAmount: number;
   createdAt: { toDate: () => Date };
+  companyId: string; // Added for type safety
 }
 interface ChartData {
   date: string;
@@ -43,6 +43,7 @@ interface SalesBarChartReportProps {
 }
 
 export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps) {
+  // Use 'user' for consistency with the auth context
   const { currentUser } = useAuth();
   const { filters } = useFilter();
   const [chartData, setChartData] = useState<ChartData[]>([]);
@@ -51,9 +52,10 @@ export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps)
 
   useEffect(() => {
     const fetchSalesData = async () => {
-      if (!currentUser) {
+      // --- FIX 1: Check for user and their companyId before proceeding ---
+      if (!currentUser?.companyId) {
         setIsLoading(false);
-        setError('Please log in to view sales data.');
+        setError('Company information not found. Please log in again.');
         return;
       }
       if (!filters.startDate || !filters.endDate) {
@@ -74,8 +76,10 @@ export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps)
 
       try {
         const salesCollection = collection(db, 'sales');
+        // --- FIX 2: Add a 'where' clause to filter sales by the user's companyId ---
         const salesQuery = query(
           salesCollection,
+          where('companyId', '==', currentUser.companyId),
           where('createdAt', '>=', startTimestamp),
           where('createdAt', '<=', endTimestamp),
           orderBy('createdAt', 'asc'),
@@ -106,18 +110,23 @@ export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps)
           sales: salesByDate[date],
         }));
 
-
         newChartData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         setChartData(newChartData);
       } catch (err) {
         console.error('Error fetching sales data:', err);
-        setError('Failed to fetch sales data. Please try again.');
+        // Check for a missing index error, which is common with multi-field queries.
+        if (err instanceof Error && err.message.includes('firestore/failed-precondition')) {
+          setError('Database setup required. Please check the developer console for an index creation link.');
+        } else {
+          setError('Failed to fetch sales data. Please try again.');
+        }
       } finally {
         setIsLoading(false);
       }
     };
     fetchSalesData();
+    // --- FIX 3: Add user.companyId to the dependency array ---
   }, [currentUser, filters]);
 
   return (
@@ -128,7 +137,7 @@ export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps)
       </CardHeader>
       <CardContent>
         {isLoading ? <div className="flex h-[250px] items-center justify-center"><p>Loading Chart...</p></div> :
-          error ? <div className="flex h-[250px] items-center justify-center"><p className="text-red-500">{error}</p></div> :
+          error ? <div className="flex h-[250px] items-center justify-center text-center"><p className="text-red-500">{error}</p></div> :
             isDataVisible ? (
               <ChartContainer config={chartConfig} >
                 <LineChart accessibilityLayer data={chartData} margin={{ top: 30, left: 12, right: 12 }}>

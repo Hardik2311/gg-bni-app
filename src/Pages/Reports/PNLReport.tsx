@@ -5,6 +5,7 @@ import { useAuth } from '../../context/auth-context';
 import {
   collection,
   query,
+  where, // Make sure 'where' is imported
   onSnapshot,
   Timestamp,
 } from 'firebase/firestore';
@@ -14,7 +15,7 @@ interface Transaction {
   id: string;
   partyName: string;
   invoiceNumber: string;
-  totalAmount: number; // For sales, this is revenue. For purchases, it's cost.
+  totalAmount: number;
   createdAt: Date;
   costOfGoodsSold?: number;
 }
@@ -70,7 +71,6 @@ const FilterSelect: React.FC<{
   </div>
 );
 
-// PnlListTable Component (MODIFIED for whole number rounding)
 const PnlListTable: React.FC<{
   transactions: TransactionDetail[];
   sortConfig: { key: keyof TransactionDetail; direction: 'asc' | 'desc' };
@@ -112,15 +112,12 @@ const PnlListTable: React.FC<{
                   <td className="py-3 px-4 text-slate-600">{formatDate(t.createdAt)}</td>
                   <td className="py-3 px-4 font-medium">{t.invoiceNumber}</td>
                   <td className="py-3 px-4 text-green-600 text-right">
-                    {/* MODIFIED: Round to whole number */}
                     {`₹${t.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
                   </td>
                   <td className="py-3 px-4 text-red-600 text-right">
-                    {/* MODIFIED: Round to whole number */}
                     {`₹${(t.costOfGoodsSold || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
                   </td>
                   <td className={`py-3 px-4 text-right font-medium ${profit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
-                    {/* MODIFIED: Round to whole number */}
                     {`₹${profit.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
                   </td>
                 </tr>
@@ -134,7 +131,7 @@ const PnlListTable: React.FC<{
 };
 
 // --- Custom Hook for P&L Data ---
-const usePnlReport = (userId: string | undefined) => {
+const usePnlReport = (companyId: string | undefined) => {
   const [sales, setSales] = useState<Transaction[]>([]);
   const [purchases, setPurchases] = useState<Transaction[]>([]);
   const [itemsMap, setItemsMap] = useState<Map<string, Item>>(new Map());
@@ -142,12 +139,15 @@ const usePnlReport = (userId: string | undefined) => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!userId) {
+    // --- FIX 1: Wait for companyId before running any queries ---
+    if (!companyId) {
       setLoading(false);
       return;
     }
+
+    // --- FIX 2: Add companyId filter to all Firestore queries ---
     const itemsCollectionRef = collection(db, 'items');
-    const qItems = query(itemsCollectionRef);
+    const qItems = query(itemsCollectionRef, where('companyId', '==', companyId));
     const unsubscribeItems = onSnapshot(qItems, (snapshot) => {
       const newItemsMap = new Map<string, Item>();
       snapshot.docs.forEach(doc => {
@@ -160,9 +160,9 @@ const usePnlReport = (userId: string | undefined) => {
     }, (_err) => setError('Failed to fetch item data.'));
 
     const salesCollectionRef = collection(db, 'sales');
-    const qSales = query(salesCollectionRef);
+    const qSales = query(salesCollectionRef, where('companyId', '==', companyId));
     const unsubscribeSales = onSnapshot(qSales, (snapshot) => {
-      if (itemsMap.size === 0) return;
+      if (itemsMap.size === 0 && snapshot.size > 0) return; // Wait for items map if there are sales
 
       setSales(snapshot.docs.map(doc => {
         const saleData = doc.data();
@@ -184,7 +184,7 @@ const usePnlReport = (userId: string | undefined) => {
     }, (_err) => setError('Failed to fetch sales data.'));
 
     const purchasesCollectionRef = collection(db, 'purchases');
-    const qPurchases = query(purchasesCollectionRef);
+    const qPurchases = query(purchasesCollectionRef, where('companyId', '==', companyId));
     const unsubscribePurchases = onSnapshot(qPurchases, (snapshot) => {
       setPurchases(snapshot.docs.map(doc => ({
         id: doc.id,
@@ -193,7 +193,7 @@ const usePnlReport = (userId: string | undefined) => {
         invoiceNumber: doc.data().invoiceNumber || 'N/A',
         partyName: doc.data().partyName || 'N/A',
       })));
-      setLoading(false);
+      setLoading(false); // Set loading to false after all initial fetches
     }, (_err) => setError('Failed to fetch purchases data.'));
 
     return () => {
@@ -201,17 +201,19 @@ const usePnlReport = (userId: string | undefined) => {
       unsubscribeSales();
       unsubscribePurchases();
     };
-  }, [userId, itemsMap]);
+    // --- FIX 3: Add companyId to the dependency array ---
+  }, [companyId, itemsMap]);
 
   return { sales, purchases, loading, error };
 };
 
 
-// --- Main P&L Report Component (MODIFIED for whole number rounding) ---
+// --- Main P&L Report Component ---
 const PnlReportPage: React.FC = () => {
   const navigate = useNavigate();
+  // --- FIX 4: Pass currentUser.companyId to the hook ---
   const { currentUser, loading: authLoading } = useAuth();
-  const { sales, loading: dataLoading, error } = usePnlReport(currentUser?.uid);
+  const { sales, loading: dataLoading, error } = usePnlReport(currentUser?.companyId);
 
   const [datePreset, setDatePreset] = useState<string>('today');
   const [startDate, setStartDate] = useState<string>('');
@@ -308,14 +310,14 @@ const PnlReportPage: React.FC = () => {
       </div>
 
       <div className="bg-white p-4 rounded-lg shadow-md mb-6">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <FilterSelect value={datePreset} onChange={(e) => handleDatePresetChange(e.target.value)}>
-            <option value="today">Today</option>
-            <option value="yesterday">Yesterday</option>
-            <option value="last7">Last 7 Days</option>
-            <option value="last30">Last 30 Days</option>
-            <option value="custom">Custom</option>
-          </FilterSelect>
+        <FilterSelect value={datePreset} onChange={(e) => handleDatePresetChange(e.target.value)}>
+          <option value="today">Today</option>
+          <option value="yesterday">Yesterday</option>
+          <option value="last7">Last 7 Days</option>
+          <option value="last30">Last 30 Days</option>
+          <option value="custom">Custom</option>
+        </FilterSelect>
+        <div className="grid grid-cols-2 sm:grid-cols-2 gap-2 mt-2">
           <input
             type="date"
             value={startDate}
@@ -337,22 +339,19 @@ const PnlReportPage: React.FC = () => {
         </button>
       </div>
 
-      <div className="flex flex-col gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <SummaryCard
           title="Total Revenue"
-          // MODIFIED: Round to whole number
           value={`₹${pnlSummary.totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
           valueClassName="text-green-600"
         />
         <SummaryCard
           title="Cost of Goods Sold"
-          // MODIFIED: Round to whole number
           value={`₹${pnlSummary.totalCost.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
           valueClassName="text-red-600"
         />
         <SummaryCard
           title="Net Profit / Loss"
-          // MODIFIED: Round to whole number
           value={`₹${pnlSummary.netProfit.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
           valueClassName={pnlSummary.netProfit >= 0 ? "text-blue-600" : "text-red-600"}
         />

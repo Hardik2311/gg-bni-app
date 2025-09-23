@@ -7,6 +7,8 @@ import {
     onSnapshot,
     Timestamp,
     where,
+    doc,
+    getDoc,
 } from 'firebase/firestore';
 import { Spinner } from '../constants/Spinner';
 import {
@@ -15,24 +17,58 @@ import {
     CardHeader,
     CardTitle,
 } from './ui/card';
-import { useFilter } from './Filter'; // Assumes you have a global filter context
+import { useFilter } from './Filter';
 
-// --- Data Types ---
 interface SaleDoc {
     paymentMethods?: { [key: string]: number };
     createdAt: Timestamp;
+    companyId?: string;
+}
+interface UserDoc {
+    companyId?: string;
 }
 
-// --- 1. Custom Hook for Fetching & Aggregating Payment Data ---
 const usePaymentData = (userId?: string) => {
-    const { filters } = useFilter(); // Uses the global filter
+    const { filters } = useFilter();
     const [paymentData, setPaymentData] = useState<{ [key: string]: number }>({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [companyId, setCompanyId] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!userId || !filters.startDate || !filters.endDate) {
+        if (!userId) {
             setLoading(false);
+            return;
+        }
+        setLoading(true);
+
+        const fetchUserCompany = async () => {
+            try {
+                const userDocRef = doc(db, 'users', userId);
+                const userDocSnap = await getDoc(userDocRef);
+                if (userDocSnap.exists()) {
+                    const userData = userDocSnap.data() as UserDoc;
+                    if (userData.companyId) {
+                        setCompanyId(userData.companyId);
+                    } else {
+                        throw new Error("Company ID not found on user profile.");
+                    }
+                } else {
+                    throw new Error("User profile not found.");
+                }
+            } catch (err: any) {
+                console.error('Error fetching user company data:', err);
+                setError(`Failed to get company info: ${err.message}`);
+                setLoading(false);
+            }
+        };
+
+        fetchUserCompany();
+    }, [userId]);
+
+
+    useEffect(() => {
+        if (!userId || !companyId || !filters.startDate || !filters.endDate) {
             return;
         }
         setLoading(true);
@@ -44,12 +80,12 @@ const usePaymentData = (userId?: string) => {
 
         const salesQuery = query(
             collection(db, 'sales'),
+            where('companyId', '==', companyId),
             where('createdAt', '>=', start),
-            where('createdAt', '<=', end)
+            where('createdAt', '<=', end),
         );
 
         const unsubscribe = onSnapshot(salesQuery, (snapshot) => {
-            // Aggregate totals for each payment method
             const paymentTotals = snapshot.docs.reduce((acc, doc) => {
                 const sale = doc.data() as SaleDoc;
                 if (sale.paymentMethods) {
@@ -70,20 +106,17 @@ const usePaymentData = (userId?: string) => {
         });
 
         return () => unsubscribe();
-    }, [userId, filters]); // Re-runs when the global filter changes
+    }, [userId, companyId, filters]);
 
     return { paymentData, loading, error };
 };
 
-
-// --- 2. Main Payment Chart Card Component ---
 interface PaymentChartProps {
     isDataVisible: boolean;
 }
 
 export const PaymentChart: React.FC<PaymentChartProps> = ({ isDataVisible }) => {
     const { currentUser } = useAuth();
-    // The component gets its own data from the custom hook
     const { paymentData, loading, error } = usePaymentData(currentUser?.uid);
 
     const renderContent = () => {

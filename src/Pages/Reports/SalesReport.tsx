@@ -4,6 +4,7 @@ import { db } from '../../lib/firebase';
 import {
   collection,
   query,
+  where, // Make sure 'where' is imported
   getDocs,
   Timestamp,
 } from 'firebase/firestore';
@@ -11,7 +12,7 @@ import { useAuth } from '../../context/auth-context';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-
+// --- Data Types ---
 interface SalesItem {
   name: string;
   mrp: number;
@@ -25,11 +26,13 @@ interface SaleRecord {
   partyName: string;
   totalAmount: number;
   paymentMethods: PaymentMethods;
-  createdAt: number;
+  createdAt: number; // Using number for timestamp (milliseconds)
   items: SalesItem[];
+  // Add other potential keys for sorting
+  [key: string]: any;
 }
 
-
+// --- Helper Functions ---
 const formatDate = (timestamp: number): string => {
   if (!timestamp) return 'N/A';
   return new Date(timestamp).toLocaleDateString('en-GB', {
@@ -43,6 +46,7 @@ const formatDateForInput = (date: Date): string => {
   return date.toISOString().split('T')[0];
 };
 
+// --- Reusable Components ---
 const SummaryCard: React.FC<{ title: string; value: string; note?: string }> = ({ title, value, note }) => (
   <div className="bg-white p-4 rounded-lg shadow-md text-center">
     <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">{title}</h3>
@@ -177,6 +181,7 @@ const SalesListTable: React.FC<{
   );
 };
 
+// --- Main Sales Report Component ---
 const ALL_PAYMENT_MODES = ['Cash', 'Card', 'UPI', 'Due'];
 
 const SalesReport: React.FC = () => {
@@ -191,7 +196,6 @@ const SalesReport: React.FC = () => {
   const [customEndDate, setCustomEndDate] = useState<string>('');
   const [appliedFilters, setAppliedFilters] = useState<{ start: number; end: number } | null>(null);
   const [isListVisible, setIsListVisible] = useState(false);
-
   const [sortConfig, setSortConfig] = useState<{ key: keyof SaleRecord; direction: 'asc' | 'desc' }>({ key: 'createdAt', direction: 'desc' });
 
   useEffect(() => {
@@ -200,32 +204,33 @@ const SalesReport: React.FC = () => {
     const endDateStr = formatDateForInput(today);
     setCustomStartDate(startDateStr);
     setCustomEndDate(endDateStr);
-
     const start = new Date(startDateStr);
     start.setHours(0, 0, 0, 0);
     const end = new Date(endDateStr);
     end.setHours(23, 59, 59, 999);
-
     setAppliedFilters({ start: start.getTime(), end: end.getTime() });
   }, []);
 
+  // Fetch data securely with companyId
   useEffect(() => {
     if (authLoading) return;
-    if (!currentUser) {
+    if (!currentUser?.companyId) {
       setIsLoading(false);
-      setError('You must be logged in to view sales reports.');
+      setError('Company information not found. Please log in again.');
       return;
     }
 
     const fetchSales = async () => {
       setIsLoading(true);
       try {
-        const q = query(collection(db, 'sales'));
+        // Add 'where' clause to filter by companyId
+        const q = query(collection(db, 'sales'), where('companyId', '==', currentUser.companyId));
         const querySnapshot = await getDocs(q);
         const fetchedSales: SaleRecord[] = querySnapshot.docs.map(doc => {
           const data = doc.data();
           return {
-            id: doc.id, partyName: data.partyName || 'N/A',
+            id: doc.id,
+            partyName: data.partyName || 'N/A',
             totalAmount: data.totalAmount || 0,
             paymentMethods: data.paymentMethods || {},
             createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : Date.now(),
@@ -265,6 +270,14 @@ const SalesReport: React.FC = () => {
     setAppliedFilters({ start: start.getTime(), end: end.getTime() });
   };
 
+  const handleSort = (key: keyof SaleRecord) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
   const { filteredSales, summary, topCustomers, paymentModes } = useMemo(() => {
     if (!appliedFilters) {
       return { filteredSales: [], summary: { totalSales: 0, totalTransactions: 0, totalItemsSold: 0, averageSaleValue: 0 }, topCustomers: [], paymentModes: {} };
@@ -279,7 +292,6 @@ const SalesReport: React.FC = () => {
       const direction = sortConfig.direction === 'asc' ? 1 : -1;
       const valA = a[key] ?? '';
       const valB = b[key] ?? '';
-
       if (typeof valA === 'string' && typeof valB === 'string') {
         return valA.localeCompare(valB) * direction;
       }
@@ -293,7 +305,6 @@ const SalesReport: React.FC = () => {
     const totalItemsSold = newFilteredSales.reduce((acc, sale) => acc + sale.items.reduce((iAcc, i) => iAcc + i.quantity, 0), 0);
     const totalTransactions = newFilteredSales.length;
     const averageSaleValue = totalTransactions > 0 ? totalSales / totalTransactions : 0;
-
     const customerTotals: { [key: string]: number } = {};
     const paymentModesData: { [key: string]: number } = {};
     ALL_PAYMENT_MODES.forEach(mode => { paymentModesData[mode] = 0; });
@@ -302,8 +313,8 @@ const SalesReport: React.FC = () => {
       customerTotals[s.partyName] = (customerTotals[s.partyName] || 0) + s.totalAmount;
       for (const [methodFromDB, amount] of Object.entries(s.paymentMethods)) {
         const normalizedMethod = methodFromDB.toLowerCase();
-        const matchedMode = ALL_PAYMENT_MODES.find(m => m.toLowerCase().replace(' ', '') === normalizedMethod);
-        if (matchedMode) {
+        const matchedMode = ALL_PAYMENT_MODES.find(m => m.toLowerCase().replace(/\s/g, '') === normalizedMethod);
+        if (matchedMode && typeof amount === 'number') {
           paymentModesData[matchedMode] += amount;
         }
       }
@@ -318,14 +329,6 @@ const SalesReport: React.FC = () => {
       paymentModes: paymentModesData,
     };
   }, [appliedFilters, sales, sortConfig]);
-
-  const handleSort = (key: keyof SaleRecord) => {
-    let direction: 'asc' | 'desc' = 'asc';
-    if (sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
-    setSortConfig({ key, direction });
-  };
 
   const downloadAsPdf = () => {
     if (!appliedFilters) return;
@@ -344,10 +347,10 @@ const SalesReport: React.FC = () => {
         formatDate(sale.createdAt),
         sale.partyName,
         sale.items.reduce((sum, i) => sum + i.quantity, 0),
-        `Rs. ${sale.totalAmount.toLocaleString('en-IN')}`,
+        `₹ ${sale.totalAmount.toLocaleString('en-IN')}`,
       ]),
       foot: [
-        ['Total', '', `${summary.totalItemsSold}`, `Rs. ${summary.totalSales.toLocaleString('en-IN')}`]
+        ['Total', '', `${summary.totalItemsSold}`, `₹ ${summary.totalSales.toLocaleString('en-IN')}`]
       ],
       footStyles: { fontStyle: 'bold' },
     });
@@ -374,13 +377,13 @@ const SalesReport: React.FC = () => {
             <option value="last30">Last 30 Days</option>
             <option value="custom">Custom</option>
           </FilterSelect>
-          <input type="date" value={customStartDate} onChange={e => setCustomStartDate(e.target.value)} className="w-full p-2 text-sm bg-gray-50 border rounded-md" placeholder="Start Date" />
-          <input type="date" value={customEndDate} onChange={e => setCustomEndDate(e.target.value)} className="w-full p-2 text-sm bg-gray-50 border rounded-md" placeholder="End Date" />
+          <input type="date" value={customStartDate} onChange={e => { setCustomStartDate(e.target.value); setDatePreset('custom'); }} className="w-full p-2 text-sm bg-gray-50 border rounded-md" placeholder="Start Date" />
+          <input type="date" value={customEndDate} onChange={e => { setCustomEndDate(e.target.value); setDatePreset('custom'); }} className="w-full p-2 text-sm bg-gray-50 border rounded-md" placeholder="End Date" />
         </div>
         <button onClick={handleApplyFilters} className="w-full mt-4 px-6 py-3 bg-blue-600 text-white text-lg font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">Apply</button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+      <div className="grid grid-cols-2 gap-2 mb-6">
         <SummaryCard title="Total Sales" value={`₹${summary.totalSales?.toLocaleString('en-IN') || '0'}`} />
         <SummaryCard title="Total Transactions" value={summary.totalTransactions?.toString() || '0'} />
         <SummaryCard title="Total Items Sold" value={summary.totalItemsSold?.toString() || '0'} />
@@ -408,3 +411,4 @@ const SalesReport: React.FC = () => {
 };
 
 export default SalesReport;
+

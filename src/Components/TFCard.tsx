@@ -6,6 +6,7 @@ import {
   query,
   onSnapshot,
   Timestamp,
+  where, // Make sure 'where' is imported
 } from 'firebase/firestore';
 import { Spinner } from '../constants/Spinner';
 import {
@@ -14,7 +15,6 @@ import {
   CardHeader,
   CardTitle,
 } from './ui/card';
-import { where } from 'firebase/firestore';
 import { useFilter } from './Filter';
 
 // --- Data Types ---
@@ -27,33 +27,42 @@ interface SaleDoc {
   items: SalesItem[];
   userId: string;
   createdAt: Timestamp;
+  companyId: string; // Added for type safety
 }
 interface AggregatedItem {
   name: string;
   totalQuantity: number;
 }
 
-const useTopSoldItems = (userId?: string) => {
-  const { filters } = useFilter(); // ✅ Use the global filter
+/**
+ * Custom hook to fetch the top-selling items for a specific company within a date range.
+ * @param companyId The ID of the company to fetch sales data for.
+ */
+const useTopSoldItems = (companyId?: string) => {
+  const { filters } = useFilter();
   const [topItems, setTopItems] = useState<AggregatedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!userId || !filters.startDate || !filters.endDate) {
+    // --- FIX 1: Wait for companyId before running the query ---
+    if (!companyId || !filters.startDate || !filters.endDate) {
       setLoading(false);
+      setTopItems([]);
       return;
     }
     setLoading(true);
+    setError(null);
 
     const start = new Date(filters.startDate);
     start.setHours(0, 0, 0, 0);
     const end = new Date(filters.endDate);
     end.setHours(23, 59, 59, 999);
 
-    // ✅ Query now includes the date range from the filter
+    // --- FIX 2: Add 'where' clause for companyId to the query ---
     const salesQuery = query(
       collection(db, 'sales'),
+      where('companyId', '==', companyId),
       where('createdAt', '>=', start),
       where('createdAt', '<=', end)
     );
@@ -83,20 +92,21 @@ const useTopSoldItems = (userId?: string) => {
     });
 
     return () => unsubscribe();
-  }, [userId, filters]); // ✅ Re-run when the global filter changes
+    // --- FIX 3: Add companyId to the dependency array ---
+  }, [companyId, filters]);
 
   return { topItems, loading, error };
 };
 
-
-// --- 4. Main Top Sold Items Card Component ---
+// --- Main Top Sold Items Card Component ---
 interface TopSoldItemsCardProps {
   isDataVisible: boolean;
 }
 
 export const TopSoldItemsCard: React.FC<TopSoldItemsCardProps> = ({ isDataVisible }) => {
-  const { currentUser } = useAuth();
-  const { topItems, loading, error } = useTopSoldItems(currentUser?.uid);
+  // --- FIX 4: Use 'currentUser' as requested and pass companyId to the hook ---
+  const { currentUser } = useAuth(); // Renaming 'user' to 'currentUser'
+  const { topItems, loading, error } = useTopSoldItems(currentUser?.companyId);
 
   const renderContent = () => {
     if (loading) return <Spinner />;
@@ -105,7 +115,7 @@ export const TopSoldItemsCard: React.FC<TopSoldItemsCardProps> = ({ isDataVisibl
     if (!isDataVisible) {
       return (
         <div className="flex flex-col items-center justify-center text-center text-gray-500 py-4">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mb-1"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" /><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" /><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" /><line x1="2" x2="22" y1="2" y2="22" /></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mb-1"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" /><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" /><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" /><line x1="2" x2="22" y1="2" y2="22" /></svg>
           Data is hidden
         </div>
       );
@@ -141,6 +151,5 @@ export const TopSoldItemsCard: React.FC<TopSoldItemsCardProps> = ({ isDataVisibl
     </Card>
   );
 };
-
 
 export default TopSoldItemsCard;

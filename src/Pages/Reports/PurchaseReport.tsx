@@ -4,6 +4,7 @@ import { db } from '../../lib/firebase';
 import {
   collection,
   query,
+  where, // Make sure 'where' is imported
   getDocs,
   Timestamp,
 } from 'firebase/firestore';
@@ -11,6 +12,7 @@ import { useAuth } from '../../context/auth-context';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+// --- Data Types ---
 interface PurchaseItem {
   name: string;
   purchasePrice: number;
@@ -24,11 +26,13 @@ interface PurchaseRecord {
   partyName: string;
   totalAmount: number;
   paymentMethods: PaymentMethods;
-  createdAt: number;
+  createdAt: number; // Using number for timestamp (milliseconds)
   items: PurchaseItem[];
+  // Add other potential keys for sorting
+  [key: string]: any;
 }
 
-
+// --- Helper Functions ---
 const formatDate = (timestamp: number): string => {
   if (!timestamp) return 'N/A';
   return new Date(timestamp).toLocaleDateString('en-GB');
@@ -38,6 +42,7 @@ const formatDateForInput = (date: Date): string => {
   return date.toISOString().split('T')[0];
 };
 
+// --- Reusable Components ---
 const SummaryCard: React.FC<{ title: string; value: string; note?: string }> = ({ title, value, note }) => (
   <div className="bg-white p-4 rounded-lg shadow-md text-center">
     <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">{title}</h3>
@@ -124,7 +129,6 @@ const PurchaseListTable: React.FC<{
   const SortableHeader: React.FC<{ sortKey: keyof PurchaseRecord; children: React.ReactNode; className?: string; }> = ({ sortKey, children, className }) => {
     const isSorted = sortConfig.key === sortKey;
     const directionIcon = sortConfig.direction === 'asc' ? '▲' : '▼';
-
     return (
       <th className={`py-3 px-4 ${className || ''}`}>
         <button onClick={() => onSort(sortKey)} className="flex items-center gap-2 uppercase">
@@ -172,6 +176,7 @@ const PurchaseListTable: React.FC<{
   );
 };
 
+// --- Main Purchase Report Component ---
 const ALL_PAYMENT_MODES = ['Bank Transfer', 'Cheque', 'Cash', 'Credit'];
 
 const PurchaseReport: React.FC = () => {
@@ -180,7 +185,6 @@ const PurchaseReport: React.FC = () => {
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-
   const [datePreset, setDatePreset] = useState<string>('today');
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
@@ -199,22 +203,23 @@ const PurchaseReport: React.FC = () => {
     start.setHours(0, 0, 0, 0);
     const end = new Date(endDateStr);
     end.setHours(23, 59, 59, 999);
-
     setAppliedFilters({ start: start.getTime(), end: end.getTime() });
   }, []);
 
+  // --- FIX 1: Fetch data securely with companyId ---
   useEffect(() => {
     if (authLoading) return;
-    if (!currentUser) {
+    if (!currentUser?.companyId) {
       setIsLoading(false);
-      setError('You must be logged in to view purchase reports.');
+      setError('Company information not found. Please log in again.');
       return;
     }
 
     const fetchPurchases = async () => {
       setIsLoading(true);
       try {
-        const q = query(collection(db, 'purchases'));
+        // Add 'where' clause to filter by companyId
+        const q = query(collection(db, 'purchases'), where('companyId', '==', currentUser.companyId));
         const querySnapshot = await getDocs(q);
         const fetchedPurchases: PurchaseRecord[] = querySnapshot.docs.map(doc => {
           const data = doc.data();
@@ -235,6 +240,7 @@ const PurchaseReport: React.FC = () => {
       }
     };
     fetchPurchases();
+    // --- FIX 2: Add currentUser.companyId to dependency array ---
   }, [currentUser, authLoading]);
 
   const handleDatePresetChange = (preset: string) => {
@@ -259,6 +265,7 @@ const PurchaseReport: React.FC = () => {
     end.setHours(23, 59, 59, 999);
     setAppliedFilters({ start: start.getTime(), end: end.getTime() });
   };
+
   const handleSort = (key: keyof PurchaseRecord) => {
     let direction: 'asc' | 'desc' = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -275,12 +282,12 @@ const PurchaseReport: React.FC = () => {
     const newFilteredPurchases = purchases.filter(p =>
       p.createdAt >= appliedFilters.start && p.createdAt <= appliedFilters.end
     );
+
     newFilteredPurchases.sort((a, b) => {
       const key = sortConfig.key;
       const direction = sortConfig.direction === 'asc' ? 1 : -1;
       const valA = a[key] ?? '';
       const valB = b[key] ?? '';
-
       if (typeof valA === 'string' && typeof valB === 'string') {
         return valA.localeCompare(valB) * direction;
       }
@@ -294,7 +301,6 @@ const PurchaseReport: React.FC = () => {
     const totalItemsPurchased = newFilteredPurchases.reduce((acc, p) => acc + p.items.reduce((iAcc, i) => iAcc + i.quantity, 0), 0);
     const totalOrders = newFilteredPurchases.length;
     const averagePurchaseValue = totalOrders > 0 ? totalPurchases / totalOrders : 0;
-
     const supplierTotals: { [key: string]: number } = {};
     const paymentModesData: { [key: string]: number } = {};
     ALL_PAYMENT_MODES.forEach(mode => { paymentModesData[mode] = 0; });
@@ -302,9 +308,9 @@ const PurchaseReport: React.FC = () => {
     newFilteredPurchases.forEach((p) => {
       supplierTotals[p.partyName] = (supplierTotals[p.partyName] || 0) + p.totalAmount;
       for (const [methodFromDB, amount] of Object.entries(p.paymentMethods)) {
-        const normalizedMethod = methodFromDB.toLowerCase().replace(' ', '');
-        const matchedMode = ALL_PAYMENT_MODES.find(m => m.toLowerCase().replace(' ', '') === normalizedMethod);
-        if (matchedMode) {
+        const normalizedMethod = methodFromDB.toLowerCase().replace(/\s/g, '');
+        const matchedMode = ALL_PAYMENT_MODES.find(m => m.toLowerCase().replace(/\s/g, '') === normalizedMethod);
+        if (matchedMode && typeof amount === 'number') {
           paymentModesData[matchedMode] += amount;
         }
       }
@@ -318,13 +324,13 @@ const PurchaseReport: React.FC = () => {
       topSuppliers,
       paymentModes: paymentModesData,
     };
-  }, [appliedFilters, purchases]);
+  }, [appliedFilters, purchases, sortConfig]);
 
   const downloadAsPdf = () => {
     const doc = new jsPDF();
     doc.text('Purchase Report', 20, 10);
     autoTable(doc, {
-      head: [['Date', 'Party Name', 'Total Amount', 'Payment Method']],
+      head: [['Date', 'Supplier Name', 'Total Amount', 'Payment Method']],
       body: filteredPurchases.map((purchase) => [
         formatDate(purchase.createdAt),
         purchase.partyName,
@@ -354,16 +360,16 @@ const PurchaseReport: React.FC = () => {
             <option value="last30">Last 30 Days</option>
             <option value="custom">Custom</option>
           </FilterSelect>
-          <input type="date" value={customStartDate} onChange={e => setCustomStartDate(e.target.value)} className="w-full p-2 text-sm bg-gray-50 border rounded-md" placeholder="Start Date" />
-          <input type="date" value={customEndDate} onChange={e => setCustomEndDate(e.target.value)} className="w-full p-2 text-sm bg-gray-50 border rounded-md" placeholder="End Date" />
+          <input type="date" value={customStartDate} onChange={e => { setCustomStartDate(e.target.value); setDatePreset('custom'); }} className="w-full p-2 text-sm bg-gray-50 border rounded-md" placeholder="Start Date" />
+          <input type="date" value={customEndDate} onChange={e => { setCustomEndDate(e.target.value); setDatePreset('custom'); }} className="w-full p-2 text-sm bg-gray-50 border rounded-md" placeholder="End Date" />
         </div>
         <button onClick={handleApplyFilters} className="w-full mt-4 px-6 py-3 bg-blue-600 text-white text-lg font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">Apply</button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <SummaryCard title="Total Purchases" value={`₹${summary.totalPurchases?.toLocaleString('en-IN') || '0'}`} />
         <SummaryCard title="Total Orders" value={summary.totalOrders?.toString() || '0'} />
-        <SummaryCard title="Total Items Purchased" value={summary.totalItemsPurchased?.toString() || '0'} />
+        <SummaryCard title="Total Items" value={summary.totalItemsPurchased?.toString() || '0'} />
         <SummaryCard title="Avg Purchase Value" value={`₹${summary.averagePurchaseValue?.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0'}`} />
       </div>
 

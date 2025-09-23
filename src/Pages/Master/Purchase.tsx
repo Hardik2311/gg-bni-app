@@ -139,6 +139,7 @@ const PurchasePage: React.FC = () => {
       totalAmount: finalAmount,
       paymentMethods: paymentDetails,
       createdAt: serverTimestamp(),
+      companyId: currentUser.companyId,
     };
 
     try {
