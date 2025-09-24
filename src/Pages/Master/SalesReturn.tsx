@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, NavLink, useParams, useLocation } from 'react-router-dom';
-import { db } from '../../lib/firebase'; // Keep for core Firestore functions like writeBatch
+import { db } from '../../lib/firebase';
 import {
   collection,
   query,
@@ -9,6 +9,8 @@ import {
   writeBatch,
   increment as firebaseIncrement,
   arrayUnion,
+  serverTimestamp,
+  where,
 } from 'firebase/firestore';
 import { useAuth, useDatabase } from '../../context/auth-context';
 import { ROUTES } from '../../constants/routes.constants';
@@ -54,7 +56,7 @@ interface ExchangeItem {
 const SalesReturnPage: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const dbOperations = useDatabase(); // ✅ Get the scoped DB operations from the hook
+  const dbOperations = useDatabase();
   const { state } = useLocation();
   const { invoiceId } = useParams();
 
@@ -77,7 +79,7 @@ const SalesReturnPage: React.FC = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   useEffect(() => {
-    if (!currentUser || !dbOperations) {
+    if (!currentUser || !currentUser.companyId || !dbOperations) {
       setIsLoading(false);
       return;
     }
@@ -85,12 +87,14 @@ const SalesReturnPage: React.FC = () => {
       setIsLoading(true);
       setError(null);
       try {
-        // NOTE: Ensure your sales querying logic aligns with your multi-company strategy.
-        // This example assumes a general query, but you might need a scoped query here too.
-        const salesQuery = query(collection(db, 'sales'));
+        const salesQuery = query(
+          collection(db, 'sales'),
+          where('companyId', '==', currentUser.companyId)
+        );
+
         const [salesSnapshot, allItems] = await Promise.all([
           getDocs(salesQuery),
-          dbOperations.getItems(), // ✅ Use the safe, scoped method
+          dbOperations.getItems(),
         ]);
 
         const allSales: SalesData[] = salesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SalesData));
@@ -109,13 +113,13 @@ const SalesReturnPage: React.FC = () => {
         }
       } catch (err) {
         console.error('Error fetching data:', err);
-        setError('Failed to load initial data.');
+        setError('Failed to load initial data. Check Firestore rules and network.');
       } finally {
         setIsLoading(false);
       }
     };
     fetchData();
-  }, [currentUser, dbOperations, invoiceId, state]); // ✅ Add dbOperations to dependency array
+  }, [currentUser, dbOperations, invoiceId, state]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -299,7 +303,6 @@ const SalesReturnPage: React.FC = () => {
         paymentDetails: completionData?.paymentDetails || null,
       };
 
-      // ✅ This is the robust fix for the arrayUnion issue
       batch.set(saleRef, {
         items: newItemsList,
         subtotal: updatedTotals.subtotal,
@@ -316,12 +319,23 @@ const SalesReturnPage: React.FC = () => {
         batch.update(doc(db, 'items', item.originalItemId), { amount: firebaseIncrement(-item.quantity) });
       });
 
+      if (finalBalance > 0 && partyNumber && partyNumber.length >= 10) {
+        const customerRef = doc(db, 'customers', partyNumber);
+        batch.set(customerRef, {
+          creditBalance: firebaseIncrement(finalBalance),
+          name: partyName,
+          number: partyNumber,
+          companyId: currentUser.companyId,
+          lastUpdatedAt: serverTimestamp()
+        }, { merge: true });
+      }
+
       await batch.commit();
       setModal({ type: State.SUCCESS, message: 'Sale Return processed successfully!' });
       navigate(ROUTES.SALES);
     } catch (err) {
-      console.error("Error processing sales return: ", err);
-      setModal({ type: State.ERROR, message: "Failed to process the return." });
+      console.error("Detailed error during sales return:", err);
+      setModal({ type: State.ERROR, message: "Failed to process the return. Check permissions and data." });
     } finally {
       setIsLoading(false);
       setIsDrawerOpen(false);
@@ -348,7 +362,7 @@ const SalesReturnPage: React.FC = () => {
   if (isLoading) return <div className="flex min-h-screen items-center justify-center">Loading...</div>;
 
   return (
-    <div className="flex flex-col min-h-screen bg-white w-full">
+    <div className="flex flex-col min-h-screen bg-white w-full pb-16">
       {modal && <Modal message={modal.message} onClose={() => setModal(null)} type={modal.type} />}
       <BarcodeScanner isOpen={scannerPurpose !== null} onClose={() => setScannerPurpose(null)} onScanSuccess={handleBarcodeScanned} />
 
@@ -361,7 +375,7 @@ const SalesReturnPage: React.FC = () => {
         <div className="w-6"></div>
       </div>
 
-      <div className="flex-grow p-4 bg-gray-100">
+      <div className="flex-grow p-4 bg-gray-100 pb-24">
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
           <div className="relative" ref={salesDropdownRef}>
             <label htmlFor="search-sale" className="block text-lg font-medium mb-2">
@@ -446,7 +460,7 @@ const SalesReturnPage: React.FC = () => {
                 </div>
               </div>
 
-              <h3 className="text-xl font-semibold mt-6 mb-4">Transaction Items</h3>
+              <h3 className="text-xl font-semibold mt-6 mb-4">Items to Return</h3>
               <div className="flex flex-col gap-4">
                 {itemsToReturn.map((item) => (
                   <div key={item.id} className="grid grid-cols-12 gap-x-2 gap-y-2 items-center p-3 border rounded-lg bg-red-50 shadow-sm">
@@ -488,7 +502,7 @@ const SalesReturnPage: React.FC = () => {
                         className="p-3 bg-gray-700 text-white rounded-lg flex items-center justify-center"
                         title="Scan Item Barcode"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>
                       </button>
                     </div>
                   </div>
@@ -522,14 +536,14 @@ const SalesReturnPage: React.FC = () => {
                 <div className="flex justify-between items-center text-md text-blue-700"><p>Return Sale Amount</p><p className="font-medium">₹{totalReturnValue.toFixed(2)}</p></div>
                 <div className="flex justify-between items-center text-md text-blue-700"><p>Total Exchange Value</p><p className="font-medium">₹{totalExchangeValue.toFixed(2)}</p></div>
                 <div className="border-t border-gray-300 !my-2"></div>
-                <div className={`flex justify-between items-center text-2xl font-bold ${finalBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}><p>{finalBalance >= 0 ? 'Credit Note ' : 'Payment Due'}</p><p>₹{Math.abs(finalBalance).toFixed(2)}</p></div>
+                <div className={`flex justify-between items-center text-2xl font-bold ${finalBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}><p>{finalBalance >= 0 ? 'Credit Due' : 'Payment Due'}</p><p>₹{Math.abs(finalBalance).toFixed(2)}</p></div>
               </div>
             </div>
           </>
         )}
       </div>
 
-      <div className="sticky bottom-0 p-4 bg-white border-t">
+      <div className="sticky bottom-0 p-4 bg-white border-t z-30">
         {selectedSale && (<CustomButton onClick={handleProcessReturn} variant={Variant.Filled} className="w-full py-4 text-xl font-semibold">Process Transaction</CustomButton>)}
       </div>
 
