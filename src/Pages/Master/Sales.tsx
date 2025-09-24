@@ -215,7 +215,7 @@ const Sales: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-full bg-white w-full overflow-hidden">
+    <div className="flex flex-col h-full bg-white w-full overflow-hidden pb-10">
       {modal && <Modal message={modal.message} onClose={() => setModal(null)} type={modal.type} />}
       <BarcodeScanner isOpen={isScannerOpen} onClose={() => setIsScannerOpen(false)} onScanSuccess={handleBarcodeScanned} />
       <div className="flex-shrink-0 flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm z-30">
@@ -269,7 +269,7 @@ const Sales: React.FC = () => {
             />
           </div>
           <CustomButton onClick={() => setIsScannerOpen(true)} variant={Variant.Transparent} className='flex-shrink-0' title="Scan Barcode">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>
           </CustomButton>
         </div>
       </div>
@@ -297,7 +297,7 @@ const Sales: React.FC = () => {
                     <div>
                       <p className="font-semibold text-gray-800">{item.name.slice(0, 25)}</p>
                     </div>
-                    <button onClick={() => handleDeleteItem(item.id)} className="text-gray-400 hover:text-red-500 flex-shrink-0 ml-4" title="Remove item">
+                    <button onClick={() => handleDeleteItem(item.id)} className="text-black-400 hover:text-red-500 flex-shrink-0 ml-4" title="Remove item">
                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
                     </button>
                   </div>

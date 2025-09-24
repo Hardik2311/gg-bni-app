@@ -1,21 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, NavLink } from 'react-router-dom';
-import { createItem, getItemGroups } from '../../lib/items_firebase';
 import type { Item, ItemGroup } from '../../constants/models';
 import { ROUTES } from '../../constants/routes.constants';
 import * as XLSX from 'xlsx';
 import BarcodeScanner from '../../UseComponents/BarcodeScanner';
-import { useAuth } from '../../context/auth-context';
+import { useAuth, useDatabase } from '../../context/auth-context';
 
 const ItemAdd: React.FC = () => {
   const navigate = useNavigate();
+  const dbOperations = useDatabase();
+  const { currentUser } = useAuth();
+
   const [itemName, setItemName] = useState<string>('');
   const [itemMRP, setItemMRP] = useState<string>('');
   const [itemPurchasePrice, setItemPurchasePrice] = useState<string>('');
   const [itemDiscount, setItemDiscount] = useState<string>('');
   const [itemTax, setItemTax] = useState<string>('');
   const [itemAmount, setItemAmount] = useState<string>('');
-  const [restockQuantity, setRestockQuantity] = useState<string>(''); // Added state for restock quantity
+  const [restockQuantity, setRestockQuantity] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [itemBarcode, setItemBarcode] = useState<string>('');
   const [itemGroups, setItemGroups] = useState<ItemGroup[]>([]);
@@ -25,13 +27,17 @@ const ItemAdd: React.FC = () => {
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const { currentUser } = useAuth();
 
   useEffect(() => {
+    if (!dbOperations) {
+      setLoading(false);
+      return;
+    }
+
     const fetchGroups = async () => {
       try {
         setLoading(true);
-        const groups = await getItemGroups();
+        const groups = await dbOperations.getItemGroups();
         setItemGroups(groups);
         if (groups.length > 0 && !selectedCategory) {
           setSelectedCategory(groups[0].id!);
@@ -44,7 +50,7 @@ const ItemAdd: React.FC = () => {
       }
     };
     fetchGroups();
-  }, [selectedCategory]);
+  }, [dbOperations]);
 
   const resetForm = () => {
     setItemName('');
@@ -54,20 +60,23 @@ const ItemAdd: React.FC = () => {
     setItemTax('');
     setItemAmount('');
     setItemBarcode('');
-    setRestockQuantity(''); // Reset restock quantity
+    setRestockQuantity('');
   };
 
   const handleAddItem = async () => {
+    if (!dbOperations || !currentUser) {
+      setError('Cannot add item. User or database not ready.');
+      return;
+    }
     setError(null);
-    setSuccess(null); // FIX: Removed duplicate setSuccess(null)
+    setSuccess(null);
 
     if (!itemName.trim() || !itemMRP.trim() || !selectedCategory || !itemAmount.trim()) {
       setError('Please fill in all required fields: Item Name, MRP, Amount, and Category.');
       return;
     }
     try {
-      // FIX: Corrected the newItemData object structure
-      const newItemData: Omit<Item, 'id' | 'createdAt' | 'updatedAt'> = {
+      const newItemData: Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'companyId'> = {
         name: itemName.trim(),
         mrp: parseFloat(itemMRP),
         purchasePrice: parseFloat(itemPurchasePrice) || 0,
@@ -76,11 +85,10 @@ const ItemAdd: React.FC = () => {
         itemGroupId: selectedCategory,
         amount: parseInt(itemAmount, 10),
         barcode: itemBarcode.trim() || '',
-        restockQuantity: parseInt(restockQuantity, 10) || 0, // Added restockQuantity
-        companyId: currentUser?.companyId || null
+        restockQuantity: parseInt(restockQuantity, 10) || 0,
       };
 
-      await createItem(newItemData);
+      await dbOperations.createItem(newItemData);
       setSuccess(`Item "${itemName}" added successfully!`);
       resetForm();
       setTimeout(() => setSuccess(null), 3000);
@@ -93,7 +101,7 @@ const ItemAdd: React.FC = () => {
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file || !dbOperations || !currentUser) return;
 
     setIsUploading(true);
     setError(null);
@@ -114,7 +122,6 @@ const ItemAdd: React.FC = () => {
 
         let processedCount = 0;
         for (const row of json) {
-          // FIX: Improved validation to allow zero values but skip empty rows
           if (
             !row.name ||
             row.mrp == null ||
@@ -125,8 +132,7 @@ const ItemAdd: React.FC = () => {
             continue;
           }
 
-          // FIX: Corrected the object structure for bulk import
-          const newItemData: Omit<Item, 'id' | 'createdAt' | 'updatedAt'> = {
+          const newItemData: Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'companyId'> = {
             name: String(row.name).trim(),
             mrp: parseFloat(String(row.mrp)),
             purchasePrice: parseFloat(String(row.purchasePrice)) || 0,
@@ -135,11 +141,10 @@ const ItemAdd: React.FC = () => {
             itemGroupId: String(row.itemGroupId),
             amount: parseInt(String(row.amount), 10),
             barcode: String(row.barcode || '').trim(),
-            restockQuantity: parseInt(String(row.restockQuantity), 10) || 0, // Added restockQuantity
-            companyId: currentUser?.companyId || null,
+            restockQuantity: parseInt(String(row.restockQuantity), 10) || 0,
           };
 
-          await createItem(newItemData);
+          await dbOperations.createItem(newItemData);
           processedCount++;
         }
 
@@ -148,7 +153,7 @@ const ItemAdd: React.FC = () => {
 
       } catch (err) {
         console.error('Error processing Excel file:', err);
-        setError('Failed to process file. Ensure it has columns: name, mrp, itemGroupId, amount, and optionally restockQuantity, barcode, etc.');
+        setError('Failed to process file. Check format and required columns.');
       } finally {
         setIsUploading(false);
         if (fileInputRef.current) {
@@ -175,8 +180,8 @@ const ItemAdd: React.FC = () => {
       <div className="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
         <button onClick={() => navigate(ROUTES.HOME)} className="text-2xl font-bold text-gray-600">&times;</button>
         <div className="flex-1 flex justify-center items-center gap-6">
-          <NavLink to={`${ROUTES.ITEM_ADD}`} className={({ isActive }) => `flex-1 text-center py-3 border-b-2 ${isActive ? 'border-blue-600 text-blue-600 font-semibold' : 'border-transparent text-slate-500'}`}>Item Add</NavLink>
-          <NavLink to={`${ROUTES.ITEM_GROUP}`} className={({ isActive }) => `flex-1 text-center py-3 border-b-2 ${isActive ? 'border-blue-600 text-blue-600 font-semibold' : 'border-transparent text-slate-500'}`}>Item Groups</NavLink>
+          <NavLink to={ROUTES.ITEM_ADD} className={({ isActive }) => `flex-1 text-center py-3 border-b-2 ${isActive ? 'border-blue-600 text-blue-600 font-semibold' : 'border-transparent text-slate-500'}`}>Item Add</NavLink>
+          <NavLink to={ROUTES.ITEM_GROUP} className={({ isActive }) => `flex-1 text-center py-3 border-b-2 ${isActive ? 'border-blue-600 text-blue-600 font-semibold' : 'border-transparent text-slate-500'}`}>Item Groups</NavLink>
         </div>
         <div className="w-6"></div>
       </div>
@@ -188,7 +193,7 @@ const ItemAdd: React.FC = () => {
         <div className="p-6 bg-white rounded-lg shadow-md">
           <div className="mb-6 pb-6 border-b">
             <h2 className="text-xl font-semibold text-gray-700 mb-2">Bulk Import</h2>
-            <p className="text-sm text-gray-500 mb-3">Upload an Excel file with columns: name, mrp, purchasePrice, discount, tax, itemGroupId, amount, barcode, and restockQuantity.</p>
+            <p className="text-sm text-gray-500 mb-3">Upload an Excel file with required columns: name, mrp, itemGroupId, amount, restockQuantity.</p>
             <input
               type="file"
               ref={fileInputRef}
@@ -272,8 +277,7 @@ const ItemAdd: React.FC = () => {
         </div>
       </div>
 
-      {/* FIX: Removed duplicated sticky footer container */}
-      <div className="sticky bottom-0 left-0 right-0 p-4 bg-white ">
+      <div className="sticky bottom-0 left-0 right-0 p-4 bg-white border-t">
         <button
           onClick={handleAddItem}
           className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg text-lg font-semibold shadow-md hover:bg-blue-700" >

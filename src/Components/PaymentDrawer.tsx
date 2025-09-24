@@ -3,6 +3,10 @@ import { FloatingLabelInput } from './ui/FloatingLabelInput';
 import { transactiontypes } from '../constants/Transactiontype';
 import { Modal } from '../constants/Modal';
 import { State } from '../enums';
+import { db } from '../lib/firebase';
+import { doc, getDoc, setDoc, serverTimestamp, increment as firebaseIncrement } from 'firebase/firestore';
+import { useAuth } from '../context/auth-context';
+
 export interface PaymentDetails {
     [key: string]: number;
 }
@@ -12,6 +16,7 @@ export interface PaymentCompletionData {
     partyNumber: string;
     discount: number;
     finalAmount: number;
+    appliedCredit: number;
 }
 interface PaymentDrawerProps {
     isOpen: boolean;
@@ -20,91 +25,106 @@ interface PaymentDrawerProps {
     onPaymentComplete: (data: PaymentCompletionData) => Promise<void>;
 }
 
-// --- Main PaymentDrawer Component ---
 const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal, onPaymentComplete }) => {
+    const { currentUser } = useAuth();
     const [partyName, setPartyName] = useState('NA');
     const [partyNumber, setPartyNumber] = useState('');
     const [discount, setDiscount] = useState(0);
+    const [customerCredit, setCustomerCredit] = useState(0);
     const [selectedPayments, setSelectedPayments] = useState<PaymentDetails>({});
     const [modal, setModal] = useState<{ message: string; type: State } | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isDiscountLocked, setIsDiscountLocked] = useState(true);
+    const [isFetchingParty, setIsFetchingParty] = useState(false);
     const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+    const [discountInfo, setDiscountInfo] = useState<string | null>(null);
+
     const finalPayableAmount = useMemo(() => Math.max(0, subtotal - discount), [subtotal, discount]);
     const totalEnteredAmount = useMemo(() => Object.values(selectedPayments).reduce((sum: number, amount: number) => sum + (amount || 0), 0), [selectedPayments]);
     const remainingAmount = useMemo(() => finalPayableAmount - totalEnteredAmount, [finalPayableAmount, totalEnteredAmount]);
-    const [discountInfo, setDiscountInfo] = useState<string | null>(null);
 
+    const paymentMethods = useMemo(() => {
+        const methods = [...transactiontypes];
+        if (customerCredit > 0) {
+            methods.push({
+                id: 'creditNote',
+                name: `Credit (Avail: ₹${customerCredit.toFixed(2)})`,
+                description: 'Use available customer credit'
+            });
+        }
+        return methods;
+    }, [customerCredit]);
 
     useEffect(() => {
         if (isOpen) {
-            const initialDiscount = 0;
-
-
-            setDiscount(initialDiscount);
+            setDiscount(0);
             setSelectedPayments({});
-            setPartyName('NA'); // Reset party name to 'NA' on open
+            setPartyName('NA');
             setPartyNumber('');
-            setIsDiscountLocked(true); // Always re-lock discount when opening
+            setIsDiscountLocked(true);
+            setCustomerCredit(0);
         }
     }, [isOpen, subtotal]);
 
-    const handleDiscountPressStart = () => {
-        longPressTimer.current = setTimeout(() => {
-            setIsDiscountLocked(false);
-        }, 500); // 500ms for a long press
-    };
+    const handlePartyNumberBlur = async () => {
+        setCustomerCredit(0);
 
-    const handleDiscountPressEnd = () => {
-        if (longPressTimer.current) {
-            clearTimeout(longPressTimer.current);
+        if (!partyNumber || partyNumber.length < 10 || !currentUser?.companyId) {
+            return;
         }
-    };
 
-    const handleDiscountClick = () => {
-        if (isDiscountLocked) {
-            setDiscountInfo("Cannot edit discount.");
-            // Clear the message automatically after 3 seconds
-            setTimeout(() => setDiscountInfo(null), 3000);
-        }
-    };
+        setIsFetchingParty(true);
+        try {
+            const customerDocRef = doc(db, 'customers', partyNumber);
+            const customerDoc = await getDoc(customerDocRef);
 
-    const handleDiscountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const amount = e.target.value;
-        const numAmount = parseFloat(amount);
-        const newDiscount = isNaN(numAmount) ? 0 : numAmount;
-        setDiscount(newDiscount);
-
-        // When discount is changed, auto-update the amount if only one payment mode is selected
-        const newFinalPayable = subtotal - newDiscount;
-        const paymentModes = Object.keys(selectedPayments);
-        if (paymentModes.length === 1) {
-            const singleMode = paymentModes[0];
-            setSelectedPayments({ [singleMode]: newFinalPayable });
+            if (customerDoc.exists()) {
+                const customerData = customerDoc.data();
+                if (customerData.companyId === currentUser.companyId) {
+                    setPartyName(customerData.name);
+                    setCustomerCredit(customerData.creditBalance || 0);
+                }
+            }
+        } catch (error) {
+            console.error("Error fetching customer:", error);
+        } finally {
+            setIsFetchingParty(false);
         }
     };
 
     const handleAmountChange = (modeId: string, amount: string) => {
-        const numAmount = parseFloat(amount);
-        setSelectedPayments(prev => ({ ...prev, [modeId]: isNaN(numAmount) ? 0 : numAmount }));
+        let numAmount = parseFloat(amount) || 0;
+
+        if (modeId === 'creditNote') {
+            numAmount = Math.min(numAmount, customerCredit);
+        }
+        setSelectedPayments(prev => ({ ...prev, [modeId]: numAmount }));
     };
 
     const handleFillRemaining = (modeId: string) => {
         const currentAmount = selectedPayments[modeId] || 0;
-        const amountToFill = Math.max(0, remainingAmount);
+        let amountToFill = Math.max(0, remainingAmount);
+
+        if (modeId === 'creditNote') {
+            const availableCredit = customerCredit - currentAmount;
+            amountToFill = Math.min(amountToFill, availableCredit);
+        }
         handleAmountChange(modeId, (currentAmount + amountToFill).toFixed(2));
     };
 
     const handleConfirm = async () => {
-        if (!partyName.trim()) {
-            setModal({ message: 'Party Name is required.', type: State.ERROR });
+        if (!partyName.trim() || partyName.trim().toLowerCase() === 'na') {
+            setModal({ message: 'A valid Party Name is required.', type: State.ERROR });
             return;
         }
         if (Math.abs(remainingAmount) > 0.01) {
             setModal({ message: `Amount mismatch. Remaining: ₹${remainingAmount.toFixed(2)}`, type: State.ERROR });
             return;
         }
+
         setIsSubmitting(true);
+        const creditUsed = selectedPayments['creditNote'] || 0;
+
         try {
             await onPaymentComplete({
                 paymentDetails: selectedPayments,
@@ -112,11 +132,47 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
                 partyNumber,
                 discount,
                 finalAmount: finalPayableAmount,
+                appliedCredit: creditUsed,
             });
+
+            if (partyNumber && partyNumber.length >= 10 && currentUser?.companyId) {
+                const customerDocRef = doc(db, 'customers', partyNumber);
+                await setDoc(customerDocRef, {
+                    name: partyName,
+                    number: partyNumber,
+                    companyId: currentUser.companyId,
+                    lastSaleAt: serverTimestamp(),
+                    creditBalance: firebaseIncrement(-creditUsed)
+                }, { merge: true });
+            }
+
         } catch (error) {
             setModal({ message: (error as Error).message || 'Failed to save sale.', type: State.ERROR });
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    const handleDiscountPressStart = () => {
+        longPressTimer.current = setTimeout(() => setIsDiscountLocked(false), 500);
+    };
+    const handleDiscountPressEnd = () => {
+        if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    };
+    const handleDiscountClick = () => {
+        if (isDiscountLocked) {
+            setDiscountInfo("Cannot edit discount.");
+            setTimeout(() => setDiscountInfo(null), 3000);
+        }
+    };
+    const handleDiscountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newDiscount = parseFloat(e.target.value) || 0;
+        setDiscount(newDiscount);
+        const newFinalPayable = subtotal - newDiscount;
+        const paymentModes = Object.keys(selectedPayments);
+        if (paymentModes.length === 1) {
+            const singleMode = paymentModes[0];
+            setSelectedPayments({ [singleMode]: newFinalPayable });
         }
     };
 
@@ -150,10 +206,24 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
                     <div className="bg-white rounded-xl shadow-sm p-3 space-y-2">
                         <h3 className="font-semibold text-gray-800 text-sm">Customer Details</h3>
                         <input type="text" placeholder="Party Name*" value={partyName} onChange={(e) => setPartyName(e.target.value)} className="w-full bg-gray-100 p-2 text-sm rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500" />
-                        <input type="text" placeholder="Party Number (Optional)" value={partyNumber} onChange={(e) => setPartyNumber(e.target.value)} className="w-full bg-gray-100 p-2 text-sm rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500" />
+                        <div className="relative">
+                            <input
+                                type="text"
+                                placeholder="Party Number (Optional)"
+                                value={partyNumber}
+                                onChange={(e) => setPartyNumber(e.target.value)}
+                                onBlur={handlePartyNumberBlur}
+                                className="w-full bg-gray-100 p-2 text-sm rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                            {isFetchingParty && (
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
+                                    Searching...
+                                </div>
+                            )}
+                        </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                        {transactiontypes.map((mode) => (
+                        {paymentMethods.map((mode) => (
                             <FloatingLabelInput
                                 key={mode.id}
                                 id={mode.id}
@@ -167,7 +237,10 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
                     </div>
                 </div>
                 <div className="p-4 mt-auto sticky bottom-0 bg-white border-t">
-                    <div className="flex justify-between items-center mb-2"><span className="text-sm text-gray-600">Subtotal:</span><span className="font-medium text-sm">₹{subtotal.toFixed(2)}</span></div>
+                    <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm text-gray-600">Subtotal:</span>
+                        <span className="font-medium text-sm">₹{subtotal.toFixed(2)}</span>
+                    </div>
                     <div
                         className="flex items-center justify-between mb-2 gap-2 p-2 -m-2 rounded-lg"
                         onMouseDown={handleDiscountPressStart}
@@ -177,7 +250,7 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
                         onTouchEnd={handleDiscountPressEnd}
                         onClick={handleDiscountClick}
                     >
-                        <label htmlFor="discount" className={`text-sm text-gray-600 ${isDiscountLocked ? 'cursor-pointer' : ''}`}>Discount (%):</label>
+                        <label htmlFor="discount" className={`text-sm text-gray-600 ${isDiscountLocked ? 'cursor-pointer' : ''}`}>Discount (₹):</label>
                         {discountInfo && (
                             <div className="flex items-center text-red-700 text-xs mb-1 p-1 bg-blue-50 rounded-md">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
@@ -188,8 +261,16 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
                         )}
                         <input id="discount" type="number" placeholder="0.00" value={discount || ''} onChange={handleDiscountChange} readOnly={isDiscountLocked} className={`w-20 text-right bg-gray-100 p-1 text-sm rounded-md border-gray-300 focus:ring-blue-500 focus:border-blue-500 ${isDiscountLocked ? 'cursor-not-allowed text-gray-500' : ''}`} />
                     </div>
-                    <div className="flex justify-between items-center mb-2 border-t pt-2"><span className="text-gray-800 font-semibold">Total Payable:</span><span className="font-bold text-lg text-blue-600">₹{finalPayableAmount.toFixed(2)}</span></div>
-                    <div className="flex justify-between items-center mb-3"><span className="text-gray-600">Remaining:</span><span className={`font-bold text-md ${Math.abs(remainingAmount) < 0.01 ? 'text-green-600' : 'text-red-600'}`}>₹{remainingAmount.toFixed(2)}</span></div>
+                    <div className="flex justify-between items-center mb-2 border-t pt-2">
+                        <span className="text-gray-800 font-semibold">Total Payable:</span>
+                        <span className="font-bold text-lg text-blue-600">₹{finalPayableAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center mb-3">
+                        <span className="text-gray-600">Remaining:</span>
+                        <span className={`font-bold text-md ${Math.abs(remainingAmount) < 0.01 ? 'text-green-600' : 'text-red-600'}`}>
+                            ₹{remainingAmount.toFixed(2)}
+                        </span>
+                    </div>
                     <button onClick={handleConfirm} disabled={isSubmitting || Math.abs(remainingAmount) > 0.01} className="w-full flex items-center justify-center bg-blue-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-blue-700 transition-colors disabled:bg-gray-400">
                         {isSubmitting ? 'Submitting...' : 'Confirm & Save Sale'}
                     </button>
@@ -200,4 +281,3 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
 };
 
 export default PaymentDrawer;
-
