@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useNavigate, NavLink, useParams, useLocation } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { db } from '../../lib/firebase';
 import {
   collection,
@@ -52,19 +52,20 @@ interface ExchangeItem {
   amount: number;
 }
 
-// --- Main Sales Return Page Component ---
 const SalesReturnPage: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const dbOperations = useDatabase();
   const { state } = useLocation();
   const { invoiceId } = useParams();
+  const location = useLocation();
 
   const [returnDate, setReturnDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [partyName, setPartyName] = useState<string>('');
   const [partyNumber, setPartyNumber] = useState<string>('');
-  const [modeOfReturn, setModeOfReturn] = useState<string>('Exchange');
-  const [itemsToReturn, setItemsToReturn] = useState<TransactionItem[]>([]);
+  const [modeOfReturn, setModeOfReturn] = useState<string>('Credit Note');
+  const [originalSaleItems, setOriginalSaleItems] = useState<TransactionItem[]>([]);
+  const [selectedReturnIds, setSelectedReturnIds] = useState<Set<string>>(new Set());
   const [exchangeItems, setExchangeItems] = useState<ExchangeItem[]>([]);
   const [salesList, setSalesList] = useState<SalesData[]>([]);
   const [selectedSale, setSelectedSale] = useState<SalesData | null>(null);
@@ -77,6 +78,13 @@ const SalesReturnPage: React.FC = () => {
   const [modal, setModal] = useState<{ message: string; type: State } | null>(null);
   const [scannerPurpose, setScannerPurpose] = useState<'sale' | 'item' | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  const isActive = (path: string) => location.pathname === path;
+
+  const itemsToReturn = useMemo(() =>
+    originalSaleItems.filter(item => selectedReturnIds.has(item.id)),
+    [originalSaleItems, selectedReturnIds]
+  );
 
   useEffect(() => {
     if (!currentUser || !currentUser.companyId || !dbOperations) {
@@ -91,29 +99,24 @@ const SalesReturnPage: React.FC = () => {
           collection(db, 'sales'),
           where('companyId', '==', currentUser.companyId)
         );
-
         const [salesSnapshot, allItems] = await Promise.all([
           getDocs(salesQuery),
           dbOperations.getItems(),
         ]);
-
         const allSales: SalesData[] = salesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SalesData));
         setSalesList(allSales);
         setAvailableItems(allItems);
-
         if (state?.invoiceData) {
           handleSelectSale(state.invoiceData);
         } else if (invoiceId) {
           const preselectedSale = allSales.find(sale => sale.id === invoiceId);
           if (preselectedSale) {
             handleSelectSale(preselectedSale);
-          } else {
-            setError(`Sale with ID ${invoiceId} not found.`);
           }
         }
       } catch (err) {
         console.error('Error fetching data:', err);
-        setError('Failed to load initial data. Check Firestore rules and network.');
+        setError('Failed to load initial data.');
       } finally {
         setIsLoading(false);
       }
@@ -145,43 +148,46 @@ const SalesReturnPage: React.FC = () => {
     setSelectedSale(sale);
     setPartyName(sale.partyName || 'N/A');
     setPartyNumber(sale.partyNumber || '');
-    setItemsToReturn(
+    setOriginalSaleItems(
       sale.items.map((item: any) => {
-        const unitPrice = item.finalPrice / (item.quantity || 1);
+        const itemData = item.data || item;
+        const quantity = itemData.quantity || 1;
+        const unitPrice = itemData.finalPrice / quantity || 0;
         return {
           id: crypto.randomUUID(),
-          originalItemId: item.id,
-          name: item.name,
-          quantity: item.quantity,
+          originalItemId: itemData.id,
+          name: itemData.name,
+          quantity: quantity,
           unitPrice: unitPrice,
-          amount: item.finalPrice || 0,
-          mrp: item.mrp,
+          amount: itemData.finalPrice || 0,
+          mrp: itemData.mrp || 0,
         };
       })
     );
+    setSelectedReturnIds(new Set());
     setExchangeItems([]);
-    setSearchSaleQuery(sale.invoiceNumber);
+    setSearchSaleQuery(sale.invoiceNumber || sale.partyName);
     setIsSalesDropdownOpen(false);
   };
 
-  const handleClear = () => {
-    setSelectedSale(null);
-    setPartyName('');
-    setPartyNumber('');
-    setItemsToReturn([]);
-    setExchangeItems([]);
-    setSearchSaleQuery('');
-    navigate(ROUTES.SALES_RETURN);
+  const handleToggleReturnItem = (itemId: string) => {
+    setSelectedReturnIds(prevIds => {
+      const newIds = new Set(prevIds);
+      if (newIds.has(itemId)) {
+        newIds.delete(itemId);
+      } else {
+        newIds.add(itemId);
+      }
+      return newIds;
+    });
   };
 
-  const handleItemChange = (listSetter: React.Dispatch<React.SetStateAction<any[]>>, id: string, field: keyof (TransactionItem | ExchangeItem), value: string | number) => {
-    listSetter(prev => prev.map(item => {
+  const handleItemChange = (id: string, field: keyof TransactionItem, value: string | number) => {
+    setOriginalSaleItems(prev => prev.map(item => {
       if (item.id === id) {
         const updatedItem = { ...item, [field]: value };
         if (field === 'quantity' || field === 'unitPrice') {
-          const quantity = Number(updatedItem.quantity);
-          const unitPrice = Number(updatedItem.unitPrice);
-          updatedItem.amount = isNaN(quantity) || isNaN(unitPrice) ? 0 : quantity * unitPrice;
+          updatedItem.amount = Number(updatedItem.quantity) * Number(updatedItem.unitPrice);
         }
         return updatedItem;
       }
@@ -189,8 +195,35 @@ const SalesReturnPage: React.FC = () => {
     }));
   };
 
-  const handleRemoveItem = (listSetter: React.Dispatch<React.SetStateAction<any[]>>, id: string) => {
-    listSetter(prev => prev.filter(item => item.id !== id));
+  const handleClear = () => {
+    setSelectedSale(null);
+    setPartyName('');
+    setPartyNumber('');
+    setOriginalSaleItems([]);
+    setSelectedReturnIds(new Set());
+    setExchangeItems([]);
+    setSearchSaleQuery('');
+    navigate(ROUTES.SALES_RETURN);
+  };
+
+  const handleBarcodeScanned = (barcode: string) => {
+    const purpose = scannerPurpose;
+    setScannerPurpose(null);
+    if (purpose === 'sale') {
+      const foundSale = salesList.find(sale => sale.invoiceNumber === barcode);
+      if (foundSale) {
+        handleSelectSale(foundSale);
+      } else {
+        setModal({ message: 'Original sale not found for this invoice.', type: State.ERROR });
+      }
+    } else if (purpose === 'item') {
+      const itemToAdd = availableItems.find(item => item.barcode === barcode);
+      if (itemToAdd) {
+        handleExchangeItemSelected(itemToAdd);
+      } else {
+        setModal({ message: 'Item not found for this barcode.', type: State.ERROR });
+      }
+    }
   };
 
   const addExchangeItem = (itemToAdd: Item) => {
@@ -205,49 +238,22 @@ const SalesReturnPage: React.FC = () => {
     if (item) addExchangeItem(item);
   };
 
-  const handleBarcodeScanned = (barcode: string) => {
-    const purpose = scannerPurpose;
-    setScannerPurpose(null);
-    if (purpose === 'sale') {
-      const foundSale = salesList.find(sale => sale.invoiceNumber === barcode);
-      if (foundSale) {
-        handleSelectSale(foundSale);
-        setModal({ message: `Loaded Sale: ${foundSale.invoiceNumber}`, type: State.SUCCESS });
-      } else {
-        setModal({ message: 'Original sale not found for this invoice.', type: State.ERROR });
-      }
-    } else if (purpose === 'item') {
-      const itemToAdd = availableItems.find(item => item.barcode === barcode);
-      if (itemToAdd) {
-        addExchangeItem(itemToAdd);
-        setModal({ message: `Added for Exchange: ${itemToAdd.name}`, type: State.SUCCESS });
-      } else {
-        setModal({ message: 'Item not found for this barcode.', type: State.ERROR });
-      }
-    }
+  const handleRemoveItem = (id: string) => {
+    setExchangeItems(prev => prev.filter(item => item.id !== id));
   };
 
   const { totalReturnValue, totalExchangeValue, finalBalance } = useMemo(() => {
     const totalReturnValue = itemsToReturn.reduce((sum, item) => sum + item.amount, 0);
     const totalExchangeValue = exchangeItems.reduce((sum, item) => sum + item.amount, 0);
     const balanceBeforeRound = totalReturnValue - totalExchangeValue;
-
-    let roundedAmount;
-    if (balanceBeforeRound < 100) {
-      roundedAmount = Math.ceil(balanceBeforeRound / 5) * 5;
-    } else {
-      roundedAmount = Math.ceil(balanceBeforeRound / 10) * 10;
-    }
-
-    const finalBalance = roundedAmount;
-    const roundOff = finalBalance - balanceBeforeRound;
-
-    return { totalReturnValue, totalExchangeValue, finalBalance, roundOff };
+    let roundedAmount = balanceBeforeRound < 100
+      ? Math.ceil(balanceBeforeRound / 5) * 5
+      : Math.ceil(balanceBeforeRound / 10) * 10;
+    return { totalReturnValue, totalExchangeValue, finalBalance: roundedAmount };
   }, [itemsToReturn, exchangeItems]);
 
   const saveReturnTransaction = async (completionData?: Partial<PaymentCompletionData>) => {
     if (!currentUser || !selectedSale) return;
-
     setIsLoading(true);
     try {
       const batch = writeBatch(db);
@@ -271,19 +277,14 @@ const SalesReturnPage: React.FC = () => {
         } else {
           const itemMaster = availableItems.find(i => i.id === exchangeItem.originalItemId);
           originalItemsMap.set(exchangeItem.originalItemId, {
-            id: exchangeItem.originalItemId,
-            name: exchangeItem.name,
-            mrp: exchangeItem.mrp,
-            quantity: exchangeItem.quantity,
-            discount: itemMaster?.discount || 0,
-            discountPercentage: itemMaster?.discount || 0,
-            finalPrice: exchangeItem.amount,
+            id: exchangeItem.originalItemId, name: exchangeItem.name, mrp: exchangeItem.mrp,
+            quantity: exchangeItem.quantity, discount: itemMaster?.discount || 0,
+            discountPercentage: itemMaster?.discount || 0, finalPrice: exchangeItem.amount,
           });
         }
       });
 
       const newItemsList = Array.from(originalItemsMap.values());
-
       const updatedTotals = newItemsList.reduce((acc, item) => {
         const itemTotal = item.mrp * item.quantity;
         const itemDiscount = (itemTotal * (item.discountPercentage || 0)) / 100;
@@ -295,36 +296,32 @@ const SalesReturnPage: React.FC = () => {
       const updatedFinalAmount = updatedTotals.subtotal - updatedTotals.totalDiscount;
 
       const returnHistoryRecord = {
-        returnedAt: new Date(),
+        returnedAt: serverTimestamp(),
         returnedItems: itemsToReturn.map(({ id, ...item }) => item),
         exchangeItems: exchangeItems.map(({ id, ...item }) => item),
-        finalBalance: finalBalance,
+        finalBalance,
         modeOfReturn,
         paymentDetails: completionData?.paymentDetails || null,
       };
 
       batch.set(saleRef, {
-        items: newItemsList,
-        subtotal: updatedTotals.subtotal,
-        discount: updatedTotals.totalDiscount,
-        totalAmount: updatedFinalAmount,
-        returnHistory: arrayUnion(returnHistoryRecord),
+        items: newItemsList, subtotal: updatedTotals.subtotal, discount: updatedTotals.totalDiscount,
+        totalAmount: updatedFinalAmount, returnHistory: arrayUnion(returnHistoryRecord),
       }, { merge: true });
 
       itemsToReturn.forEach(item => {
         batch.update(doc(db, 'items', item.originalItemId), { amount: firebaseIncrement(item.quantity) });
       });
-
       exchangeItems.forEach(item => {
         batch.update(doc(db, 'items', item.originalItemId), { amount: firebaseIncrement(-item.quantity) });
       });
 
-      if (finalBalance > 0 && partyNumber && partyNumber.length >= 10) {
-        const customerRef = doc(db, 'customers', partyNumber);
+      if (finalBalance > 0 && selectedSale.partyNumber && selectedSale.partyNumber.length >= 10) {
+        const customerRef = doc(db, 'customers', selectedSale.partyNumber);
         batch.set(customerRef, {
           creditBalance: firebaseIncrement(finalBalance),
-          name: partyName,
-          number: partyNumber,
+          name: selectedSale.partyName,
+          number: selectedSale.partyNumber,
           companyId: currentUser.companyId,
           lastUpdatedAt: serverTimestamp()
         }, { merge: true });
@@ -334,8 +331,8 @@ const SalesReturnPage: React.FC = () => {
       setModal({ type: State.SUCCESS, message: 'Sale Return processed successfully!' });
       navigate(ROUTES.SALES);
     } catch (err) {
-      console.error("Detailed error during sales return:", err);
-      setModal({ type: State.ERROR, message: "Failed to process the return. Check permissions and data." });
+      console.error("Error processing sales return:", err);
+      setModal({ type: State.ERROR, message: "Failed to process the return." });
     } finally {
       setIsLoading(false);
       setIsDrawerOpen(false);
@@ -343,17 +340,11 @@ const SalesReturnPage: React.FC = () => {
   };
 
   const handleProcessReturn = () => {
-    if (!currentUser || !selectedSale) return;
     if (itemsToReturn.length === 0 && exchangeItems.length === 0) {
       return setModal({ type: State.ERROR, message: 'No items have been returned or exchanged.' });
     }
-
-    if (modeOfReturn === 'Exchange') {
-      if (finalBalance < 0) {
-        setIsDrawerOpen(true);
-      } else {
-        saveReturnTransaction();
-      }
+    if (modeOfReturn === 'Exchange' && finalBalance < 0) {
+      setIsDrawerOpen(true);
     } else {
       saveReturnTransaction();
     }
@@ -362,20 +353,31 @@ const SalesReturnPage: React.FC = () => {
   if (isLoading) return <div className="flex min-h-screen items-center justify-center">Loading...</div>;
 
   return (
-    <div className="flex flex-col min-h-screen bg-white w-full pb-16">
+    <div className="flex flex-col min-h-screen bg-white w-full ">
       {modal && <Modal message={modal.message} onClose={() => setModal(null)} type={modal.type} />}
       <BarcodeScanner isOpen={scannerPurpose !== null} onClose={() => setScannerPurpose(null)} onScanSuccess={handleBarcodeScanned} />
 
-      <div className="flex items-center justify-between p-4 bg-white border-b sticky top-0 z-10">
-        <button onClick={() => navigate(ROUTES.HOME)} className="text-2xl font-bold">&times;</button>
-        <div className="flex justify-center gap-x-6">
-          <NavLink to={ROUTES.SALES} className="px-2 py-3 text-lg">Sales</NavLink>
-          <NavLink to={ROUTES.SALES_RETURN} className={({ isActive }) => `px-2 py-3 text-lg border-b-2 ${isActive ? 'border-blue-600 text-blue-600 font-semibold' : 'border-transparent text-slate-500'}`}>Sales Return</NavLink>
+      <div className="flex flex-col p-1 bg-white border-b border-gray-200 shadow-sm flex-shrink-0">
+        <h1 className="text-2xl font-bold text-gray-800 text-center mb-2">Sales Return</h1>
+        <div className="flex items-center justify-center gap-6">
+          <CustomButton
+            variant={Variant.Transparent}
+            onClick={() => navigate(ROUTES.SALES)}
+            active={isActive(ROUTES.SALES)}
+          >
+            Sales
+          </CustomButton>
+          <CustomButton
+            variant={Variant.Transparent}
+            onClick={() => navigate(ROUTES.SALES_RETURN)}
+            active={isActive(ROUTES.SALES_RETURN)}
+          >
+            Sales Return
+          </CustomButton>
         </div>
-        <div className="w-6"></div>
       </div>
 
-      <div className="flex-grow p-4 bg-gray-100 pb-24">
+      <div className="flex-grow p-4 bg-gray-100 ">
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
           <div className="relative" ref={salesDropdownRef}>
             <label htmlFor="search-sale" className="block text-lg font-medium mb-2">
@@ -391,7 +393,7 @@ const SalesReturnPage: React.FC = () => {
                   setIsSalesDropdownOpen(true);
                 }}
                 onFocus={() => setIsSalesDropdownOpen(true)}
-                placeholder={selectedSale ? selectedSale.invoiceNumber : "Search by invoice or party name..."}
+                placeholder={selectedSale ? `${selectedSale.partyName} (${selectedSale.invoiceNumber})` : "Search by invoice or party name..."}
                 className="flex-grow p-3 border rounded-lg"
                 autoComplete="off"
                 readOnly={!!selectedSale}
@@ -405,7 +407,7 @@ const SalesReturnPage: React.FC = () => {
                 </button>
               )}
             </div>
-            {isSalesDropdownOpen && searchSaleQuery && !selectedSale && (
+            {isSalesDropdownOpen && !selectedSale && (
               <div className="absolute top-full w-full z-20 mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-y-auto">
                 {filteredSales.map((sale) => (
                   <div
@@ -413,7 +415,7 @@ const SalesReturnPage: React.FC = () => {
                     className="p-3 cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSelectSale(sale)}
                   >
-                    <p className="font-semibold">{sale.partyName} ({sale.invoiceNumber})</p>
+                    <p className="font-semibold">{sale.partyName} ({sale.invoiceNumber || 'N/A'})</p>
                     <p className="text-sm text-gray-600">Total: ₹{sale.totalAmount.toFixed(2)}</p>
                   </div>
                 ))}
@@ -460,17 +462,52 @@ const SalesReturnPage: React.FC = () => {
                 </div>
               </div>
 
-              <h3 className="text-xl font-semibold mt-6 mb-4">Items to Return</h3>
-              <div className="flex flex-col gap-4">
-                {itemsToReturn.map((item) => (
-                  <div key={item.id} className="grid grid-cols-12 gap-x-2 gap-y-2 items-center p-3 border rounded-lg bg-red-50 shadow-sm">
-                    <div className="col-span-12 font-medium text-gray-800">{item.name}</div>
-                    <input type="number" value={item.quantity} onChange={(e) => handleItemChange(setItemsToReturn, item.id, 'quantity', Number(e.target.value))} className="col-span-3 p-2 border border-gray-300 rounded text-center" />
-                    <p className="col-span-4 text-center text-gray-500 line-through border border-gray-300 p-2 rounded bg-white">₹{item.mrp.toFixed(2)}</p>
-                    <p className="col-span-4 text-center font-semibold border border-gray-300 p-2 rounded bg-white">₹{item.unitPrice.toFixed(2)}</p>
-                    <button onClick={() => handleRemoveItem(setItemsToReturn, item.id)} className="col-span-1 justify-self-center text-red-500 text-2xl hover:text-red-700">&times;</button>
-                  </div>
-                ))}
+              <h3 className="text-xl font-semibold mt-6 mb-4">Select Items to Return</h3>
+              <div className="flex flex-col gap-3">
+                {originalSaleItems.map((item) => {
+                  const isSelected = selectedReturnIds.has(item.id);
+                  return (
+                    // --- MODIFIED SECTION START ---
+                    <div
+                      key={item.id}
+                      className={`p-3 border rounded-lg flex items-center gap-3 transition-all ${isSelected ? 'bg-red-50 shadow-sm' : 'bg-gray-50'}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleToggleReturnItem(item.id)}
+                        className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 flex-shrink-0"
+                      />
+                      <div className="flex-grow flex flex-col gap-2">
+                        <div>
+                          <p className="font-semibold text-gray-800 text-sm leading-tight">{item.name}</p>
+                          <p className="text-xs text-gray-500">
+                            MRP: <span className="line-through">₹{item.mrp.toFixed(2)}</span>
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-1">
+                            <label className="text-xs text-gray-600">Qty:</label>
+                            <input
+                              type="number"
+                              value={item.quantity}
+                              onChange={(e) => handleItemChange(item.id, 'quantity', Number(e.target.value))}
+                              className="w-16 p-1 border border-gray-300 rounded text-center text-sm"
+                              disabled={!isSelected}
+                            />
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <label className="text-xs text-gray-600">Price:</label>
+                            <p className="w-20 text-center font-semibold p-1 border border-gray-300 rounded bg-white text-sm">
+                              ₹{item.unitPrice.toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    // --- MODIFIED SECTION END ---
+                  );
+                })}
               </div>
             </div>
 
@@ -482,7 +519,6 @@ const SalesReturnPage: React.FC = () => {
                   <option>Credit Note</option>
                 </select>
               </div>
-
               {modeOfReturn === 'Exchange' && (
                 <div className="mt-6 border-t pt-6">
                   <div className="flex items-end gap-4">
@@ -514,14 +550,14 @@ const SalesReturnPage: React.FC = () => {
                         {exchangeItems.map((item) => (
                           <div key={item.id} className="grid grid-cols-12 gap-x-2 gap-y-2 items-center p-3 border rounded-lg bg-green-50 shadow-sm">
                             <div className="col-span-12 font-medium text-gray-800">{item.name}</div>
-                            <input type="number" value={item.quantity} onChange={(e) => handleItemChange(setExchangeItems, item.id, 'quantity', Number(e.target.value))} className="col-span-3 p-2 border border-gray-300 rounded text-center" />
+                            <input type="number" value={item.quantity} onChange={(e) => handleItemChange(item.id, 'quantity', Number(e.target.value))} className="col-span-3 p-2 border border-gray-300 rounded text-center" />
                             <p className="col-span-4 text-center text-gray-500 line-through border border-gray-300 p-2 rounded bg-white">
                               ₹{item.mrp.toFixed(2)}
                             </p>
                             <p className="col-span-4 text-center font-semibold border border-gray-300 p-2 rounded bg-white">
                               ₹{item.unitPrice.toFixed(2)}
                             </p>
-                            <button onClick={() => handleRemoveItem(setExchangeItems, item.id)} className="col-span-1 justify-self-center text-red-500 text-2xl hover:text-red-700">&times;</button>
+                            <button onClick={() => handleRemoveItem(item.id)} className="col-span-1 justify-self-center text-red-500 text-2xl hover:text-red-700">&times;</button>
                           </div>
                         ))}
                       </div>
@@ -543,7 +579,7 @@ const SalesReturnPage: React.FC = () => {
         )}
       </div>
 
-      <div className="sticky bottom-0 p-4 bg-white border-t z-30">
+      <div className="sticky bottom-0 p-4 bg-white border-t pb-16">
         {selectedSale && (<CustomButton onClick={handleProcessReturn} variant={Variant.Filled} className="w-full py-4 text-xl font-semibold">Process Transaction</CustomButton>)}
       </div>
 

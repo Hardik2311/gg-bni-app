@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { useNavigate, NavLink } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth, useDatabase } from '../../context/auth-context';
 import type { Item, SalesItem } from '../../constants/models';
 import { ROUTES } from '../../constants/routes.constants';
@@ -31,6 +31,8 @@ const Sales: React.FC = () => {
   const [discountInfo, setDiscountInfo] = useState<string | null>(null);
   const [workers, setWorkers] = useState<User[]>([]);
   const [selectedWorker, setSelectedWorker] = useState<User | null>(null);
+  const isActive = (path: string) => location.pathname === path;
+
 
   useEffect(() => {
     if (authLoading || !currentUser || !dbOperations) {
@@ -42,8 +44,6 @@ const Sales: React.FC = () => {
       try {
         setPageIsLoading(true);
         setError(null);
-
-        // ✅ This now fetches both Salesmen and Managers.
         const [fetchedItems, fetchedWorkers] = await Promise.all([
           dbOperations.getItems(),
           dbOperations.getWorkers()
@@ -143,7 +143,7 @@ const Sales: React.FC = () => {
 
   const handleDiscountClick = () => {
     if (isDiscountLocked) {
-      setDiscountInfo("Long press to unlock discount");
+      setDiscountInfo("Cannot edit the discount");
       setTimeout(() => setDiscountInfo(null), 3000);
     }
   };
@@ -218,46 +218,27 @@ const Sales: React.FC = () => {
     <div className="flex flex-col h-full bg-white w-full overflow-hidden pb-10">
       {modal && <Modal message={modal.message} onClose={() => setModal(null)} type={modal.type} />}
       <BarcodeScanner isOpen={isScannerOpen} onClose={() => setIsScannerOpen(false)} onScanSuccess={handleBarcodeScanned} />
-      <div className="flex-shrink-0 flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm z-30">
-        <button onClick={() => navigate(ROUTES.HOME)} className="text-2xl font-bold text-gray-600">&times;</button>
-        <div className="flex-1 flex justify-center items-center gap-6">
-          <NavLink to={ROUTES.SALES} className={({ isActive }) => `flex-1 text-center py-3 border-b-2 ${isActive ? 'border-blue-600 text-blue-600 font-semibold' : 'border-transparent text-slate-500'}`}>Sales</NavLink>
-          <NavLink to={ROUTES.SALES_RETURN} className={({ isActive }) => `flex-1 text-center py-3 border-b-2 ${isActive ? 'border-blue-600 text-blue-600 font-semibold' : 'border-transparent text-slate-500'}`}>Sales Return</NavLink>
+      <div className="flex flex-col p-1 bg-white border-b border-gray-200 shadow-sm flex-shrink-0">
+        <h1 className="text-2xl font-bold text-gray-800 text-center mb-2">Sales</h1>
+        <div className="flex items-center justify-center gap-6">
+          <CustomButton
+            variant={Variant.Transparent}
+            onClick={() => navigate(ROUTES.SALES)}
+            active={isActive(ROUTES.SALES)}
+          >
+            Sales
+          </CustomButton>
+          <CustomButton
+            variant={Variant.Transparent}
+            onClick={() => navigate(ROUTES.SALES_RETURN)}
+            active={isActive(ROUTES.SALES_RETURN)}
+          >
+            Sales Return
+          </CustomButton>
         </div>
-        <div className="w-6"></div>
       </div>
-      <div className="flex-shrink-0 p-4 bg-gray-50 z-20 border-b">
-        <div className="mb-4">
-          <label htmlFor="worker-select" className="block text-sm font-medium text-gray-700 mb-1">
-            Sale Attributed To
-          </label>
-          {hasPermission(Permissions.ViewTransactions) ? (
-            <select
-              id="worker-select"
-              value={selectedWorker?.uid || ''}
-              onChange={(e) => {
-                const worker = workers.find(s => s.uid === e.target.value);
-                if (worker) setSelectedWorker(worker);
-              }}
-              className="w-full p-2 border border-gray-300 bg-white rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-              disabled={workers.length === 0 || pageIsLoading}
-            >
-              <option value="" disabled>-- Select a User --</option>
-              {pageIsLoading ? <option>Loading...</option> : workers.map(w => (
-                <option key={w.uid} value={w.uid}>{w.name || 'Unnamed User'}</option>
-              ))}
-            </select>
-          ) : (
-            <input
-              type="text"
-              value={selectedWorker?.name || 'Assigned to me'}
-              disabled
-              className="w-full p-2 border border-gray-300 bg-gray-100 rounded-md shadow-sm cursor-not-allowed"
-            />
-          )}
-        </div>
-
-        <div className="flex gap-2 items-end">
+      <div className="flex-shrink-0 p-2 bg-gray-50 border-b">
+        <div className="flex gap-4 items-end w-full">
           <div className="flex-grow">
             <SearchableItemInput
               label="Search Item"
@@ -271,6 +252,30 @@ const Sales: React.FC = () => {
           <CustomButton onClick={() => setIsScannerOpen(true)} variant={Variant.Transparent} className='flex-shrink-0' title="Scan Barcode">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>
           </CustomButton>
+          <div>
+            <label htmlFor="worker-select" className="block text-sm text-gray-700 mb-1">
+              Salesman
+            </label>
+            {hasPermission(Permissions.ViewTransactions) ? (
+              <select
+                value={selectedWorker?.uid || ''}
+                onChange={(e) => setSelectedWorker(workers.find(s => s.uid === e.target.value) || null)}
+                className="w-15 p-2 border rounded-md shadow-sm"
+                disabled={!hasPermission(Permissions.ViewTransactions)}
+              >
+                {workers.map(w => <option key={w.uid} value={w.uid}>{w.name || 'Unnamed'}</option>)}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={selectedWorker?.name || 'Assigned to me'}
+                disabled
+                className="w-40 p-2 border border-gray-300 bg-gray-100 rounded-md shadow-sm cursor-not-allowed"
+              />
+            )}
+          </div>
+
+
         </div>
       </div>
 
@@ -285,17 +290,17 @@ const Sales: React.FC = () => {
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-1">
           <div className="flex flex-col gap-3">
             {items.length === 0 ? (
               <div className="text-center py-8 text-gray-500 bg-gray-100 rounded-lg">No items added.</div>
             ) : (
               items.map(item => (
-                <div key={item.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                <div key={item.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-2">
 
                   <div className="flex justify-between items-start">
                     <div>
-                      <p className="font-semibold text-gray-800">{item.name.slice(0, 25)}</p>
+                      <p className="font-semibold text-gray-800">{item.name.slice(0, 30)}</p>
                     </div>
                     <button onClick={() => handleDeleteItem(item.id)} className="text-black-400 hover:text-red-500 flex-shrink-0 ml-4" title="Remove item">
                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
@@ -319,7 +324,7 @@ const Sales: React.FC = () => {
                         id={`discount-${item.id}`} type="number" value={item.discount || ''}
                         onChange={(e) => handleDiscountChange(item.id, parseFloat(e.target.value))}
                         readOnly={isDiscountLocked}
-                        className={`w-14 p-1 bg-gray-100 rounded-md text-right font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDiscountLocked ? 'cursor-not-allowed' : ''}`}
+                        className={`w-14 p-1 bg-gray-100 rounded-md text-right font-medium text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDiscountLocked ? 'cursor-not-allowed' : ''}`}
                         placeholder="0"
                       />
                       <span className="text-sm text-gray-600">%</span>
@@ -357,7 +362,7 @@ const Sales: React.FC = () => {
           <p className="text-lg font-medium">Total Amount</p>
           <p className="text-2xl font-bold">₹{finalAmount.toFixed(2)}</p>
         </div>
-        <CustomButton onClick={handleProceedToPayment} variant={Variant.Filled} className="w-full py-4 text-xl font-semibold">
+        <CustomButton onClick={handleProceedToPayment} variant={Variant.Filled} className=" flex items-center justify-center max-w-fit py-4 text-xl font-semibold">
           Proceed to Payment
         </CustomButton>
       </div>

@@ -35,7 +35,11 @@ interface PurchaseRecord {
 // --- Helper Functions ---
 const formatDate = (timestamp: number): string => {
   if (!timestamp) return 'N/A';
-  return new Date(timestamp).toLocaleDateString('en-GB');
+  return new Date(timestamp).toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+  });
 };
 
 const formatDateForInput = (date: Date): string => {
@@ -345,7 +349,7 @@ const PurchaseReport: React.FC = () => {
   if (error) return <div className="p-4 text-center text-red-500">{error}</div>;
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4">
+    <div className="min-h-screen bg-gray-100 p-4 pb-16">
       <div className="flex items-center justify-between pb-3 border-b mb-4">
         <h1 className="flex-1 text-xl text-center font-bold text-gray-800">Purchase Report</h1>
         <button onClick={() => navigate(-1)} className="p-2"> <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg></button>
@@ -360,8 +364,10 @@ const PurchaseReport: React.FC = () => {
             <option value="last30">Last 30 Days</option>
             <option value="custom">Custom</option>
           </FilterSelect>
-          <input type="date" value={customStartDate} onChange={e => { setCustomStartDate(e.target.value); setDatePreset('custom'); }} className="w-full p-2 text-sm bg-gray-50 border rounded-md" placeholder="Start Date" />
-          <input type="date" value={customEndDate} onChange={e => { setCustomEndDate(e.target.value); setDatePreset('custom'); }} className="w-full p-2 text-sm bg-gray-50 border rounded-md" placeholder="End Date" />
+          <div className='grid grid-cols-2 sm:grid-cols-2 gap-4'>
+            <input type="date" value={customStartDate} onChange={e => { setCustomStartDate(e.target.value); setDatePreset('custom'); }} className="w-full p-2 text-sm bg-gray-50 border rounded-md" placeholder="Start Date" />
+            <input type="date" value={customEndDate} onChange={e => { setCustomEndDate(e.target.value); setDatePreset('custom'); }} className="w-full p-2 text-sm bg-gray-50 border rounded-md" placeholder="End Date" />
+          </div>
         </div>
         <button onClick={handleApplyFilters} className="w-full mt-4 px-6 py-3 bg-blue-600 text-white text-lg font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">Apply</button>
       </div>

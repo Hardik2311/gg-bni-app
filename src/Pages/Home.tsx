@@ -76,7 +76,7 @@ const Home = () => {
                 <FilterControls />
               </div>
             </PermissionWrapper>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-10">
               <PermissionWrapper requiredPermission={Permissions.ViewSalescard} behavior="hide">
                 <SalesCard isDataVisible={isDataVisible} />
               </PermissionWrapper>
@@ -92,11 +92,11 @@ const Home = () => {
               <PermissionWrapper requiredPermission={Permissions.ViewSalescard} behavior="hide">
                 <TopSalespersonCard isDataVisible={isDataVisible} />
               </PermissionWrapper>
-              <PermissionWrapper requiredPermission={Permissions.Viewrestockcard} behavior="hide">
-                <RestockAlertsCard />
-              </PermissionWrapper>
               <PermissionWrapper requiredPermission={Permissions.ViewAttendance} behavior="hide">
                 <AttendancePage />
+              </PermissionWrapper>
+              <PermissionWrapper requiredPermission={Permissions.Viewrestockcard} behavior="hide">
+                <RestockAlertsCard />
               </PermissionWrapper>
             </div>
           </div>

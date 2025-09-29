@@ -94,15 +94,14 @@ export const RestockAlertsCard: React.FC = ({ }) => {
                     return (
                         <li key={item.id} className="flex items-center justify-between">
                             <div className="flex items-center">
-                                <span className={`h-3 w-3 rounded-full mr-3 ${isOutOfStock ? 'bg-red-500' : 'bg-yellow-400'}`}></span>
-                                <span className="font-medium text-gray-700">{item.name.slice(0, 20)}</span>
+                                <span className="font-medium text-gray-700">{item.name.slice(0, 15)}</span>
                             </div>
-                            <div className="text-right">
-                                <span className={`font-semibold ${isOutOfStock ? 'text-red-600' : 'text-gray-800'}`}>
-                                    {item.amount} in stock
+                            <div className="text-center flex grid grid-cols-2 gap-15">
+                                <span className={` text-xs font-semibold ${isOutOfStock ? 'text-red-600' : 'text-gray-800'}`}>
+                                    {item.amount}
                                 </span>
                                 <span className="text-xs text-gray-500 block">
-                                    Alert at {item.restockQuantity}
+                                    {item.restockQuantity}
                                 </span>
                             </div>
                         </li>
@@ -114,8 +113,11 @@ export const RestockAlertsCard: React.FC = ({ }) => {
 
     return (
         <Card>
-            <CardHeader>
-                <CardTitle>Restock Alerts</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between ">
+                <CardTitle className="font-bold pr-10 " >Restock Alerts</CardTitle>
+                <CardTitle className="text-xs font-semibold text-black-500">Stock</CardTitle>
+                <CardTitle className="text-xs font-semibold text-gray-500">Restock</CardTitle>
+
             </CardHeader>
             <CardContent>{renderContent()}</CardContent>
         </Card>

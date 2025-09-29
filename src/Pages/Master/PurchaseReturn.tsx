@@ -5,7 +5,6 @@ import {
   collection,
   query,
   getDocs,
-  serverTimestamp,
   doc,
   writeBatch,
   increment as firebaseIncrement,
@@ -49,11 +48,15 @@ const PurchaseReturnPage: React.FC = () => {
   const dbOperations = useDatabase();
   const { purchaseId } = useParams();
   const { state } = useLocation();
-
+  const [supplierName, setSupplierName] = useState<string>('');
+  const [supplierNumber, setSupplierNumber] = useState<string>('');
   const [modeOfReturn, setModeOfReturn] = useState<string>('Exchange');
-  const [itemsToReturn, setItemsToReturn] = useState<TransactionItem[]>([]);
   const [newItemsReceived, setNewItemsReceived] = useState<TransactionItem[]>([]);
+  const [returnDate, setReturnDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
+
+  const [originalPurchaseItems, setOriginalPurchaseItems] = useState<TransactionItem[]>([]);
+  const [selectedReturnIds, setSelectedReturnIds] = useState<Set<string>>(new Set());
   const [purchaseList, setPurchaseList] = useState<PurchaseData[]>([]);
   const [selectedPurchase, setSelectedPurchase] = useState<PurchaseData | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -67,6 +70,10 @@ const PurchaseReturnPage: React.FC = () => {
   const [scannerPurpose, setScannerPurpose] = useState<'purchase' | 'item' | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
+  const itemsToReturn = useMemo(() =>
+    originalPurchaseItems.filter(item => selectedReturnIds.has(item.id)),
+    [originalPurchaseItems, selectedReturnIds]
+  );
   useEffect(() => {
     if (!currentUser || !currentUser.companyId || !dbOperations) {
       setIsLoading(false);
@@ -83,19 +90,15 @@ const PurchaseReturnPage: React.FC = () => {
           getDocs(purchasesQuery),
           dbOperations.getItems()
         ]);
-
         const purchases: PurchaseData[] = purchasesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PurchaseData));
         setPurchaseList(purchases);
         setAvailableItems(allItems);
-
         if (state?.invoiceData) {
           handleSelectPurchase(state.invoiceData);
         } else if (purchaseId) {
           const preselectedPurchase = purchases.find(p => p.id === purchaseId);
           if (preselectedPurchase) {
             handleSelectPurchase(preselectedPurchase);
-          } else {
-            setError(`Purchase with ID ${purchaseId} not found.`);
           }
         }
       } catch (err) {
@@ -130,28 +133,72 @@ const PurchaseReturnPage: React.FC = () => {
 
   const handleSelectPurchase = (purchase: PurchaseData) => {
     setSelectedPurchase(purchase);
-    setItemsToReturn(purchase.items.map((item: any) => ({
-      id: crypto.randomUUID(),
-      originalItemId: item.id,
-      name: item.name,
-      quantity: item.quantity || 1,
-      unitPrice: item.purchasePrice || 0,
-      amount: (item.purchasePrice || 0) * (item.quantity || 1),
-    })));
+    setSupplierName(purchase.partyName);
+    setSupplierNumber(purchase.partyNumber || '');
+    setOriginalPurchaseItems(purchase.items.map((item: any) => {
+      const itemData = item.data || item;
+      const quantity = itemData.quantity || 1;
+
+      const unitPrice = itemData.purchasePrice ?? itemData.finalPrice ?? 0;
+
+      return {
+        id: crypto.randomUUID(),
+        originalItemId: itemData.id,
+        name: itemData.name,
+        quantity: quantity,
+        unitPrice: unitPrice,
+        amount: unitPrice * quantity,
+      };
+    }));
+    setSelectedReturnIds(new Set());
     setNewItemsReceived([]);
     setSearchQuery(purchase.invoiceNumber || purchase.partyName);
     setIsDropdownOpen(false);
   };
 
+  const handleToggleReturnItem = (itemId: string) => {
+    setSelectedReturnIds(prevIds => {
+      const newIds = new Set(prevIds);
+      if (newIds.has(itemId)) {
+        newIds.delete(itemId);
+      } else {
+        newIds.add(itemId);
+      }
+      return newIds;
+    });
+  };
+
   const handleClear = () => {
     setSelectedPurchase(null);
-    setItemsToReturn([]);
+    setSelectedReturnIds(new Set());
     setNewItemsReceived([]);
     setSearchQuery('');
     navigate(ROUTES.PURCHASE_RETURN);
   };
 
-  const handleItemReceived = (item: Item) => {
+  const handleItemChange = (
+    listSetter: React.Dispatch<React.SetStateAction<TransactionItem[]>>,
+    id: string,
+    field: keyof TransactionItem,
+    value: string | number
+  ) => {
+    listSetter(prev => prev.map(item => {
+      if (item.id === id) {
+        const updatedItem = { ...item, [field]: value };
+        if (field === 'quantity' || field === 'unitPrice') {
+          updatedItem.amount = Number(updatedItem.quantity) * Number(updatedItem.unitPrice);
+        }
+        return updatedItem;
+      }
+      return item;
+    }));
+  };
+
+  const handleRemoveItem = (listSetter: React.Dispatch<React.SetStateAction<TransactionItem[]>>, id: string) => {
+    listSetter(prev => prev.filter(item => item.id !== id));
+  };
+
+  const handleNewItemSelected = (item: Item) => {
     if (!item) return;
     setNewItemsReceived(prev => [...prev, {
       id: crypto.randomUUID(),
@@ -172,12 +219,12 @@ const PurchaseReturnPage: React.FC = () => {
       if (foundPurchase) {
         handleSelectPurchase(foundPurchase);
       } else {
-        setModal({ message: 'No active purchase found with this ID/Invoice.', type: State.ERROR });
+        setModal({ message: 'No active purchase found.', type: State.ERROR });
       }
     } else if (currentPurpose === 'item') {
       const itemToAdd = availableItems.find(item => item.barcode === decodedText);
       if (itemToAdd) {
-        handleItemReceived(itemToAdd);
+        handleNewItemSelected(itemToAdd);
         setModal({ message: `Added: ${itemToAdd.name}`, type: State.SUCCESS });
       } else {
         setModal({ message: 'Item not found for this barcode.', type: State.ERROR });
@@ -188,26 +235,31 @@ const PurchaseReturnPage: React.FC = () => {
   const { totalReturnValue, totalNewItemsValue, finalBalance } = useMemo(() => {
     const totalReturnValue = itemsToReturn.reduce((sum, item) => sum + item.amount, 0);
     const totalNewItemsValue = newItemsReceived.reduce((sum, item) => sum + item.amount, 0);
-    return { totalReturnValue, totalNewItemsValue, finalBalance: totalReturnValue - totalNewItemsValue };
-  }, [itemsToReturn, newItemsReceived]);
+    const originalAmount = selectedPurchase?.totalAmount || 0;
+    const newBillAmount = originalAmount - totalReturnValue + totalNewItemsValue;
+    const finalBalance = totalReturnValue - totalNewItemsValue;
+    return { totalReturnValue, totalNewItemsValue, newBillAmount, finalBalance };
+  }, [itemsToReturn, newItemsReceived, selectedPurchase]);
 
   const saveReturnTransaction = async (completionData?: Partial<PaymentCompletionData>) => {
     if (!currentUser || !selectedPurchase) return;
+
+    if (modeOfReturn === 'Debit Note' && !supplierNumber) {
+      setModal({ type: State.ERROR, message: 'Cannot create Debit Note: Party Number is missing.' });
+      return;
+    }
 
     setIsLoading(true);
     try {
       const batch = writeBatch(db);
       const purchaseRef = doc(db, 'purchases', selectedPurchase.id);
-
       const originalItemsMap = new Map(selectedPurchase.items.map(item => [item.id, { ...item }]));
 
       itemsToReturn.forEach(returnItem => {
         const originalItem = originalItemsMap.get(returnItem.originalItemId);
         if (originalItem) {
           originalItem.quantity -= returnItem.quantity;
-          if (originalItem.quantity <= 0) {
-            originalItemsMap.delete(returnItem.originalItemId);
-          }
+          if (originalItem.quantity <= 0) originalItemsMap.delete(returnItem.originalItemId);
         }
       });
 
@@ -229,7 +281,7 @@ const PurchaseReturnPage: React.FC = () => {
       const newTotalAmount = newItemsList.reduce((sum, item) => sum + (item.quantity * (item.purchasePrice || 0)), 0);
 
       const returnHistoryRecord = {
-        returnedAt: serverTimestamp(),
+        returnedAt: new Date(),
         returnedItems: itemsToReturn.map(({ id, ...item }) => item),
         newItemsReceived: newItemsReceived.map(({ id, ...item }) => item),
         finalBalance,
@@ -246,10 +298,18 @@ const PurchaseReturnPage: React.FC = () => {
       itemsToReturn.forEach(item => {
         batch.update(doc(db, 'items', item.originalItemId), { amount: firebaseIncrement(-item.quantity) });
       });
-
       newItemsReceived.forEach(item => {
         batch.update(doc(db, 'items', item.originalItemId), { amount: firebaseIncrement(item.quantity) });
       });
+
+      if (modeOfReturn === 'Debit Note' && finalBalance > 0) {
+        const customerRef = doc(db, 'customers', supplierNumber);
+        batch.set(customerRef, {
+          name: supplierName,
+          phone: supplierNumber,
+          debitBalance: firebaseIncrement(finalBalance),
+        }, { merge: true });
+      }
 
       await batch.commit();
       setModal({ type: State.SUCCESS, message: 'Purchase Return processed successfully!' });
@@ -268,7 +328,6 @@ const PurchaseReturnPage: React.FC = () => {
     if (itemsToReturn.length === 0 && newItemsReceived.length === 0) {
       return setModal({ type: State.ERROR, message: 'No items have been returned or received.' });
     }
-
     if (modeOfReturn === 'Exchange' && finalBalance < 0) {
       setIsDrawerOpen(true);
     } else {
@@ -279,7 +338,7 @@ const PurchaseReturnPage: React.FC = () => {
   if (isLoading) return <div className="flex min-h-screen items-center justify-center">Loading...</div>;
 
   return (
-    <div className="flex flex-col min-h-screen bg-white w-full pb-16">
+    <div className="flex flex-col min-h-screen bg-white w-full ">
       {modal && <Modal message={modal.message} onClose={() => setModal(null)} type={modal.type} />}
       <BarcodeScanner isOpen={scannerPurpose !== null} onClose={() => setScannerPurpose(null)} onScanSuccess={handleBarcodeScanned} />
 
@@ -292,7 +351,7 @@ const PurchaseReturnPage: React.FC = () => {
         <div className="w-6"></div>
       </div>
 
-      <div className="flex-grow p-4 bg-gray-100 pb-24">
+      <div className="flex-grow p-4 bg-gray-100 ">
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
           <div className="relative" ref={dropdownRef}>
             <label htmlFor="search-purchase" className="block text-lg font-medium mb-2">Search Original Purchase</label>
@@ -301,7 +360,7 @@ const PurchaseReturnPage: React.FC = () => {
                 type="text" id="search-purchase" value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setIsDropdownOpen(true); }}
                 onFocus={() => setIsDropdownOpen(true)}
-                placeholder={selectedPurchase ? selectedPurchase.invoiceNumber : "Search by Supplier or Invoice ID"}
+                placeholder={selectedPurchase ? `${selectedPurchase.partyName} (${selectedPurchase.invoiceNumber})` : "Search by Supplier or Invoice"}
                 className="flex-grow p-3 border rounded-lg" autoComplete="off" readOnly={!!selectedPurchase}
               />
               {selectedPurchase && (
@@ -326,8 +385,66 @@ const PurchaseReturnPage: React.FC = () => {
         {selectedPurchase && (
           <>
             <div className="bg-white p-6 rounded-lg shadow-md mt-6">
-              <h3 className="text-xl font-semibold mb-4">Items Being Returned</h3>
-              {/* Items to return list would be mapped here */}
+              <div className="space-y-4">
+                <div className='grid grid-cols-2 gap-4'>
+                  <div>
+                    <label htmlFor="return-date" className="block font-medium text-sm mb-1">Return Date</label>
+                    <input type="date" id="return-date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} className="w-full p-2 border rounded" />
+                  </div>
+                  <div>
+                    <label htmlFor="supplier-name" className="block font-medium text-sm mb-1">Party Name</label>
+                    <input type="text" id="supplier-name" value={supplierName} onChange={(e) => setSupplierName(e.target.value)} className="w-full p-2 border rounded bg-white" />
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="supplier-number" className="block font-medium text-sm mb-1">Party Number</label>
+                  <input type="text" id="supplier-number" value={supplierNumber} onChange={(e) => setSupplierNumber(e.target.value)} className="w-full p-2 border rounded bg-white" />
+                </div>
+              </div>
+
+              <h3 className="text-xl font-semibold mt-6 mb-4">Select Items to Return</h3>
+              <div className="flex flex-col gap-3">
+                {originalPurchaseItems.map((item) => {
+                  const isSelected = selectedReturnIds.has(item.id);
+                  return (
+                    // --- MODIFIED SECTION START ---
+                    <div
+                      key={item.id}
+                      className={`p-3 border rounded-lg flex items-center gap-3 transition-all ${isSelected ? 'bg-red-50 shadow-sm' : 'bg-gray-50'}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleToggleReturnItem(item.id)}
+                        className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 flex-shrink-0"
+                      />
+                      <div className="flex-grow flex flex-col gap-2">
+                        <div>
+                          <p className="font-semibold text-gray-800 text-sm leading-tight">{item.name}</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-1">
+                            <label className="text-xs text-gray-600">Qty:</label>
+                            <input
+                              type="number"
+                              value={item.quantity}
+                              onChange={(e) => handleItemChange(setOriginalPurchaseItems, item.id, 'quantity', Number(e.target.value))}
+                              className="w-16 p-1 border border-gray-300 rounded text-center text-sm"
+                              disabled={!isSelected}
+                            />
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <label className="text-xs text-gray-600">Price:</label>
+                            <p className="w-20 text-center font-semibold p-1 border border-gray-300 rounded bg-white text-sm">
+                              ₹{item.unitPrice.toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="bg-white p-6 rounded-lg shadow-md mt-6">
@@ -346,7 +463,7 @@ const PurchaseReturnPage: React.FC = () => {
                         label="Add New Item Received"
                         placeholder="Search inventory..."
                         items={availableItems}
-                        onItemSelected={handleItemReceived}
+                        onItemSelected={handleNewItemSelected}
                         isLoading={isLoading}
                         error={error}
                       />
@@ -355,7 +472,25 @@ const PurchaseReturnPage: React.FC = () => {
                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>
                     </button>
                   </div>
-                  {/* New Items Received list would be mapped here */}
+                  {newItemsReceived.length > 0 && (
+                    <div className="flex flex-col gap-4 mt-4">
+                      <h3 className="text-lg font-semibold mb-2">New Items Received</h3>
+                      {newItemsReceived.map((item) => (
+                        <div key={item.id} className="grid grid-cols-12 gap-x-2 gap-y-2 items-center p-3 border rounded-lg bg-green-50 shadow-sm">
+                          <div className="col-span-12 font-medium text-gray-800">{item.name}</div>
+                          <input
+                            type="number" value={item.quantity}
+                            onChange={(e) => handleItemChange(setNewItemsReceived, item.id, 'quantity', Number(e.target.value))}
+                            className="col-span-4 p-2 border rounded text-center"
+                          />
+                          <p className="col-span-7 text-center font-semibold border p-2 rounded bg-white">
+                            ₹{item.amount.toFixed(2)}
+                          </p>
+                          <button onClick={() => handleRemoveItem(setNewItemsReceived, item.id)} className="col-span-1 justify-self-center text-red-500 text-2xl hover:text-red-700">&times;</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -372,7 +507,7 @@ const PurchaseReturnPage: React.FC = () => {
         )}
       </div>
 
-      <div className="sticky bottom-0 p-4 bg-white border-t z-30">
+      <div className="sticky bottom-0 p-4 bg-white border-t pb-16">
         {selectedPurchase && (
           <CustomButton onClick={handleProcessReturn} variant={Variant.Filled} className="w-full py-4 text-xl font-semibold">
             Process Transaction

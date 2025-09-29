@@ -28,7 +28,6 @@ interface SaleRecord {
   paymentMethods: PaymentMethods;
   createdAt: number; // Using number for timestamp (milliseconds)
   items: SalesItem[];
-  // Add other potential keys for sorting
   [key: string]: any;
 }
 
@@ -50,7 +49,7 @@ const formatDateForInput = (date: Date): string => {
 const SummaryCard: React.FC<{ title: string; value: string; note?: string }> = ({ title, value, note }) => (
   <div className="bg-white p-4 rounded-lg shadow-md text-center">
     <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">{title}</h3>
-    <p className="text-3xl font-bold text-gray-900 mt-2">{value}</p>
+    <p className="text-2xl font-bold text-gray-900 mt-2">{value}</p>
     {note && <p className="text-xs text-gray-400 mt-1">{note}</p>}
   </div>
 );
@@ -154,14 +153,14 @@ const SalesListTable: React.FC<{
   };
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow-md mt-6">
+    <div className="bg-white p-2 rounded-lg shadow-md mt-6">
       <div className="max-h-96 overflow-y-auto">
         <table className="w-full text-sm text-left">
           <thead className="text-xs text-slate-500 bg-slate-100 sticky top-0">
             <tr>
               <SortableHeader sortKey="createdAt">Date</SortableHeader>
               <SortableHeader sortKey="partyName">Party Name</SortableHeader>
-              <th className="py-3 px-4 uppercase">Items</th>
+              <SortableHeader sortKey="items">Items</SortableHeader>
               <SortableHeader sortKey="totalAmount" className="text-right">Amount</SortableHeader>
             </tr>
           </thead>
@@ -170,8 +169,8 @@ const SalesListTable: React.FC<{
               <tr key={sale.id} className="hover:bg-slate-50">
                 <td className="py-3 px-4 text-slate-600">{formatDate(sale.createdAt)}</td>
                 <td className="py-3 px-4 font-medium">{sale.partyName}</td>
-                <td className="py-3 px-4 text-slate-600">{sale.items.reduce((sum, i) => sum + i.quantity, 0)}</td>
-                <td className="py-3 px-4 text-slate-600 text-right">₹{sale.totalAmount.toLocaleString('en-IN')}</td>
+                <td className="py-3 px-4 text-slate-600 text-center">{sale.items.reduce((sum, i) => sum + i.quantity, 0)}</td>
+                <td className="py-3 px-4 text-slate-600 text-center">₹{sale.totalAmount.toLocaleString('en-IN')}</td>
               </tr>
             ))}
           </tbody>
@@ -362,7 +361,7 @@ const SalesReport: React.FC = () => {
   if (error) return <div className="p-4 text-center text-red-500">{error}</div>;
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4">
+    <div className="min-h-screen bg-gray-100 p-4 pb-16">
       <div className="flex items-center justify-between pb-3 border-b mb-4">
         <h1 className="flex-1 text-xl text-center font-bold text-gray-800">Sales Report</h1>
         <button onClick={() => navigate(-1)} className="p-2"> <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg></button>
@@ -377,8 +376,10 @@ const SalesReport: React.FC = () => {
             <option value="last30">Last 30 Days</option>
             <option value="custom">Custom</option>
           </FilterSelect>
-          <input type="date" value={customStartDate} onChange={e => { setCustomStartDate(e.target.value); setDatePreset('custom'); }} className="w-full p-2 text-sm bg-gray-50 border rounded-md" placeholder="Start Date" />
-          <input type="date" value={customEndDate} onChange={e => { setCustomEndDate(e.target.value); setDatePreset('custom'); }} className="w-full p-2 text-sm bg-gray-50 border rounded-md" placeholder="End Date" />
+          <div className='grid grid-cols-2 sm:grid-cols-2 gap-4'>
+            <input type="date" value={customStartDate} onChange={e => { setCustomStartDate(e.target.value); setDatePreset('custom'); }} className="w-full p-2 text-sm bg-gray-50 border rounded-md" placeholder="Start Date" />
+            <input type="date" value={customEndDate} onChange={e => { setCustomEndDate(e.target.value); setDatePreset('custom'); }} className="w-full p-2 text-sm bg-gray-50 border rounded-md" placeholder="End Date" />
+          </div>
         </div>
         <button onClick={handleApplyFilters} className="w-full mt-4 px-6 py-3 bg-blue-600 text-white text-lg font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">Apply</button>
       </div>
