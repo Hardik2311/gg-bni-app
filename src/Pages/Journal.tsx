@@ -8,8 +8,10 @@ import {
   Timestamp,
   QuerySnapshot,
   doc,
-  deleteDoc,
-  where, // Make sure 'where' is imported
+  where,
+  type DocumentData,
+  runTransaction, // Import runTransaction
+  increment,      // Import increment
 } from 'firebase/firestore';
 import { useAuth } from '../context/auth-context';
 import { CustomToggle, CustomToggleItem } from '../Components/CustomToggle';
@@ -18,10 +20,11 @@ import { CustomButton } from '../Components/CustomButton';
 import { Variant, State } from '../enums';
 import { Spinner } from '../constants/Spinner';
 import { ROUTES } from '../constants/routes.constants';
-import { Modal } from '../constants/Modal';
+import { Modal, PaymentModal } from '../constants/Modal';
 
 // --- Data Types ---
 interface InvoiceItem {
+  id: string; // Ensure item has an ID to reference it
   name: string;
   quantity: number;
   finalPrice: number;
@@ -36,6 +39,7 @@ interface Invoice {
   status: 'Paid' | 'Unpaid';
   type: 'Debit' | 'Credit';
   partyName: string;
+  partyNumber?: string;
   createdAt: Date;
   dueAmount?: number;
   items?: InvoiceItem[];
@@ -43,30 +47,27 @@ interface Invoice {
 
 const formatDate = (date: Date): string => {
   if (!date) return 'N/A';
-  return date.toLocaleTimeString('en-US', {
+  return date.toLocaleTimeString('en-IN', {
     hour: '2-digit',
     minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit'
   });
 };
 
-/**
- * Custom hook to fetch sales and purchase data for a specific company.
- * @param companyId The ID of the company to fetch transactions for.
- */
+// --- Custom Hook for Journal Data ---
 const useJournalData = (companyId?: string) => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // --- FIX 1: Wait for companyId before running the query ---
     if (!companyId) {
       setLoading(false);
-      setInvoices([]); // Clear invoices if no companyId
+      setInvoices([]);
       return;
     }
 
-    // --- FIX 2: Add a 'where' clause to filter by companyId for both queries ---
     const salesQuery = query(collection(db, 'sales'), where('companyId', '==', companyId));
     const purchasesQuery = query(collection(db, 'purchases'), where('companyId', '==', companyId));
 
@@ -78,20 +79,27 @@ const useJournalData = (companyId?: string) => {
         const dueAmount = paymentMethods.due || 0;
         const status: 'Paid' | 'Unpaid' = dueAmount > 0 ? 'Unpaid' : 'Paid';
         const items = (data.items || []).map((item: any) => ({
+          id: item.id || '', // Ensure item ID is captured
           name: item.name || 'N/A',
           quantity: item.quantity || 0,
           finalPrice: type === 'Credit' ? (item.finalPrice || 0) : (item.purchasePrice || 0),
           mrp: item.mrp || 0,
         }));
 
+        const calculatedTotal = Object.values(paymentMethods).reduce(
+          (sum: number, value: any) => sum + (typeof value === 'number' ? value : 0),
+          0
+        );
+
         return {
           id: doc.id,
           invoiceNumber: data.invoiceNumber || `#${doc.id.slice(0, 6).toUpperCase()}`,
-          amount: data.totalAmount || 0,
+          amount: data.totalAmount || calculatedTotal || 0,
           time: formatDate(createdAt),
           status: status,
           type: type,
           partyName: data.partyName || 'N/A',
+          partyNumber: data.partyNumber || '',
           createdAt,
           dueAmount: dueAmount,
           items: items,
@@ -101,7 +109,6 @@ const useJournalData = (companyId?: string) => {
 
     const unsubscribeSales = onSnapshot(salesQuery, (snapshot) => {
       const salesData = processSnapshot(snapshot, 'Credit');
-      // A safer way to update state to prevent race conditions
       setInvoices((prev) => [...prev.filter((inv) => inv.type !== 'Credit'), ...salesData]);
       setLoading(false);
     }, (err) => {
@@ -125,7 +132,6 @@ const useJournalData = (companyId?: string) => {
       unsubscribeSales();
       unsubscribePurchases();
     };
-    // --- FIX 3: Add companyId to the dependency array ---
   }, [companyId]);
 
   const sortedInvoices = useMemo(() => {
@@ -134,7 +140,6 @@ const useJournalData = (companyId?: string) => {
 
   return { invoices: sortedInvoices, loading, error };
 };
-
 
 // --- Main Journal Component ---
 const Journal: React.FC = () => {
@@ -148,12 +153,11 @@ const Journal: React.FC = () => {
   const [expandedInvoiceId, setExpandedInvoiceId] = useState<string | null>(null);
   const [modal, setModal] = useState<{ message: string; type: State } | null>(null);
   const [invoiceToDelete, setInvoiceToDelete] = useState<Invoice | null>(null);
-
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const { currentUser, loading: authLoading } = useAuth();
-  // --- FIX 4: Pass currentUser.companyId to the hook ---
   const { invoices, loading: dataLoading, error } = useJournalData(currentUser?.companyId);
 
-  // ++ ADDED: Navigation hook ++
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -167,7 +171,6 @@ const Journal: React.FC = () => {
   }, []);
 
   const filteredInvoices = useMemo(() => {
-    // ... filtering logic remains the same ...
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
@@ -185,14 +188,54 @@ const Journal: React.FC = () => {
           default: return true;
         }
       })
-      .filter((invoice) =>
-        invoice.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+      .filter((invoice) => {
+        const lowerCaseQuery = searchQuery.toLowerCase();
+        return (
+          invoice.invoiceNumber.toLowerCase().includes(lowerCaseQuery) ||
+          invoice.partyName.toLowerCase().includes(lowerCaseQuery) ||
+          (invoice.partyNumber && invoice.partyNumber.includes(searchQuery))
+        );
+      })
       .filter(
         (invoice) =>
           invoice.type === activeType && invoice.status === activeTab
       );
   }, [invoices, activeType, activeTab, searchQuery, activeDateFilter]);
+
+  // --- FIXED LOGIC ---
+  const selectedPeriodText = useMemo(() => {
+    const options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' };
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const formatDate = (date: Date) => date.toLocaleDateString('en-IN', options);
+
+    switch (activeDateFilter) {
+      case 'today':
+        return `Today, ${formatDate(today)}`;
+      case 'yesterday':
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+        return `Yesterday, ${formatDate(yesterday)}`;
+      case 'last7':
+        const sevenDaysAgo = new Date(today);
+        sevenDaysAgo.setDate(today.getDate() - 6);
+        return `${formatDate(sevenDaysAgo)} - ${formatDate(today)}`;
+      case 'last15':
+        const fifteenDaysAgo = new Date(today);
+        fifteenDaysAgo.setDate(today.getDate() - 14);
+        return `${formatDate(fifteenDaysAgo)} - ${formatDate(today)}`;
+      case 'last30':
+        const thirtyDaysAgo = new Date(today);
+        thirtyDaysAgo.setDate(today.getDate() - 29);
+        return `${formatDate(thirtyDaysAgo)} - ${formatDate(today)}`;
+      case 'all':
+        return 'All Time';
+      default:
+        return 'Selected Period';
+    }
+  }, [activeDateFilter]);
+
 
   const dateFilters = [
     { label: 'All Time', value: 'all' },
@@ -214,20 +257,33 @@ const Journal: React.FC = () => {
 
   const promptDeleteInvoice = (invoice: Invoice) => {
     setInvoiceToDelete(invoice);
-    setModal({ message: "Are you sure you want to delete this invoice? This action cannot be undone.", type: State.INFO });
+    setModal({ message: "Are you sure you want to delete this invoice? This action cannot be undone and will restore item stock.", type: State.INFO });
   };
 
   const confirmDeleteInvoice = async () => {
-    if (!invoiceToDelete) return;
+    if (!invoiceToDelete || !invoiceToDelete.items) return;
+
+    const collectionName = invoiceToDelete.type === 'Credit' ? 'sales' : 'purchases';
+    const invoiceDocRef = doc(db, collectionName, invoiceToDelete.id);
+
     try {
-      const collectionName = invoiceToDelete.type === 'Credit' ? 'sales' : 'purchases';
-      await deleteDoc(doc(db, collectionName, invoiceToDelete.id));
+      await runTransaction(db, async (transaction) => {
+        for (const item of invoiceToDelete.items!) {
+          if (item.id && item.quantity > 0) {
+            const itemDocRef = doc(db, 'items', item.id);
+            const stockChange = invoiceToDelete.type === 'Credit' ? item.quantity : -item.quantity;
+            transaction.update(itemDocRef, { stock: increment(stockChange) });
+          }
+        }
+        transaction.delete(invoiceDocRef);
+      });
+      setModal({ message: "Invoice deleted and stock updated successfully.", type: State.SUCCESS });
     } catch (err) {
-      console.error("Error deleting invoice: ", err);
-      alert("Failed to delete invoice.");
+      console.error("Error in transaction: ", err);
+      setModal({ message: `Failed to delete invoice: ${err instanceof Error ? err.message : 'Unknown error'}`, type: State.ERROR });
     } finally {
       setInvoiceToDelete(null);
-      setModal(null);
+      setTimeout(() => setModal(null), 3000);
     }
   };
 
@@ -242,6 +298,32 @@ const Journal: React.FC = () => {
 
   const handlePurchaseReturn = (invoice: Invoice) => {
     navigate(`${ROUTES.PURCHASE_RETURN}`, { state: { invoiceData: invoice } });
+  };
+  const openPaymentModal = (invoice: Invoice) => {
+    setSelectedInvoice(invoice);
+    setIsModalOpen(true);
+  };
+  const handleSettlePayment = async (invoice: Invoice, amount: number, method: string) => {
+    const collectionName = invoice.type === 'Credit' ? 'sales' : 'purchases';
+    const docRef = doc(db, collectionName, invoice.id);
+    await runTransaction(db, async (transaction) => {
+      const sfDoc = await transaction.get(docRef);
+      if (!sfDoc.exists()) throw "Document does not exist!";
+
+      const data = sfDoc.data() as DocumentData;
+      const currentPaymentMethods = data.paymentMethods || {};
+      const currentDue = currentPaymentMethods.due || 0;
+      const currentMethodTotal = currentPaymentMethods[method] || 0;
+      const newDue = currentDue - amount;
+      if (newDue < 0) throw 'Payment exceeds due amount.';
+
+      const newPaymentMethods = {
+        ...currentPaymentMethods,
+        [method]: currentMethodTotal + amount,
+        due: newDue,
+      };
+      transaction.update(docRef, { paymentMethods: newPaymentMethods });
+    });
   };
 
   const renderContent = () => {
@@ -260,7 +342,6 @@ const Journal: React.FC = () => {
             onClick={() => handleInvoiceClick(invoice.id)}
             className="cursor-pointer transition-shadow hover:shadow-md"
           >
-            {/* ++ MODIFIED: Arrow position reverted to the top right ++ */}
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-base font-semibold text-slate-800">{invoice.invoiceNumber}</p>
@@ -268,9 +349,20 @@ const Journal: React.FC = () => {
               </div>
               <div className="flex items-center space-x-3">
                 <div className="text-right">
-                  <p className="text-lg font-bold text-slate-800">
-                    {invoice.amount.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
-                  </p>
+                  {invoice.status === 'Unpaid' && invoice.dueAmount && invoice.dueAmount > 0 ? (
+                    <>
+                      <p className="text-lg font-bold text-red-600">
+                        {invoice.dueAmount.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        Total: {invoice.amount.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-lg font-bold text-slate-800">
+                      {invoice.amount.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
+                    </p>
+                  )}
                   <p className="text-xs text-slate-500">{invoice.time}</p>
                 </div>
                 <svg
@@ -309,35 +401,34 @@ const Journal: React.FC = () => {
                 </div>
 
                 <div className="flex justify-end space-x-3 mt-4 pt-4 border-t border-slate-200">
+                  {invoice.status === 'Unpaid' && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); openPaymentModal(invoice); }}
+                      className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                    >
+                      Settle
+                    </button>
+                  )}
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      promptDeleteInvoice(invoice);
-                    }}
+                    onClick={(e) => { e.stopPropagation(); promptDeleteInvoice(invoice); }}
                     className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
                   >
                     Delete
                   </button>
                   {invoice.type === 'Credit' && (
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSalesReturn(invoice);
-                      }}
+                      onClick={(e) => { e.stopPropagation(); handleSalesReturn(invoice); }}
                       className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
                     >
-                      Sales Return
+                      Return
                     </button>
                   )}
                   {invoice.type === 'Debit' && (
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handlePurchaseReturn(invoice);
-                      }}
+                      onClick={(e) => { e.stopPropagation(); handlePurchaseReturn(invoice); }}
                       className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors"
                     >
-                      Purchase Return
+                      Return
                     </button>
                   )}
                 </div>
@@ -362,9 +453,11 @@ const Journal: React.FC = () => {
           type={modal.type}
           onClose={cancelDelete}
           onConfirm={confirmDeleteInvoice}
-          showConfirmButton={true}
+          showConfirmButton={invoiceToDelete !== null}
         />
       )}
+      <PaymentModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} invoice={selectedInvoice} onSubmit={handleSettlePayment} />
+
       <div className="flex items-center justify-between p-4 px-6">
         <div className="flex flex-1 items-center">
           <button onClick={() => setShowSearch(!showSearch)} className="text-slate-500 hover:text-slate-800 transition-colors mr-4">
@@ -375,11 +468,15 @@ const Journal: React.FC = () => {
             )}
           </button>
           <div className="flex-1">
-            {!showSearch && <h1 className="text-4xl font-light text-slate-800">Transactions</h1>}
-            {showSearch && (
+            {!showSearch ? (
+              <div>
+                <h1 className="text-4xl font-light text-slate-800">Transactions</h1>
+                <p className='text-center justify-center text-lg font-light text-slate-600'>{selectedPeriodText}</p>
+              </div>
+            ) : (
               <input
                 type="text"
-                placeholder="Search by Invoice No..."
+                placeholder="Search by Invoice, Name, or Phone..."
                 className="w-full text-xl font-light p-1 border-b-2 border-slate-300 focus:border-slate-800 outline-none transition-colors"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -419,7 +516,7 @@ const Journal: React.FC = () => {
         <CustomToggleItem className="mr-2" onClick={() => setActiveTab('Paid')} data-state={activeTab === 'Paid' ? 'on' : 'off'}>Paid</CustomToggleItem>
         <CustomToggleItem onClick={() => setActiveTab('Unpaid')} data-state={activeTab === 'Unpaid' ? 'on' : 'off'}>Unpaid</CustomToggleItem>
       </CustomToggle>
-      <div className="flex-grow overflow-y-auto bg-slate-100 p-6 space-y-3">
+      <div className="flex-grow overflow-y-auto bg-slate-100 p-2 space-y-3 pt-4">
         {renderContent()}
       </div>
     </div >

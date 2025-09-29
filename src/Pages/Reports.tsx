@@ -13,7 +13,7 @@ const Reports = () => {
         <h1 className="text-2xl font-bold text-gray-800 m-0 flex-grow text-center">Reports</h1>
       </div>
 
-      <div className="flex-grow p-6 overflow-y-auto bg-gray-100 box-border">
+      <div className="flex grid grid-cols-2 p-4 gap-4 overflow-y-auto bg-gray-100 box-border">
         {isDefaultReportsView ? (
           <>
             <Link to={ROUTES.SALES_REPORT} className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-200 text-gray-800 transition-all duration-200 ease-in-out hover:transform hover:-translate-y-0.5 hover:shadow-lg no-underline">

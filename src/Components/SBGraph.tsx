@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { db } from '../lib/firebase';
 import {
   collection,
@@ -9,7 +9,7 @@ import {
   orderBy,
 } from 'firebase/firestore';
 import { useAuth } from '../context/auth-context';
-import { Line, LineChart, CartesianGrid, XAxis } from 'recharts';
+import { Line, LineChart, CartesianGrid, YAxis } from 'recharts';
 import {
   Card,
   CardContent,
@@ -43,7 +43,6 @@ interface SalesBarChartReportProps {
 }
 
 export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps) {
-  // Use 'user' for consistency with the auth context
   const { currentUser } = useAuth();
   const { filters } = useFilter();
   const [chartData, setChartData] = useState<ChartData[]>([]);
@@ -52,7 +51,6 @@ export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps)
 
   useEffect(() => {
     const fetchSalesData = async () => {
-      // --- FIX 1: Check for user and their companyId before proceeding ---
       if (!currentUser?.companyId) {
         setIsLoading(false);
         setError('Company information not found. Please log in again.');
@@ -76,7 +74,6 @@ export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps)
 
       try {
         const salesCollection = collection(db, 'sales');
-        // --- FIX 2: Add a 'where' clause to filter sales by the user's companyId ---
         const salesQuery = query(
           salesCollection,
           where('companyId', '==', currentUser.companyId),
@@ -115,7 +112,6 @@ export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps)
         setChartData(newChartData);
       } catch (err) {
         console.error('Error fetching sales data:', err);
-        // Check for a missing index error, which is common with multi-field queries.
         if (err instanceof Error && err.message.includes('firestore/failed-precondition')) {
           setError('Database setup required. Please check the developer console for an index creation link.');
         } else {
@@ -126,26 +122,42 @@ export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps)
       }
     };
     fetchSalesData();
-    // --- FIX 3: Add user.companyId to the dependency array ---
   }, [currentUser, filters]);
+  const selectedPeriodText = useMemo(() => {
+    if (!filters.startDate || !filters.endDate) {
+      return 'for the selected period';
+    }
+    const options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'numeric', year: '2-digit' };
+    const startDate = new Date(filters.startDate).toLocaleDateString('en-IN', options);
+    const endDate = new Date(filters.endDate).toLocaleDateString('en-IN', options);
+
+    if (startDate === endDate) {
+      return `for ${startDate}`;
+    }
+    return `from ${startDate} to ${endDate}`;
+  }, [filters.startDate, filters.endDate]);
 
   return (
     <Card>
       <CardHeader className="pb-4">
         <CardTitle>Daily Sales Chart</CardTitle>
-        <CardDescription>Sales amount for the selected period</CardDescription>
+        <CardDescription>Sales amount  {selectedPeriodText}</CardDescription>
       </CardHeader>
       <CardContent>
-        {isLoading ? <div className="flex h-[250px] items-center justify-center"><p>Loading Chart...</p></div> :
-          error ? <div className="flex h-[250px] items-center justify-center text-center"><p className="text-red-500">{error}</p></div> :
+        {isLoading ? <div className="flex h-[260px] items-center justify-center"><p>Loading Chart...</p></div> :
+          error ? <div className="flex h-[260px] items-center justify-center text-center"><p className="text-red-500">{error}</p></div> :
             isDataVisible ? (
               <ChartContainer config={chartConfig} >
-                <LineChart accessibilityLayer data={chartData} margin={{ top: 30, left: 12, right: 12 }}>
+                <LineChart accessibilityLayer data={chartData} margin={{ top: 30, left: -15, right: 12, bottom: 10 }}>
                   <CartesianGrid vertical={false} />
-                  <XAxis dataKey="date" tickLine={false} tickMargin={10} axisLine={false}
-                    tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}
-                  />
                   <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+                  <YAxis
+                    stroke="#888888"
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(value) => `₹${value.toLocaleString()}`}
+                  />
                   <Line dataKey="sales" type="monotone" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }}>
                   </Line>
                 </LineChart>
@@ -163,9 +175,6 @@ export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps)
           {isDataVisible ? (
             ` ₹${chartData.reduce((sum, data) => sum + data.sales, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
           ) : (' ₹ ******')}
-        </div>
-        <div className="text-muted-foreground leading-none">
-          Showing sales data grouped by day for the selected period.
         </div>
       </CardFooter>
     </Card>

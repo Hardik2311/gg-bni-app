@@ -11,7 +11,7 @@ const Landing: React.FC = () => {
 
   return (
     <div
-      className="relative h-screen w-screen bg-cover bg-center md:bg-[center_top_75%]"
+      className="relative h-screen w-screen bg-cover bg-center md:bg-[center_top_75%] pb-16"
       style={{ backgroundImage: `url(${bgMain})` }}
     >
       <div className="absolute inset-0 flex flex-col items-center justify-center">

@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, NavLink } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import type { ItemGroup } from '../../constants/models';
 import { useDatabase } from '../../context/auth-context';
 import { ROUTES } from '../../constants/routes.constants';
+import { CustomButton } from '../../Components';
+import { Variant } from '../../enums';
 
 const ItemGroupPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const dbOperations = useDatabase();
 
   const [itemGroups, setItemGroups] = useState<ItemGroup[]>([]);
@@ -15,6 +18,7 @@ const ItemGroupPage: React.FC = () => {
 
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editingGroupName, setEditingGroupName] = useState<string>('');
+  const isActive = (path: string) => location.pathname === path;
 
   useEffect(() => {
     if (!dbOperations) return;
@@ -122,32 +126,30 @@ const ItemGroupPage: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-white w-full">
-      <div className="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
-        <button
-          onClick={() => navigate(ROUTES.HOME)}
-          className="text-2xl font-bold text-gray-600"
-        >
-          &times;
-        </button>
-        <div className="flex-1 flex justify-center items-center gap-6">
-          <NavLink
-            to={ROUTES.ITEM_ADD}
-            className={({ isActive }) => `flex-1 cursor-pointer border-b-2 py-3 text-center text-base font-medium transition hover:text-slate-700 ${isActive ? 'border-blue-600 font-semibold text-blue-600' : 'border-transparent text-slate-500'}`}
+    <div className="relative flex flex-col h-screen bg-gray-100 w-full font-poppins text-gray-800">
+      {/* Fixed Top Bar */}
+      <div className="flex flex-col p-4 bg-white border-b border-gray-200 shadow-sm flex-shrink-0">
+        <h1 className="text-2xl font-bold text-gray-800 text-center mb-4">Item Groups</h1>
+        <div className="flex items-center justify-center gap-6">
+          <CustomButton
+            variant={Variant.Transparent}
+            onClick={() => navigate(ROUTES.ITEM_ADD)}
+            active={isActive(ROUTES.ITEM_ADD)}
           >
             Item Add
-          </NavLink>
-          <NavLink
-            to={ROUTES.ITEM_GROUP}
-            className={({ isActive }) => `flex-1 cursor-pointer border-b-2 py-3 text-center text-base font-medium transition hover:text-slate-700 ${isActive ? 'border-blue-600 font-semibold text-blue-600' : 'border-transparent text-slate-500'}`}
+          </CustomButton>
+          <CustomButton
+            variant={Variant.Transparent}
+            onClick={() => navigate(ROUTES.ITEM_GROUP)}
+            active={isActive(ROUTES.ITEM_GROUP)}
           >
             Item Groups
-          </NavLink>
+          </CustomButton>
         </div>
-        <div className="w-6"></div>
       </div>
 
-      <div className="flex-grow p-4 bg-gray-50 w-full">
+      {/* Main Content Area - This will be the scrollable part */}
+      <div className="flex-grow p-4 bg-gray-50 w-full overflow-y-auto pb-24">
         {error && (
           <div className="mb-4 p-4 bg-red-100 text-red-700 rounded-lg shadow-sm border border-red-200">
             <p className="font-semibold">{error}</p>
@@ -166,7 +168,7 @@ const ItemGroupPage: React.FC = () => {
             />
             <button
               onClick={handleAddItemGroup}
-              className="bg-green-600 text-white py-3 px-6 rounded-lg font-semibold shadow-sm transition hover:bg-green-700 disabled:bg-green-300"
+              className="bg-sky-500 text-white py-3 px-6 rounded-lg font-semibold shadow-sm transition hover:bg-sky-700 disabled:bg-sky-300"
               disabled={loading || newItemGroupName.trim() === ''}
             >
               {loading ? 'Adding...' : 'Add Group'}
@@ -178,7 +180,7 @@ const ItemGroupPage: React.FC = () => {
           ) : itemGroups.length === 0 ? (
             <p className="text-gray-500 text-center py-8">No item groups found. Add a new one!</p>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {itemGroups.map((group) => (
                 <div
                   key={group.id}
@@ -241,15 +243,6 @@ const ItemGroupPage: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
-
-      <div className="sticky bottom-0 p-4 bg-white border-t">
-        <button
-          onClick={() => navigate(-1)}
-          className="w-full max-w-xs mx-auto block py-3 px-6 bg-blue-600 text-white rounded-lg font-semibold shadow-md transition hover:bg-blue-700"
-        >
-          Done
-        </button>
       </div>
     </div>
   );
