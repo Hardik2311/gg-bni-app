@@ -1,25 +1,21 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-// --- FIX 1: Import the factory function and auth hook ---
 import { useAuth } from '../../context/auth-context';
 import { getFirestoreOperations } from '../../lib/items_firebase';
 import type { Item, ItemGroup } from '../../constants/models';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Spinner } from '../../constants/Spinner'; // Assuming a Spinner component exists
+import { Spinner } from '../../constants/Spinner';
 
-// --- SummaryCard Component ---
-const SummaryCard: React.FC<{ title: string; value: string }> = ({
-  title,
-  value,
-}) => (
+const UNASSIGNED_GROUP_NAME = 'Uncategorized';
+
+const SummaryCard: React.FC<{ title: string; value: string }> = ({ title, value }) => (
   <div className="bg-white p-4 rounded-lg shadow-md text-center">
-    <h3 className="text-xs font-medium text-gray-500">{title}</h3>
+    <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider">{title}</h3>
     <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
   </div>
 );
 
-// --- FilterSelect Component ---
 const FilterSelect: React.FC<{
   label: string;
   value: string;
@@ -40,27 +36,24 @@ const FilterSelect: React.FC<{
   </div>
 );
 
-// --- ItemListTable Component ---
 const ItemListTable: React.FC<{
   items: Item[];
   sortConfig: { key: keyof Item; direction: 'asc' | 'desc' };
   onSort: (key: keyof Item) => void;
 }> = ({ items, sortConfig, onSort }) => {
-  const SortableHeader: React.FC<{ sortKey: keyof Item; children: React.ReactNode; className?: string; }> = ({ sortKey, children, className }) => {
+  const SortableHeader: React.FC<{ sortKey: keyof Item; children: React.ReactNode; className?: string }> = ({ sortKey, children, className }) => {
     const isSorted = sortConfig.key === sortKey;
     const directionIcon = sortConfig.direction === 'asc' ? '▲' : '▼';
-
     return (
-      <th className={`py-3 px-4 ${className || ''}`}>
+      <th className={`py-2 px-3 ${className || ''}`}>
         <button onClick={() => onSort(sortKey)} className="flex items-center gap-2 uppercase">
           {children}
-          <span className="w-4">
+          <span className="w-0">
             {isSorted ? (
               <span className="text-blue-600 text-xs">{directionIcon}</span>
             ) : (
               <span className="text-gray-400 hover:text-gray-600 text-xs inline-flex flex-col leading-3">
-                <span>▲</span>
-                <span className="-mt-1">▼</span>
+                <span>▲</span><span className="-mt-1">▼</span>
               </span>
             )}
           </span>
@@ -73,22 +66,24 @@ const ItemListTable: React.FC<{
     <div className="bg-white p-4 rounded-lg shadow-md mt-6">
       <h2 className="text-lg font-semibold text-gray-700 mb-4">Filtered Items List</h2>
       <div className="max-h-96 overflow-y-auto">
-        <table className="w-full text-sm text-left">
+        <table className="w-full text-sm text-center">
           <thead className="text-xs text-slate-500 bg-slate-100 sticky top-0">
             <tr>
               <SortableHeader sortKey="name">Item Name</SortableHeader>
               <th className="py-3 px-4 uppercase">Item Group</th>
-              <SortableHeader sortKey="mrp" className="text-right">MRP</SortableHeader>
-              <SortableHeader sortKey="purchasePrice" className="text-right">Purchase Price</SortableHeader>
+              <SortableHeader sortKey="mrp" >MRP</SortableHeader>
+              <SortableHeader sortKey="purchasePrice" >Cost Price</SortableHeader>
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody className="divide-y divide-gray-300">
             {items.map(item => (
               <tr key={item.id} className="hover:bg-slate-50">
-                <td className="py-3 px-4 font-medium">{item.name}</td>
-                <td className="py-3 px-4 text-slate-600">{item.itemGroupId || 'N/A'}</td>
-                <td className="py-3 px-4 text-slate-600 text-right">₹{item.mrp?.toFixed(2) || '0.00'}</td>
-                <td className="py-3 px-4 text-slate-600 text-right">₹{item.purchasePrice?.toFixed(2) || '0.00'}</td>
+                <td className="py-2 px-3 font-medium">{item.name}</td>
+                <td className="py-2 px-3 text-slate-600">
+                  {item.itemGroupId || UNASSIGNED_GROUP_NAME}
+                </td>
+                <td className="py-2 px-3 text-slate-600 text-right">₹{item.mrp?.toFixed(2) || '0.00'}</td>
+                <td className="py-2 px-3 text-slate-600 text-right">₹{item.purchasePrice?.toFixed(2) || '0.00'}</td>
               </tr>
             ))}
           </tbody>
@@ -98,12 +93,10 @@ const ItemListTable: React.FC<{
   );
 };
 
-// --- Main ItemReport Component ---
 const ItemReport: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser, loading: authLoading } = useAuth();
 
-  // --- FIX 2: Create a memoized, company-scoped API object ---
   const firestoreApi = useMemo(() => {
     if (currentUser?.companyId) {
       return getFirestoreOperations(currentUser.companyId);
@@ -115,23 +108,20 @@ const ItemReport: React.FC = () => {
   const [itemGroups, setItemGroups] = useState<ItemGroup[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [itemGroupId, setItemGroupId] = useState<string>('');
+
+  const [itemGroupId, setItemGroupId] = useState<string>(''); // This will now store the group NAME
+  const [appliedItemGroupId, setAppliedItemGroupId] = useState<string>(''); // This will also be a NAME
   const [sortConfig, setSortConfig] = useState<{ key: keyof Item; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
-  const [appliedItemGroupId, setAppliedItemGroupId] = useState<string>('');
   const [isListVisible, setIsListVisible] = useState(false);
 
-  // --- FIX 3: useEffect now fetches data using the company-scoped API ---
   useEffect(() => {
-    // Don't fetch if the API isn't ready
     if (!firestoreApi) {
       setIsLoading(authLoading);
       return;
     }
-
     const fetchAllData = async () => {
       setIsLoading(true);
       try {
-        // Fetch both items and item groups securely
         const [fetchedItems, fetchedGroups] = await Promise.all([
           firestoreApi.getItems(),
           firestoreApi.getItemGroups(),
@@ -146,29 +136,33 @@ const ItemReport: React.FC = () => {
       }
     };
     fetchAllData();
-  }, [firestoreApi, authLoading]); // Re-run effect when the API is ready
+  }, [firestoreApi, authLoading]);
 
   const { filteredItems, summary } = useMemo(() => {
-    let newFilteredItems = [...items];
+    // FIX: This logic now correctly compares group names.
+    let newFilteredItems = items.filter(item => {
+      // If 'All Groups' is selected, return true for all items.
+      if (!appliedItemGroupId) {
+        return true;
+      }
 
-    if (appliedItemGroupId) {
-      newFilteredItems = newFilteredItems.filter(
-        (item) => (item.itemGroupId || 'Uncategorized') === appliedItemGroupId
-      );
-    }
+      // Get the item's group name, defaulting to 'Uncategorized'.
+      // Note: item.itemGroupId is assumed to hold the group name here.
+      const itemGroupName = item.itemGroupId || UNASSIGNED_GROUP_NAME;
 
+      // Compare the item's group name with the selected name.
+      return itemGroupName === appliedItemGroupId;
+    });
+
+    // --- Sorting and Summary logic remains the same ---
     newFilteredItems.sort((a, b) => {
       const key = sortConfig.key;
       const direction = sortConfig.direction === 'asc' ? 1 : -1;
-      const valA = a[key] === null || a[key] === undefined ? '' : a[key];
-      const valB = b[key] === null || b[key] === undefined ? '' : b[key];
+      const valA = a[key] ?? '';
+      const valB = b[key] ?? '';
 
-      if (typeof valA === 'string' && typeof valB === 'string') {
-        return valA.localeCompare(valB) * direction;
-      }
-      if (typeof valA === 'number' && typeof valB === 'number') {
-        return (valA - valB) * direction;
-      }
+      if (typeof valA === 'string' && typeof valB === 'string') return valA.localeCompare(valB) * direction;
+      if (typeof valA === 'number' && typeof valB === 'number') return (valA - valB) * direction;
       return 0;
     });
 
@@ -179,34 +173,32 @@ const ItemReport: React.FC = () => {
     const averageMrp = totalItems > 0 ? totalMrp / totalItems : 0;
     const averagePurchasePrice = totalItems > 0 ? totalPurchasePrice / totalItems : 0;
     const averageDiscount = totalItems > 0 ? totalDiscount / totalItems : 0;
-    const averageSalePrice = averageMrp - (averageMrp * (averageDiscount / 100));
-    const averageprofitmargin = averageSalePrice - averagePurchasePrice;
-    const averagemarginpercentage = averageSalePrice > 0 ? (averageprofitmargin / averageSalePrice) * 100 : 0;
+    const averageSalePrice = averageMrp * (1 - (averageDiscount / 100));
+    const averageProfitMargin = averageSalePrice - averagePurchasePrice;
+    const averageMarginPercentage = averageSalePrice > 0 ? (averageProfitMargin / averageSalePrice) * 100 : 0;
 
     return {
       filteredItems: newFilteredItems,
-      summary: { totalItems, averageMrp, averagePurchasePrice, averageSalePrice, averageprofitmargin, averagemarginpercentage },
+      summary: { totalItems, averageMrp, averagePurchasePrice, averageSalePrice, averageProfitMargin, averageMarginPercentage },
     };
   }, [appliedItemGroupId, sortConfig, items]);
 
   const handleApplyFilters = () => setAppliedItemGroupId(itemGroupId);
 
   const handleSort = (key: keyof Item) => {
-    let direction: 'asc' | 'desc' = 'asc';
-    if (sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
+    const direction = (sortConfig.key === key && sortConfig.direction === 'asc') ? 'desc' : 'asc';
     setSortConfig({ key, direction });
   };
 
   const downloadAsPdf = () => {
     const doc = new jsPDF();
-    doc.text('Item Report', 20, 10);
+    doc.text('Item Report', 14, 15);
     autoTable(doc, {
+      startY: 20,
       head: [['Item Name', 'Item Group', 'MRP', 'Discount', 'Purchase Price']],
       body: filteredItems.map((item) => [
         item.name,
-        item.itemGroupId || 'N/A',
+        item.itemGroupId || UNASSIGNED_GROUP_NAME, // Display the group name
         `₹${item.mrp?.toFixed(2) || 'N/A'}`,
         `${item.discount || 0}%`,
         `₹${item.purchasePrice?.toFixed(2) || 'N/A'}`,
@@ -216,37 +208,38 @@ const ItemReport: React.FC = () => {
   };
 
   if (isLoading) return <Spinner />;
-  if (error) return <div className="p-4 text-red-500">{error}</div>;
+  if (error) return <div className="p-4 text-red-500 font-semibold text-center">{error}</div>;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-gray-50 p-4 font-sans">
       <div className="flex items-center justify-between pb-3 border-b mb-4">
         <h1 className="flex-1 text-xl text-center font-bold text-gray-800">Item Report</h1>
-        <button onClick={() => navigate(-1)} className="rounded-full bg-gray-200 p-2 text-gray-900">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        <button onClick={() => navigate(-1)} className="rounded-full bg-gray-200 p-2 text-gray-900 hover:bg-gray-300">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
         </button>
       </div>
 
-      <div className="bg-white p-3 rounded-lg shadow-md mb-4">
+      <div className="bg-white p-2 rounded-lg shadow-md mb-4">
         <h2 className="text-center font-semibold text-gray-700 mb-2">FILTERS</h2>
         <div className="flex space-x-3 items-end">
           <FilterSelect label="Item Group" value={itemGroupId} onChange={(e) => setItemGroupId(e.target.value)}>
             <option value="">All Groups</option>
-            {itemGroups.map((group) => (<option key={group.id} value={group.id}>{group.name}</option>))}
+            {/* FIX: The value of the option is now the group NAME */}
+            {itemGroups.map((group) => (<option key={group.id} value={group.name}>{group.name}</option>))}
+            {/* FIX: The value for uncategorized items is now its NAME */}
+            <option value={UNASSIGNED_GROUP_NAME}>Uncategorized</option>
           </FilterSelect>
-          <button onClick={handleApplyFilters} className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-md shadow-sm hover:bg-blue-700 transition">
-            Apply
-          </button>
+          <button onClick={handleApplyFilters} className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-md shadow-sm hover:bg-blue-700 transition">Apply</button>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mb-4">
-        <SummaryCard title="Total Items (Filtered)" value={summary.totalItems.toString()} />
-        <SummaryCard title="Average MRP (Filtered)" value={`₹${summary.averageMrp.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`} />
-        <SummaryCard title="Avg. Purchase Price (Filtered)" value={`₹${summary.averagePurchasePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`} />
-        <SummaryCard title="Average Sale Price" value={`₹${summary.averageSalePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`} />
-        <SummaryCard title="Average Profit Margin" value={`₹${summary.averageprofitmargin.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`} />
-        <SummaryCard title="Average Margin Percentage" value={`${summary.averagemarginpercentage.toLocaleString('en-IN', { minimumFractionDigits: 2 })} %`} />
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+        <SummaryCard title="Total Items" value={Math.round(summary.totalItems).toString()} />
+        <SummaryCard title="Average MRP" value={`₹${Math.round(summary.averageMrp).toFixed(0)}`} />
+        <SummaryCard title="Avg. Cost Price" value={`₹${Math.round(summary.averagePurchasePrice).toFixed(0)}`} />
+        <SummaryCard title="Avg. Sale Price" value={`₹${Math.round(summary.averageSalePrice).toFixed(0)}`} />
+        <SummaryCard title="Avg. Margin" value={`₹${Math.round(summary.averageProfitMargin).toFixed(0)}`} />
+        <SummaryCard title="Avg. Margin %" value={`${Math.round(summary.averageMarginPercentage).toFixed(0)} %`} />
       </div>
 
       <div className="bg-white p-4 rounded-lg shadow-md flex justify-between items-center">
@@ -255,7 +248,7 @@ const ItemReport: React.FC = () => {
           <button onClick={() => setIsListVisible(!isListVisible)} className="px-4 py-2 bg-slate-200 text-slate-800 font-semibold rounded-md hover:bg-slate-300 transition">
             {isListVisible ? 'Hide List' : 'Show List'}
           </button>
-          <button onClick={downloadAsPdf} disabled={filteredItems.length === 0} className="bg-blue-600 text-white font-semibold rounded-md py-2 px-4 shadow-sm hover:bg-blue-700 disabled:opacity-50">
+          <button onClick={downloadAsPdf} disabled={filteredItems.length === 0} className="bg-blue-600 text-white font-semibold rounded-md py-2 px-4 shadow-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
             Download PDF
           </button>
         </div>

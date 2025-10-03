@@ -24,7 +24,7 @@ match /items/{itemId} {
 
 // Rule for 'sales' collection (REMOVED role-based access)
 match /sales/{saleId} {
-  allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+  allow create: if request.auth != null ;
   allow update, delete: if request.auth != null;
   // Any authenticated user can now read sales.
   allow read: if request.auth != null;

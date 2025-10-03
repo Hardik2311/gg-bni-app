@@ -16,7 +16,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
     onClose,
     onScanSuccess,
     qrboxWidth = 300,
-    qrboxHeight = 150
+    qrboxHeight = 300
 }) => {
     const scannerRef = useRef<Html5Qrcode | null>(null);
     const scannerContainerId = 'barcode-scanner-container';

@@ -4,7 +4,7 @@ import { db } from '../../lib/firebase';
 import {
   collection,
   query,
-  where, // Make sure 'where' is imported
+  where,
   getDocs,
   Timestamp,
 } from 'firebase/firestore';
@@ -134,10 +134,10 @@ const SalesListTable: React.FC<{
     const directionIcon = sortConfig.direction === 'asc' ? '▲' : '▼';
 
     return (
-      <th className={`py-3 px-4 ${className || ''}`}>
+      <th className={`py-2 px-3 ${className || ''}`}>
         <button onClick={() => onSort(sortKey)} className="flex items-center gap-2 uppercase">
           {children}
-          <span className="w-4">
+          <span className="w-0">
             {isSorted ? (
               <span className="text-blue-600 text-xs">{directionIcon}</span>
             ) : (
@@ -153,24 +153,24 @@ const SalesListTable: React.FC<{
   };
 
   return (
-    <div className="bg-white p-2 rounded-lg shadow-md mt-6">
+    <div className="bg-white p-2 rounded-lg shadow-md mt-4">
       <div className="max-h-96 overflow-y-auto">
-        <table className="w-full text-sm text-left">
+        <table className="w-full text-sm text-center">
           <thead className="text-xs text-slate-500 bg-slate-100 sticky top-0">
             <tr>
               <SortableHeader sortKey="createdAt">Date</SortableHeader>
               <SortableHeader sortKey="partyName">Party Name</SortableHeader>
               <SortableHeader sortKey="items">Items</SortableHeader>
-              <SortableHeader sortKey="totalAmount" className="text-right">Amount</SortableHeader>
+              <SortableHeader sortKey="totalAmount">Amount</SortableHeader>
             </tr>
           </thead>
           <tbody className="divide-y">
             {sales.map(sale => (
               <tr key={sale.id} className="hover:bg-slate-50">
-                <td className="py-3 px-4 text-slate-600">{formatDate(sale.createdAt)}</td>
-                <td className="py-3 px-4 font-medium">{sale.partyName}</td>
-                <td className="py-3 px-4 text-slate-600 text-center">{sale.items.reduce((sum, i) => sum + i.quantity, 0)}</td>
-                <td className="py-3 px-4 text-slate-600 text-center">₹{sale.totalAmount.toLocaleString('en-IN')}</td>
+                <td className="py-2 px-3 text-slate-600">{formatDate(sale.createdAt)}</td>
+                <td className="py-2 px-3 font-medium">{sale.partyName}</td>
+                <td className="py-2 px-3 text-slate-600">{sale.items.reduce((sum, i) => sum + i.quantity, 0)}</td>
+                <td className="py-2 px-3 text-slate-600">₹{sale.totalAmount.toLocaleString('en-IN')}</td>
               </tr>
             ))}
           </tbody>
@@ -180,7 +180,6 @@ const SalesListTable: React.FC<{
   );
 };
 
-// --- Main Sales Report Component ---
 const ALL_PAYMENT_MODES = ['Cash', 'Card', 'UPI', 'Due'];
 
 const SalesReport: React.FC = () => {
@@ -222,7 +221,6 @@ const SalesReport: React.FC = () => {
     const fetchSales = async () => {
       setIsLoading(true);
       try {
-        // Add 'where' clause to filter by companyId
         const q = query(collection(db, 'sales'), where('companyId', '==', currentUser.companyId));
         const querySnapshot = await getDocs(q);
         const fetchedSales: SaleRecord[] = querySnapshot.docs.map(doc => {
@@ -289,6 +287,14 @@ const SalesReport: React.FC = () => {
     newFilteredSales.sort((a, b) => {
       const key = sortConfig.key;
       const direction = sortConfig.direction === 'asc' ? 1 : -1;
+
+      // ✅ FIX: Added special handling to sort by the total quantity of items.
+      if (key === 'items') {
+        const totalItemsA = a.items.reduce((sum, item) => sum + item.quantity, 0);
+        const totalItemsB = b.items.reduce((sum, item) => sum + item.quantity, 0);
+        return (totalItemsA - totalItemsB) * direction;
+      }
+
       const valA = a[key] ?? '';
       const valB = b[key] ?? '';
       if (typeof valA === 'string' && typeof valB === 'string') {
@@ -385,10 +391,10 @@ const SalesReport: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-2 gap-2 mb-6">
-        <SummaryCard title="Total Sales" value={`₹${summary.totalSales?.toLocaleString('en-IN') || '0'}`} />
+        <SummaryCard title="Total Sales" value={`₹${Math.round(summary.totalSales || 0).toLocaleString('en-IN')}`} />
         <SummaryCard title="Total Transactions" value={summary.totalTransactions?.toString() || '0'} />
         <SummaryCard title="Total Items Sold" value={summary.totalItemsSold?.toString() || '0'} />
-        <SummaryCard title="Average Sale Value" value={`₹${summary.averageSaleValue?.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0'}`} />
+        <SummaryCard title="Average Sale Value" value={`₹${Math.round(summary.averageSaleValue || 0).toLocaleString('en-IN')}`} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
@@ -412,4 +418,3 @@ const SalesReport: React.FC = () => {
 };
 
 export default SalesReport;
-

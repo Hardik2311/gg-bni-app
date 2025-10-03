@@ -1,343 +1,253 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { db } from '../../lib/firebase';
-import {
-    collection,
-    query,
-    where,
-    onSnapshot,
-    Timestamp,
-    QuerySnapshot,
-    doc,
-    runTransaction
-} from 'firebase/firestore';
-import type { DocumentData } from 'firebase/firestore';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useAuth } from '../../context/auth-context';
-import { Spinner } from '../../constants/Spinner';
+import type { Item } from '../../constants/models';
+import { getFirestoreOperations } from '../../lib/items_firebase';
+import { Card, CardContent, CardHeader, CardTitle } from '../../Components/ui/card';
+import { CustomButton } from '../../Components';
+import { Variant } from '../../enums';
 
-// --- Data Types & Helpers ---
-interface Invoice {
-    id: string;
-    amount: number;
-    time: string;
-    type: 'Debit' | 'Credit';
-    partyName: string;
-    createdAt: Date;
-    dueAmount: number;
-}
+// @ts-ignore
+import QRious from 'qrious';
 
-const formatDate = (date: Date): string => {
-    if (!date) return 'N/A';
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-};
-
-// --- Custom Hook for Fetching UNPAID Journal Data ---
-const useUnpaidJournalData = (companyId?: string) => {
-    const [invoices, setInvoices] = useState<Invoice[]>([]);
-    const [loading, setLoading] = useState(true);
+const QRCodeGeneratorPage: React.FC = () => {
+    const { currentUser } = useAuth();
+    const [itemsWithBarcode, setItemsWithBarcode] = useState<Item[]>([]);
+    const [selectedItemId, setSelectedItemId] = useState<string>('');
+    const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
+    const qrCanvasRef = useRef<HTMLCanvasElement>(null); // For display on the page
+    const printQrCanvasRef = useRef<HTMLCanvasElement>(null); // For generating print-specific QR code
+    const [qrLabelQuantity, setQrLabelQuantity] = useState<number>(1); // New state for label quantity
+
+    const dbOperations = useMemo(() => {
+        if (currentUser?.companyId) {
+            return getFirestoreOperations(currentUser.companyId);
+        }
+        return null;
+    }, [currentUser]);
 
     useEffect(() => {
-        // --- FIX 1: Wait for companyId before running the effect ---
-        if (!companyId) {
-            setLoading(false);
-            setInvoices([]);
+        if (!dbOperations) {
+            setIsLoading(false);
             return;
         }
 
-        // --- FIX 2: Add companyId filter to both queries ---
-        const salesQuery = query(
-            collection(db, 'sales'),
-            where('companyId', '==', companyId),
-            where('paymentMethods.due', '>', 0)
-        );
-        const purchasesQuery = query(
-            collection(db, 'purchases'),
-            where('companyId', '==', companyId),
-            where('paymentMethods.due', '>', 0)
-        );
-
-        const handleSnapshotError = (err: Error, type: string) => {
-            console.error(`Error fetching ${type}:`, err);
-            setError(`Failed to load ${type} data.`);
-            setLoading(false);
+        const fetchItems = async () => {
+            setIsLoading(true);
+            setError(null);
+            try {
+                const allItems = await dbOperations.getItems();
+                const filteredItems = allItems.filter(item => item.barcode && item.barcode.trim() !== '');
+                setItemsWithBarcode(filteredItems);
+                if (filteredItems.length > 0) {
+                    setSelectedItemId(filteredItems[0].id!);
+                }
+            } catch (err) {
+                console.error("Failed to fetch items:", err);
+                setError("Could not load items from the database.");
+            } finally {
+                setIsLoading(false);
+            }
         };
 
-        const processSnapshot = (
-            snapshot: QuerySnapshot,
-            type: 'Credit' | 'Debit'
-        ): Invoice[] => {
-            return snapshot.docs.map((doc) => {
-                const data = doc.data();
-                const createdAt =
-                    data.createdAt instanceof Timestamp
-                        ? data.createdAt.toDate()
-                        : new Date();
-                return {
-                    id: doc.id,
-                    amount: data.totalAmount || 0,
-                    time: formatDate(createdAt),
-                    type: type,
-                    partyName: data.partyName || 'N/A',
-                    createdAt,
-                    dueAmount: data.paymentMethods?.due || 0,
-                };
-            });
-        };
+        fetchItems();
+    }, [dbOperations]);
 
-        const unsubscribeSales = onSnapshot(salesQuery, (snapshot) => {
-            const salesData = processSnapshot(snapshot, 'Credit');
-            setInvoices((prev) => [
-                ...prev.filter((inv) => inv.type !== 'Credit'),
-                ...salesData,
-            ]);
-            setLoading(false);
-        }, (err) => handleSnapshotError(err, 'sales'));
+    const selectedItem = useMemo(() => {
+        return itemsWithBarcode.find(item => item.id === selectedItemId);
+    }, [selectedItemId, itemsWithBarcode]);
 
-        const unsubscribePurchases = onSnapshot(purchasesQuery, (snapshot) => {
-            const purchasesData = processSnapshot(snapshot, 'Debit');
-            setInvoices((prev) => [
-                ...prev.filter((inv) => inv.type !== 'Debit'),
-                ...purchasesData,
-            ]);
-            setLoading(false);
-        }, (err) => handleSnapshotError(err, 'purchases'));
-
-        return () => {
-            unsubscribeSales();
-            unsubscribePurchases();
-        };
-        // --- FIX 3: Add companyId to the dependency array ---
-    }, [companyId]);
-
-    const sortedInvoices = useMemo(
-        () => invoices.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()),
-        [invoices]
-    );
-
-    return { invoices: sortedInvoices, loading, error };
-};
-
-// --- Payment Modal Component ---
-const PaymentModal: React.FC<{
-    isOpen: boolean;
-    onClose: () => void;
-    invoice: Invoice | null;
-    onSubmit: (invoice: Invoice, amount: number, method: string) => Promise<void>;
-}> = ({ isOpen, onClose, invoice, onSubmit }) => {
-    const [amount, setAmount] = useState('');
-    const [method, setMethod] = useState('cash');
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [error, setError] = useState('');
-
+    // Generate QR code for page display
     useEffect(() => {
-        if (invoice) {
-            setAmount(invoice.dueAmount.toString());
-            setError('');
-        }
-    }, [invoice]);
-
-    if (!isOpen || !invoice) return null;
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        const paymentAmount = parseFloat(amount);
-        if (isNaN(paymentAmount) || paymentAmount <= 0) {
-            setError('Please enter a valid amount.');
-            return;
-        }
-        if (paymentAmount > invoice.dueAmount) {
-            setError('Payment cannot exceed the due amount.');
-            return;
-        }
-
-        setIsSubmitting(true);
-        setError('');
-        try {
-            await onSubmit(invoice, paymentAmount, method);
-            onClose();
-        } catch (err) {
-            console.error(err);
-            setError('Failed to process payment. Please try again.');
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-                <h2 className="text-2xl font-bold mb-2 text-slate-800">Settle Payment</h2>
-                <p className="mb-4 text-slate-600">
-                    For <span className="font-semibold">{invoice.partyName}</span> (Due: ₹{invoice.dueAmount.toLocaleString('en-IN')})
-                </p>
-                <form onSubmit={handleSubmit}>
-                    <div className="mb-4">
-                        <label htmlFor="amount" className="block text-sm font-medium text-slate-700">Amount</label>
-                        <input
-                            type="number"
-                            id="amount"
-                            value={amount}
-                            onChange={(e) => setAmount(e.target.value)}
-                            className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                            required
-                        />
-                    </div>
-                    <div className="mb-6">
-                        <label htmlFor="method" className="block text-sm font-medium text-slate-700">Payment Method</label>
-                        <select
-                            id="method"
-                            value={method}
-                            onChange={(e) => setMethod(e.target.value)}
-                            className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                        >
-                            <option value="cash">Cash</option>
-                            <option value="upi">UPI</option>
-                            <option value="card">Card</option>
-                            <option value="Due">Due</option>
-                        </select>
-                    </div>
-                    {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
-                    <div className="flex justify-end gap-3">
-                        <button type="button" onClick={onClose} className="px-4 py-2 rounded-md bg-slate-200 text-slate-800 hover:bg-slate-300">Cancel</button>
-                        <button type="submit" disabled={isSubmitting} className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
-                            {isSubmitting ? 'Processing...' : 'Submit Payment'}
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    );
-};
-
-// --- Main Journal Component ---
-const Journal: React.FC = () => {
-    const [activeType, setActiveType] = useState<'Debit' | 'Credit'>('Credit');
-    const { currentUser, loading: authLoading } = useAuth();
-    // --- FIX 4: Pass currentUser.companyId to the hook ---
-    const { invoices, loading: dataLoading, error } = useUnpaidJournalData(
-        currentUser?.companyId
-    );
-
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
-
-    const filteredInvoices = useMemo(
-        () => invoices.filter((invoice) => invoice.type === activeType),
-        [invoices, activeType]
-    );
-
-    const handleSettlePayment = async (
-        invoice: Invoice,
-        amount: number,
-        method: string
-    ) => {
-        const collectionName = invoice.type === 'Credit' ? 'sales' : 'purchases';
-        const docRef = doc(db, collectionName, invoice.id);
-
-        try {
-            await runTransaction(db, async (transaction) => {
-                const sfDoc = await transaction.get(docRef);
-                if (!sfDoc.exists()) {
-                    throw 'Document does not exist!';
-                }
-
-                const data = sfDoc.data() as DocumentData;
-                const currentPaymentMethods = data.paymentMethods || {};
-                const currentDue = currentPaymentMethods.due || 0;
-                const currentMethodTotal = currentPaymentMethods[method] || 0;
-                const newDue = currentDue - amount;
-
-                if (newDue < 0) {
-                    throw 'Payment exceeds due amount.';
-                }
-
-                const newPaymentMethods = {
-                    ...currentPaymentMethods,
-                    [method]: currentMethodTotal + amount,
-                    due: newDue,
-                };
-
-                transaction.update(docRef, { paymentMethods: newPaymentMethods });
+        if (qrCanvasRef.current && selectedItem?.barcode) {
+            new QRious({
+                element: qrCanvasRef.current,
+                value: selectedItem.barcode,
+                size: 256, // Larger for on-page display
+                padding: 16,
+                foreground: 'black',
+                background: 'white',
             });
-            console.log('Transaction successfully committed!');
-        } catch (e) {
-            console.error('Transaction failed: ', e);
-            throw e;
         }
-    };
+    }, [selectedItem]);
 
-    const openPaymentModal = (invoice: Invoice) => {
-        setSelectedInvoice(invoice);
-        setIsModalOpen(true);
-    };
+    const handleDownload = useCallback(() => {
+        if (!qrCanvasRef.current || !selectedItem) return;
+        const link = document.createElement('a');
+        link.download = `qrcode-${selectedItem.name.replace(/\s+/g, '_')}.png`;
+        link.href = qrCanvasRef.current.toDataURL('image/png');
+        link.click();
+    }, [selectedItem]);
+
+    const handlePrint = useCallback(() => {
+        if (!selectedItem || !printQrCanvasRef.current) return;
+
+        // Generate a smaller QR code specifically for printing
+        new QRious({
+            element: printQrCanvasRef.current,
+            value: selectedItem.barcode,
+            size: 100, // Smaller size for 35mm labels
+            padding: 8,
+            foreground: 'black',
+            background: 'white',
+        });
+        const qrDataUrl = printQrCanvasRef.current.toDataURL('image/png');
+
+        const printWindow = window.open('', '', 'height=600,width=800');
+
+        if (printWindow) {
+            printWindow.document.write('<html><head><title>Print QR Codes</title>');
+            printWindow.document.write('<style>');
+            printWindow.document.write(`
+        body { margin: 0; font-family: sans-serif; display: flex; flex-wrap: wrap; justify-content: flex-start; align-content: flex-start; }
+        .label-container {
+          width: 35mm; /* Approximate width of label */
+          height: 35mm; /* Approximate height of label */
+          border: 0.5px solid #ccc; /* For visual separation during testing, remove for final print */
+          box-sizing: border-box;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 2mm; /* Inner padding for the label content */
+          page-break-inside: avoid; /* Prevent labels from splitting across pages */
+          text-align: center;
+          overflow: hidden; /* Ensure content stays within bounds */
+        }
+        .qr-image {
+          width: 25mm; /* Adjust QR image size to fit inside the label with text */
+          height: 25mm;
+          object-fit: contain;
+          margin-bottom: 1mm;
+        }
+        .item-name {
+          font-size: 8pt; /* Smaller font for item name */
+          font-weight: bold;
+          margin: 0;
+          line-height: 1;
+          white-space: nowrap; /* Prevent line breaks for short names */
+          overflow: hidden;
+          text-overflow: ellipsis;
+          max-width: 100%; /* Ensure name fits */
+        }
+        .item-barcode {
+          font-size: 7pt; /* Even smaller for barcode */
+          margin: 0;
+          line-height: 1;
+        }
+        @page {
+          margin: 5mm; /* Reduce page margins to maximize label space */
+        }
+      `);
+            printWindow.document.write('</style>');
+            printWindow.document.write('</head><body>');
+
+            for (let i = 0; i < qrLabelQuantity; i++) {
+                printWindow.document.write(`
+          <div class="label-container">
+            <img class="qr-image" src="${qrDataUrl}" alt="QR Code" />
+            <p class="item-name">${selectedItem.name}</p>
+            <p class="item-barcode">${selectedItem.barcode}</p>
+          </div>
+        `);
+            }
+
+            printWindow.document.write('</body></html>');
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.print();
+        }
+    }, [selectedItem, qrLabelQuantity]);
 
     const renderContent = () => {
-        if (authLoading || dataLoading) return <Spinner />;
-        if (error) return <p className="p-8 text-center text-red-500">{error}</p>;
-
-        if (filteredInvoices.length > 0) {
-            return filteredInvoices.map((invoice) => (
-                <div
-                    key={invoice.id}
-                    className="mb-4 rounded-lg border border-slate-200 bg-white p-4 px-5 shadow-sm"
-                >
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="mb-1 text-lg font-semibold text-slate-800">{invoice.partyName}</p>
-                            <p className="text-sm text-slate-500">
-                                Inv #{invoice.id.slice(0, 6)}... at {invoice.time}
-                            </p>
-                        </div>
-                        <p className={`text-2xl font-bold ${invoice.type === 'Credit' ? 'text-green-600' : 'text-red-600'}`}>
-                            ₹{invoice.dueAmount.toLocaleString('en-IN')}
-                        </p>
-                    </div>
-                    <div className="mt-3 pt-3 border-t border-slate-200 text-right">
-                        <button onClick={() => openPaymentModal(invoice)} className="text-sm font-semibold text-blue-600 hover:text-blue-800">
-                            Settle Payment
-                        </button>
-                    </div>
-                </div>
-            ));
+        if (isLoading) {
+            return <p className="text-center text-gray-500">Loading items...</p>;
+        }
+        if (error) {
+            return <p className="text-center text-red-500">{error}</p>;
+        }
+        if (itemsWithBarcode.length === 0) {
+            return <p className="text-center text-gray-500">No items with barcodes found in your inventory.</p>;
         }
 
-        return <p className="p-8 text-center text-base text-slate-500">No unpaid invoices found.</p>;
+        return (
+            <div className="flex flex-col items-center gap-6">
+                <div className="w-full max-w-md">
+                    <label htmlFor="item-select" className="block text-sm font-medium text-gray-700 mb-1">
+                        Select an Item
+                    </label>
+                    <select
+                        id="item-select"
+                        value={selectedItemId}
+                        onChange={(e) => setSelectedItemId(e.target.value)}
+                        className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                    >
+                        {itemsWithBarcode.map((item) => (
+                            <option key={item.id} value={item.id!}>
+                                {item.name}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                {selectedItem && (
+                    <>
+                        <div className="p-6 border rounded-lg bg-white shadow-lg flex flex-col items-center">
+                            {/* This canvas is for display on the page */}
+                            <canvas ref={qrCanvasRef} className="w-64 h-64 mb-4"></canvas>
+                            <div className="text-center">
+                                <h3 className="text-lg font-semibold text-gray-800">{selectedItem.name}</h3>
+                                <p className="text-sm text-left text-black-500">MRP: {selectedItem.mrp}</p>
+                                <p className="text-sm text-gray-500">Barcode: {selectedItem.barcode}</p>
+                            </div>
+                        </div>
+
+                        {/* Hidden canvas for generating print QR code at a specific size */}
+                        <canvas ref={printQrCanvasRef} style={{ display: 'none' }}></canvas>
+
+                        <div className="w-full max-w-md flex flex-col gap-4">
+                            <div className="flex items-center gap-2">
+                                <label htmlFor="qr-quantity" className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                                    Number of Labels:
+                                </label>
+                                <input
+                                    type="number"
+                                    id="qr-quantity"
+                                    value={qrLabelQuantity}
+                                    onChange={(e) => setQrLabelQuantity(Math.max(1, Number(e.target.value)))}
+                                    min="1"
+                                    className="flex-grow p-2 border border-gray-300 rounded-lg shadow-sm text-center"
+                                />
+                            </div>
+                            <div className="flex gap-4">
+                                <CustomButton onClick={handleDownload} disabled={!selectedItem} variant={Variant.Outline} className="flex-grow py-3">
+                                    Download QR
+                                </CustomButton>
+                                <CustomButton onClick={handlePrint} disabled={!selectedItem || qrLabelQuantity < 1} variant={Variant.Filled} className="flex-grow py-3">
+                                    Print Labels
+                                </CustomButton>
+                            </div>
+                        </div>
+                    </>
+                )}
+            </div>
+        );
     };
 
     return (
-        <div className="flex min-h-screen w-full flex-col overflow-hidden bg-white shadow-md">
-            <div className="flex flex-shrink-0 items-center justify-center border-b border-slate-200 bg-white p-4 px-6 shadow-sm ">
-                <h1 className="text-3xl font-bold text-slate-800 ">Unpaid Invoices</h1>
-            </div>
-
-            <div className="flex justify-around border-b border-slate-200 bg-white px-6 shadow-sm">
-                <button
-                    className={`flex-1 cursor-pointer border-b-2 py-3 text-center text-base font-medium transition hover:text-slate-700 ${activeType === 'Credit' ? 'border-blue-600 font-semibold text-blue-600' : 'border-transparent text-slate-500'}`}
-                    onClick={() => setActiveType('Credit')}
-                >
-                    To Receive (+)
-                </button>
-                <button
-                    className={`flex-1 cursor-pointer border-b-2 py-3 text-center text-base font-medium transition hover:text-slate-700 ${activeType === 'Debit' ? 'border-blue-600 font-semibold text-blue-600' : 'border-transparent text-slate-500'}`}
-                    onClick={() => setActiveType('Debit')}
-                >
-                    To Pay (-)
-                </button>
-            </div>
-
-            <div className="flex-grow overflow-y-auto bg-slate-100 p-6">
-                {renderContent()}
-            </div>
-
-            <PaymentModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                invoice={selectedInvoice}
-                onSubmit={handleSettlePayment}
-            />
+        <div className="p-4 sm:p-6 bg-gray-50 min-h-screen">
+            <Card className="max-w-2xl mx-auto">
+                <CardHeader>
+                    <CardTitle className="text-2xl text-center font-bold text-gray-800">
+                        Item QR Code Generator
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    {renderContent()}
+                </CardContent>
+            </Card>
         </div>
     );
 };
 
-export default Journal;
-
+export default QRCodeGeneratorPage;
