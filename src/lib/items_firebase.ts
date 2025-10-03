@@ -11,6 +11,8 @@ import {
   getDoc,
   serverTimestamp,
   DocumentReference,
+  writeBatch,
+  getCountFromServer,
 } from 'firebase/firestore';
 import type { Item, ItemGroup } from '../constants/models';
 import { Role, type User } from '../Role/permission';
@@ -161,7 +163,32 @@ export const getFirestoreOperations = (companyId: string) => {
   };
 
   return {
-    // --- ItemGroup Operations ---
+    /**
+     * ✅ CORRECTED: Fetches groups by finding unique names in 'items',
+     * then gets the full group data from the 'itemGroups' collection.
+     */
+    getDistinctItemGroupsFromItems: async (): Promise<ItemGroup[]> => {
+      const q = query(itemRef, where('companyId', '==', companyId));
+      const itemsSnapshot = await getDocs(q);
+
+      const groupNames = new Set<string>();
+      itemsSnapshot.docs.forEach(doc => {
+        const item = doc.data() as Item;
+        // Check if itemGroupId exists and is a non-empty string
+        if (item.itemGroupId && typeof item.itemGroupId === 'string') {
+          groupNames.add(item.itemGroupId);
+        }
+      });
+
+      if (groupNames.size === 0) {
+        return [];
+      }
+
+      const groupsQuery = query(itemGroupRef, where('companyId', '==', companyId), where('name', 'in', Array.from(groupNames)));
+      const groupsSnapshot = await getDocs(groupsQuery);
+
+      return groupsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ItemGroup));
+    },
     createItemGroup: async (itemGroup: Omit<ItemGroup, 'id' | 'createdAt' | 'updatedAt' | 'companyId'>): Promise<string> => {
       const docRef = await addDoc(itemGroupRef, { ...itemGroup, companyId, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
       return docRef.id;
@@ -186,6 +213,54 @@ export const getFirestoreOperations = (companyId: string) => {
       const itemGroupDoc = doc(db, 'itemGroups', id);
       if (!(await verifyOwnershipScoped(itemGroupDoc))) throw new Error("Permission denied.");
       await deleteDoc(itemGroupDoc);
+    },
+
+    /**
+     * ✅ NEW FUNCTION: Updates a group's name and syncs this change across all relevant items.
+     */
+    updateGroupAndSyncItems: async (group: ItemGroup, newName: string): Promise<void> => {
+      const { id, name: oldName } = group;
+      if (!id) throw new Error("Group ID is missing.");
+
+      const groupDocRef = doc(db, 'itemGroups', id);
+      if (!(await verifyOwnershipScoped(groupDocRef))) throw new Error("Permission denied.");
+
+      const batch = writeBatch(db);
+
+      // 1. Update the canonical group document
+      batch.update(groupDocRef, { name: newName, updatedAt: serverTimestamp() });
+
+      // 2. Find and update all items using the old group name
+      const itemsQuery = query(itemRef, where('companyId', '==', companyId), where('itemGroupId', '==', oldName));
+      const itemsSnapshot = await getDocs(itemsQuery);
+      itemsSnapshot.forEach(itemDoc => {
+        batch.update(itemDoc.ref, { itemGroupId: newName });
+      });
+
+      // 3. Commit all changes atomically
+      await batch.commit();
+    },
+
+    /**
+     * ✅ NEW FUNCTION: Deletes a group only if no items are using it.
+     */
+    deleteItemGroupIfUnused: async (group: ItemGroup): Promise<void> => {
+      const { id, name } = group;
+      if (!id) throw new Error("Group ID is missing.");
+
+      const groupDocRef = doc(db, 'itemGroups', id);
+      if (!(await verifyOwnershipScoped(groupDocRef))) throw new Error("Permission denied.");
+
+      // 1. Check if any items are using this group by name
+      const itemsQuery = query(itemRef, where('companyId', '==', companyId), where('itemGroupId', '==', name));
+      const countSnapshot = await getCountFromServer(itemsQuery);
+
+      if (countSnapshot.data().count > 0) {
+        throw new Error(`Cannot delete. This group is used by ${countSnapshot.data().count} item(s).`);
+      }
+
+      // 2. If not in use, delete the group document
+      await deleteDoc(groupDocRef);
     },
 
     // --- Item Operations ---

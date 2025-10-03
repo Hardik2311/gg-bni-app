@@ -10,8 +10,8 @@ import {
   doc,
   where,
   type DocumentData,
-  runTransaction, // Import runTransaction
-  increment,      // Import increment
+  runTransaction,
+  increment,
 } from 'firebase/firestore';
 import { useAuth } from '../context/auth-context';
 import { CustomToggle, CustomToggleItem } from '../Components/CustomToggle';
@@ -24,7 +24,7 @@ import { Modal, PaymentModal } from '../constants/Modal';
 
 // --- Data Types ---
 interface InvoiceItem {
-  id: string; // Ensure item has an ID to reference it
+  id: string;
   name: string;
   quantity: number;
   finalPrice: number;
@@ -43,6 +43,8 @@ interface Invoice {
   createdAt: Date;
   dueAmount?: number;
   items?: InvoiceItem[];
+  paymentMethods?: DocumentData; // FIX: Made this property optional to match the Modal's type
+  salesmanId?: string | null; // Added for edit functionality
 }
 
 const formatDate = (date: Date): string => {
@@ -79,7 +81,7 @@ const useJournalData = (companyId?: string) => {
         const dueAmount = paymentMethods.due || 0;
         const status: 'Paid' | 'Unpaid' = dueAmount > 0 ? 'Unpaid' : 'Paid';
         const items = (data.items || []).map((item: any) => ({
-          id: item.id || '', // Ensure item ID is captured
+          id: item.id || '',
           name: item.name || 'N/A',
           quantity: item.quantity || 0,
           finalPrice: type === 'Credit' ? (item.finalPrice || 0) : (item.purchasePrice || 0),
@@ -100,9 +102,11 @@ const useJournalData = (companyId?: string) => {
           type: type,
           partyName: data.partyName || 'N/A',
           partyNumber: data.partyNumber || '',
+          salesmanId: data.salesmanId || null,
           createdAt,
           dueAmount: dueAmount,
           items: items,
+          paymentMethods: paymentMethods,
         };
       });
     };
@@ -202,17 +206,14 @@ const Journal: React.FC = () => {
       );
   }, [invoices, activeType, activeTab, searchQuery, activeDateFilter]);
 
-  // --- FIXED LOGIC ---
   const selectedPeriodText = useMemo(() => {
     const options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' };
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
     const formatDate = (date: Date) => date.toLocaleDateString('en-IN', options);
 
     switch (activeDateFilter) {
-      case 'today':
-        return `Today, ${formatDate(today)}`;
+      case 'today': return `Today, ${formatDate(today)}`;
       case 'yesterday':
         const yesterday = new Date(today);
         yesterday.setDate(today.getDate() - 1);
@@ -229,10 +230,8 @@ const Journal: React.FC = () => {
         const thirtyDaysAgo = new Date(today);
         thirtyDaysAgo.setDate(today.getDate() - 29);
         return `${formatDate(thirtyDaysAgo)} - ${formatDate(today)}`;
-      case 'all':
-        return 'All Time';
-      default:
-        return 'Selected Period';
+      case 'all': return 'All Time';
+      default: return 'Selected Period';
     }
   }, [activeDateFilter]);
 
@@ -290,6 +289,12 @@ const Journal: React.FC = () => {
   const cancelDelete = () => {
     setInvoiceToDelete(null);
     setModal(null);
+  };
+
+
+  const handleEditInvoice = (invoice: Invoice) => {
+    const route = invoice.type === 'Credit' ? ROUTES.SALES : ROUTES.PURCHASE;
+    navigate(route, { state: { invoiceData: invoice, isEditMode: true } });
   };
 
   const handleSalesReturn = (invoice: Invoice) => {
@@ -409,12 +414,23 @@ const Journal: React.FC = () => {
                       Settle
                     </button>
                   )}
+
                   <button
-                    onClick={(e) => { e.stopPropagation(); promptDeleteInvoice(invoice); }}
-                    className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+                    onClick={(e) => { e.stopPropagation(); handleEditInvoice(invoice); }}
+                    className="px-4 py-2 text-sm font-medium text-white bg-gray-600 rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
                   >
-                    Delete
+                    Edit
                   </button>
+
+                  {invoice.status === 'Paid' && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); promptDeleteInvoice(invoice); }}
+                      className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  )}
+
                   {invoice.type === 'Credit' && (
                     <button
                       onClick={(e) => { e.stopPropagation(); handleSalesReturn(invoice); }}

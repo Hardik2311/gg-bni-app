@@ -274,7 +274,7 @@ const ItemAdd: React.FC = () => {
               </div>
               {/* Purchase Price */}
               <div>
-                <label htmlFor="itemPurchasePrice" className="block text-sm font-medium text-gray-600 mb-1">Item Purchase Price</label>
+                <label htmlFor="itemPurchasePrice" className="block text-sm font-medium text-gray-600 mb-1">Purchase Price</label>
                 <input type="number" id="itemPurchasePrice" value={itemPurchasePrice} onChange={(e) => setItemPurchasePrice(e.target.value)} placeholder="00.00" className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500" />
               </div>
               {/* Item Discount */}

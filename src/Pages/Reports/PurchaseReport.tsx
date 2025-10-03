@@ -134,10 +134,10 @@ const PurchaseListTable: React.FC<{
     const isSorted = sortConfig.key === sortKey;
     const directionIcon = sortConfig.direction === 'asc' ? '▲' : '▼';
     return (
-      <th className={`py-3 px-4 ${className || ''}`}>
+      <th className={`py-2 px-3 ${className || ''}`}>
         <button onClick={() => onSort(sortKey)} className="flex items-center gap-2 uppercase">
           {children}
-          <span className="w-4">
+          <span className="w-0">
             {isSorted ? (
               <span className="text-blue-600 text-xs">{directionIcon}</span>
             ) : (
@@ -155,22 +155,22 @@ const PurchaseListTable: React.FC<{
   return (
     <div className="bg-white p-4 rounded-lg shadow-md mt-6">
       <div className="max-h-96 overflow-y-auto">
-        <table className="w-full text-sm text-left">
+        <table className="w-full text-sm text-center">
           <thead className="text-xs text-slate-500 bg-slate-100 sticky top-0">
             <tr>
               <SortableHeader sortKey="createdAt">Date</SortableHeader>
-              <SortableHeader sortKey="partyName">Supplier Name</SortableHeader>
+              <SortableHeader sortKey="partyName">Name</SortableHeader>
               <th className="py-3 px-4 uppercase">Items</th>
               <SortableHeader sortKey="totalAmount" className="text-right">Amount</SortableHeader>
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody className="divide-y divide-gray-300">
             {purchases.map(purchase => (
               <tr key={purchase.id} className="hover:bg-slate-50">
-                <td className="py-3 px-4 text-slate-600">{formatDate(purchase.createdAt)}</td>
+                <td className="py-2 px-3` text-slate-600">{formatDate(purchase.createdAt)}</td>
                 <td className="py-3 px-4 font-medium">{purchase.partyName}</td>
                 <td className="py-3 px-4 text-slate-600">{purchase.items.reduce((sum, i) => sum + i.quantity, 0)}</td>
-                <td className="py-3 px-4 text-slate-600 text-right">₹{purchase.totalAmount.toLocaleString('en-IN')}</td>
+                <td className="py-3 px-4 text-slate-600">₹{purchase.totalAmount.toLocaleString('en-IN')}</td>
               </tr>
             ))}
           </tbody>
@@ -373,10 +373,10 @@ const PurchaseReport: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <SummaryCard title="Total Purchases" value={`₹${summary.totalPurchases?.toLocaleString('en-IN') || '0'}`} />
+        <SummaryCard title="Total Purchases" value={`₹${Math.round(summary.totalPurchases || 0)}`} />
         <SummaryCard title="Total Orders" value={summary.totalOrders?.toString() || '0'} />
         <SummaryCard title="Total Items" value={summary.totalItemsPurchased?.toString() || '0'} />
-        <SummaryCard title="Avg Purchase Value" value={`₹${summary.averagePurchaseValue?.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0'}`} />
+        <SummaryCard title="Avg Purchase Value" value={`₹${Math.round(summary.averagePurchaseValue || 0)}`} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">

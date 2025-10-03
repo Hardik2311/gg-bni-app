@@ -17,24 +17,38 @@ export interface PaymentCompletionData {
     discount: number;
     finalAmount: number;
     appliedCredit: number;
-    appliedDebit: number; // Added for debit note
+    appliedDebit: number;
 }
+
+// ✅ FIX: Added new props to handle edit mode
 interface PaymentDrawerProps {
     isOpen: boolean;
     onClose: () => void;
     subtotal: number;
     onPaymentComplete: (data: PaymentCompletionData) => Promise<void>;
+    isPartyNameEditable?: boolean;
+    initialPartyName?: string;
+    initialPartyNumber?: string;
 }
 
-const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal, onPaymentComplete }) => {
+const PaymentDrawer: React.FC<PaymentDrawerProps> = ({
+    isOpen,
+    onClose,
+    subtotal,
+    onPaymentComplete,
+    // ✅ FIX: Destructure new props with default values
+    isPartyNameEditable = true,
+    initialPartyName,
+    initialPartyNumber,
+}) => {
     const { currentUser } = useAuth();
     const [partyName, setPartyName] = useState('NA');
     const [partyNumber, setPartyNumber] = useState('');
     const [discount, setDiscount] = useState(0);
     const [customerCredit, setCustomerCredit] = useState(0);
-    const [customerDebit, setCustomerDebit] = useState(0); // Added for debit note
+    const [customerDebit, setCustomerDebit] = useState(0);
     const [useCredit, setUseCredit] = useState(false);
-    const [useDebit, setUseDebit] = useState(false); // Added for debit note
+    const [useDebit, setUseDebit] = useState(false);
     const [selectedPayments, setSelectedPayments] = useState<PaymentDetails>({});
     const [modal, setModal] = useState<{ message: string; type: State } | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -44,18 +58,13 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
     const [discountInfo, setDiscountInfo] = useState<string | null>(null);
 
     const appliedCredit = useMemo(() => {
-        if (!useCredit || customerCredit <= 0) {
-            return 0;
-        }
+        if (!useCredit || customerCredit <= 0) return 0;
         const amountAfterDiscount = subtotal - discount;
         return Math.min(amountAfterDiscount, customerCredit);
     }, [useCredit, customerCredit, subtotal, discount]);
 
-    // Added for debit note
     const appliedDebit = useMemo(() => {
-        if (!useDebit || customerDebit <= 0) {
-            return 0;
-        }
+        if (!useDebit || customerDebit <= 0) return 0;
         const amountAfterDiscountAndCredit = subtotal - discount - appliedCredit;
         return Math.min(amountAfterDiscountAndCredit, customerDebit);
     }, [useDebit, customerDebit, subtotal, discount, appliedCredit]);
@@ -64,25 +73,26 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
     const totalEnteredAmount = useMemo(() => Object.values(selectedPayments).reduce((sum, amount) => sum + (amount || 0), 0), [selectedPayments]);
     const remainingAmount = useMemo(() => finalPayableAmount - totalEnteredAmount, [finalPayableAmount, totalEnteredAmount]);
 
+    // ✅ FIX: This effect now uses the initial props to set the state for edit mode
     useEffect(() => {
         if (isOpen) {
             setDiscount(0);
             setSelectedPayments({});
-            setPartyName('NA');
-            setPartyNumber('');
+            setPartyName(initialPartyName || 'NA');
+            setPartyNumber(initialPartyNumber || '');
             setIsDiscountLocked(true);
             setCustomerCredit(0);
             setUseCredit(false);
-            setCustomerDebit(0); // Added for debit note
-            setUseDebit(false);   // Added for debit note
+            setCustomerDebit(0);
+            setUseDebit(false);
         }
-    }, [isOpen, subtotal]);
+    }, [isOpen, subtotal, initialPartyName, initialPartyNumber]);
 
     const handlePartyNumberBlur = async () => {
         setCustomerCredit(0);
         setUseCredit(false);
-        setCustomerDebit(0); // Added for debit note
-        setUseDebit(false);  // Added for debit note
+        setCustomerDebit(0);
+        setUseDebit(false);
         if (!partyNumber || partyNumber.length < 10 || !currentUser?.companyId) return;
 
         setIsFetchingParty(true);
@@ -93,15 +103,11 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
                 const customerData = customerDoc.data();
                 if (customerData.companyId === currentUser.companyId) {
                     setPartyName(customerData.name);
-
-                    // Handle Credit Balance
                     const availableCredit = customerData.creditBalance || 0;
                     if (availableCredit > 0) {
                         setCustomerCredit(availableCredit);
                         setUseCredit(true);
                     }
-
-                    // Handle Debit Balance (Added for debit note)
                     const availableDebit = customerData.debitBalance || 0;
                     if (availableDebit > 0) {
                         setCustomerDebit(availableDebit);
@@ -144,7 +150,7 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
                 partyName, partyNumber, discount,
                 finalAmount: finalPayableAmount,
                 appliedCredit,
-                appliedDebit, // Added for debit note
+                appliedDebit,
             });
 
             if (partyNumber && partyNumber.length >= 10 && currentUser?.companyId) {
@@ -153,7 +159,7 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
                     name: partyName, number: partyNumber, companyId: currentUser.companyId,
                     lastSaleAt: serverTimestamp(),
                     creditBalance: firebaseIncrement(-appliedCredit),
-                    debitBalance: firebaseIncrement(-appliedDebit), // Added for debit note
+                    debitBalance: firebaseIncrement(-appliedDebit),
                 }, { merge: true });
             }
         } catch (error) {
@@ -163,12 +169,8 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
         }
     };
 
-    const handleDiscountPressStart = () => {
-        longPressTimer.current = setTimeout(() => setIsDiscountLocked(false), 500);
-    };
-    const handleDiscountPressEnd = () => {
-        if (longPressTimer.current) clearTimeout(longPressTimer.current);
-    };
+    const handleDiscountPressStart = () => longPressTimer.current = setTimeout(() => setIsDiscountLocked(false), 500);
+    const handleDiscountPressEnd = () => { if (longPressTimer.current) clearTimeout(longPressTimer.current); };
     const handleDiscountClick = () => {
         if (isDiscountLocked) {
             setDiscountInfo("Cannot edit the Discount.");
@@ -178,7 +180,6 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
     const handleDiscountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newDiscount = parseFloat(e.target.value) || 0;
         setDiscount(newDiscount);
-        // Updated to include debit note
         const newFinalPayable = subtotal - newDiscount - appliedCredit - appliedDebit;
         const paymentModes = Object.keys(selectedPayments);
         if (paymentModes.length === 1) {
@@ -197,13 +198,8 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
             <div className="fixed bottom-0 left-0 right-0 bg-gray-50 rounded-t-2xl shadow-xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
                 <div className="p-4 sticky top-0 bg-gray-50 z-10 border-b">
                     <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-2"></div>
-                    <button
-                        onClick={onClose}
-                        className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-gray-200 p-2 text-gray-900"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M18 6 6 18M6 6l12 12" />
-                        </svg>
+                    <button onClick={onClose} className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-gray-200 p-2 text-gray-900">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
                     </button>
                     <h2 className="text-xl font-bold text-center text-gray-800">Payment</h2>
                 </div>
@@ -217,15 +213,21 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
                                 value={partyNumber}
                                 onChange={(e) => setPartyNumber(e.target.value)}
                                 onBlur={handlePartyNumberBlur}
-                                className="w-full bg-gray-100 p-2 text-sm rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                                // ✅ FIX: Input is now read-only in edit mode
+                                readOnly={!isPartyNameEditable}
+                                className={`w-full bg-gray-100 p-2 text-sm rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500 ${!isPartyNameEditable ? 'cursor-not-allowed' : ''}`}
                             />
-                            {isFetchingParty && (
-                                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
-                                    Searching...
-                                </div>
-                            )}
+                            {isFetchingParty && <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">Searching...</div>}
                         </div>
-                        <input type="text" placeholder="Party Name*" value={partyName} onChange={(e) => setPartyName(e.target.value)} className="w-full bg-gray-100 p-2 text-sm rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500" />
+                        <input
+                            type="text"
+                            placeholder="Party Name*"
+                            value={partyName}
+                            onChange={(e) => setPartyName(e.target.value)}
+                            // ✅ FIX: Input is now read-only in edit mode
+                            readOnly={!isPartyNameEditable}
+                            className={`w-full bg-gray-100 p-2 text-sm rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500 ${!isPartyNameEditable ? 'cursor-not-allowed' : ''}`}
+                        />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         {transactiontypes.map((mode) => (
@@ -246,59 +248,27 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({ isOpen, onClose, subtotal
                         <span className="text-sm text-gray-600">Subtotal:</span>
                         <span className="font-medium text-sm">₹{subtotal.toFixed(2)}</span>
                     </div>
-                    <div
-                        className="flex items-center justify-between mb-2 gap-2 p-2 -m-2 rounded-lg"
-                        onMouseDown={handleDiscountPressStart}
-                        onMouseUp={handleDiscountPressEnd}
-                        onMouseLeave={handleDiscountPressEnd}
-                        onTouchStart={handleDiscountPressStart}
-                        onTouchEnd={handleDiscountPressEnd}
-                        onClick={handleDiscountClick}
-                    >
+                    <div className="flex items-center justify-between mb-2 gap-2 p-2 -m-2 rounded-lg" onMouseDown={handleDiscountPressStart} onMouseUp={handleDiscountPressEnd} onMouseLeave={handleDiscountPressEnd} onTouchStart={handleDiscountPressStart} onTouchEnd={handleDiscountPressEnd} onClick={handleDiscountClick}>
                         <label htmlFor="discount" className={`text-sm text-gray-600 ${isDiscountLocked ? 'cursor-pointer' : ''}`}>Discount (₹):</label>
-                        {discountInfo && (
-                            <div className="flex items-center text-red-700 text-xs p-1 bg-blue-50 rounded-md">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                                </svg>
-                                <span>{discountInfo}</span>
-                            </div>
-                        )}
+                        {discountInfo && <div className="...">{discountInfo}</div>}
                         <input id="discount" type="number" placeholder="0.00" value={discount || ''} onChange={handleDiscountChange} readOnly={isDiscountLocked} className={`w-20 text-right bg-gray-100 p-1 text-sm rounded-md border-gray-300 focus:ring-blue-500 focus:border-blue-500 ${isDiscountLocked ? 'cursor-not-allowed text-gray-500' : ''}`} />
                     </div>
 
                     {customerCredit > 0 && (
                         <div className="flex justify-between items-center mb-2 text-green-600">
                             <label htmlFor="useCreditCheckbox" className="flex items-center text-sm cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    id="useCreditCheckbox"
-                                    checked={useCredit}
-                                    onChange={(e) => setUseCredit(e.target.checked)}
-                                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                />
-                                <span className="ml-2">
-                                    Credit Balance (Available: ₹{customerCredit.toFixed(2)})
-                                </span>
+                                <input type="checkbox" id="useCreditCheckbox" checked={useCredit} onChange={(e) => setUseCredit(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                <span className="ml-2">Credit Balance (Available: ₹{customerCredit.toFixed(2)})</span>
                             </label>
                             <span className="font-medium text-sm">- ₹{appliedCredit.toFixed(2)}</span>
                         </div>
                     )}
 
-                    {/* UI for Debit Note, added here */}
                     {customerDebit > 0 && (
                         <div className="flex justify-between items-center mb-2 text-orange-600">
                             <label htmlFor="useDebitCheckbox" className="flex items-center text-sm cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    id="useDebitCheckbox"
-                                    checked={useDebit}
-                                    onChange={(e) => setUseDebit(e.target.checked)}
-                                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                />
-                                <span className="ml-2">
-                                    Debit Note (Available: ₹{customerDebit.toFixed(2)})
-                                </span>
+                                <input type="checkbox" id="useDebitCheckbox" checked={useDebit} onChange={(e) => setUseDebit(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                <span className="ml-2">Debit Note (Available: ₹{customerDebit.toFixed(2)})</span>
                             </label>
                             <span className="font-medium text-sm">- ₹{appliedDebit.toFixed(2)}</span>
                         </div>

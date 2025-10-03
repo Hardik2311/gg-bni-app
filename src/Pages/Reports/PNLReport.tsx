@@ -81,10 +81,10 @@ const PnlListTable: React.FC<{
     const isSorted = sortConfig.key === sortKey;
     const directionIcon = sortConfig.direction === 'asc' ? '▲' : '▼';
     return (
-      <th className={`py-3 px-4 ${className || ''}`}>
+      <th className={`py-2 px-3 ${className || ''}`}>
         <button onClick={() => onSort(sortKey)} className="flex items-center gap-2 uppercase">
           {children}
-          <span className="w-4">
+          <span className="w-0">
             {isSorted ? <span className="text-blue-600 text-xs">{directionIcon}</span> : <span className="text-gray-400 hover:text-gray-600 text-xs inline-flex flex-col leading-3"><span>▲</span><span className="-mt-1">▼</span></span>}
           </span>
         </button>
@@ -93,16 +93,16 @@ const PnlListTable: React.FC<{
   };
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow-md mt-6">
+    <div className="bg-white p-2 rounded-lg shadow-md mt-4">
       <div className="max-h-96 overflow-y-auto">
-        <table className="w-full text-sm text-left">
+        <table className="w-full text-sm text-center">
           <thead className="text-xs text-slate-500 bg-slate-100 sticky top-0">
             <tr>
               <SortableHeader sortKey="createdAt">Date</SortableHeader>
               <SortableHeader sortKey="invoiceNumber">Invoice</SortableHeader>
-              <SortableHeader sortKey="totalAmount" className="text-right">Sales</SortableHeader>
-              <SortableHeader sortKey="costOfGoodsSold" className="text-right">Cost</SortableHeader>
-              <SortableHeader sortKey="profit" className="text-right">Profit</SortableHeader>
+              <SortableHeader sortKey="totalAmount" className="text-center">Sales</SortableHeader>
+              <SortableHeader sortKey="costOfGoodsSold" className="text-center">Cost</SortableHeader>
+              <SortableHeader sortKey="profit" className="text-center">Profit</SortableHeader>
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -110,15 +110,15 @@ const PnlListTable: React.FC<{
               const profit = t.profit || 0;
               return (
                 <tr key={t.id} className="hover:bg-slate-50">
-                  <td className="py-3 px-4 text-slate-600">{formatDate(t.createdAt)}</td>
-                  <td className="py-3 px-4 font-medium">{t.invoiceNumber}</td>
-                  <td className="py-3 px-4 text-green-600 text-right">
+                  <td className="py-2 px-3 text-slate-600">{formatDate(t.createdAt)}</td>
+                  <td className="py-2 px-3 font-medium">{t.invoiceNumber}</td>
+                  <td className="py-2 px-3 text-green-600 ">
                     {`₹${t.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
                   </td>
-                  <td className="py-3 px-4 text-red-600 text-right">
+                  <td className="py-2 px-3 text-red-600">
                     {`₹${(t.costOfGoodsSold || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
                   </td>
-                  <td className={`py-3 px-4 text-right font-medium ${profit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                  <td className={`py-2 px-3 font-medium ${profit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
                     {`₹${profit.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
                   </td>
                 </tr>
@@ -399,13 +399,13 @@ const PnlReportPage: React.FC = () => {
           valueClassName="text-red-600"
         />
         <SummaryCard
-          title="Gross Profit / Loss"
+          title="Profit / Loss"
           value={`₹${pnlSummary.grossProfit.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
           valueClassName={pnlSummary.grossProfit >= 0 ? "text-green-600" : "text-red-600"}
         />
         <SummaryCard
           title="Gross Profit %"
-          value={`${pnlSummary.grossProfitPercentage.toFixed(2)}%`}
+          value={`${Math.round(pnlSummary.grossProfitPercentage).toFixed(0)}%`}
           valueClassName={pnlSummary.grossProfit >= 0 ? "text-green-600" : "text-red-600"}
         />
       </div>
@@ -413,11 +413,11 @@ const PnlReportPage: React.FC = () => {
       <div className="bg-white p-4 rounded-lg shadow-md flex justify-between items-center mt-6">
         <h2 className="text-lg font-semibold text-gray-700">Sales Details</h2>
         <div className="flex items-center gap-2">
-          <button onClick={handleDownloadPdf} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 transition">
-            Download as PDF
-          </button>
           <button onClick={() => setIsListVisible(!isListVisible)} className="px-4 py-2 bg-slate-200 text-slate-800 font-semibold rounded-md hover:bg-slate-300 transition">
             {isListVisible ? 'Hide List' : 'Show List'}
+          </button>
+          <button onClick={handleDownloadPdf} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 transition">
+            Download as PDF
           </button>
         </div>
       </div>

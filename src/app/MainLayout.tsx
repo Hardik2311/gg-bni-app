@@ -50,7 +50,7 @@ const MainLayout = () => {
             className="w-full mb-2 rounded"
             onClick={() => navigate(`${ROUTES.PAYMENT}`)}
           >
-            Add Payments
+            Create Barcode
           </Button>
         </PermissionWrapper>
         <PermissionWrapper
