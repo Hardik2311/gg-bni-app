@@ -34,6 +34,27 @@ export interface PurchaseItem {
   purchasePrice: number;
   quantity: number;
 }
+export interface Purchase {
+  id: string;
+  userId: string;
+  partyName: string;
+  partyNumber: string;
+  invoiceNumber: string;
+  discount: number;
+  items: {
+    id: string;
+    name: string;
+    purchasePrice: number;
+    quantity: number;
+  }[];
+  totalAmount: number;
+  paymentMethods: {
+    method: string;
+    amount: number;
+  }[];
+  createdAt: any; // Or import firebase.firestore.Timestamp
+  companyId: string;
+}
 
 export interface PaymentMode {
   id: 'cash' | 'card' | 'upi' | 'due';

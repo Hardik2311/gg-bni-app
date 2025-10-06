@@ -431,9 +431,9 @@ const Sales: React.FC = () => {
                     <div className="flex justify-between items-center">
                       <p className="text-sm font-medium text-gray-600">Qty</p>
                       <div className="flex items-center gap-5 text-lg">
-                        <button onClick={() => handleQuantityChange(item.id, 1)} disabled={!item.isEditable} className="text-gray-700 hover:text-black font-semibold disabled:text-gray-300 disabled:cursor-not-allowed">+</button>
-                        <span className="font-bold text-gray-900 w-8 text-center">{item.quantity}</span>
                         <button onClick={() => handleQuantityChange(item.id, -1)} disabled={item.quantity === 1 || !item.isEditable} className="text-gray-700 hover:text-black disabled:text-gray-300 disabled:cursor-not-allowed">-</button>
+                        <span className="font-bold text-gray-900 w-8 text-center">{item.quantity}</span>
+                        <button onClick={() => handleQuantityChange(item.id, 1)} disabled={!item.isEditable} className="text-gray-700 hover:text-black font-semibold disabled:text-gray-300 disabled:cursor-not-allowed">+</button>
                       </div>
                     </div>
 
@@ -446,19 +446,41 @@ const Sales: React.FC = () => {
       </div>
 
       <div className="flex-shrink-0 p-4 bg-white border-t shadow-[0_-2px_5px_rgba(0,0,0,0.05)]">
-        <div className="flex justify-between items-center mb-1">
-          <p className="text-md">Subtotal</p>
-          <p className="text-md">₹{subtotal.toFixed(2)}</p>
-        </div>
-        <div className="flex justify-between items-center mb-1 text-red-600">
-          <p className="text-md">Discount</p>
-          <p className="text-md">- ₹{totalDiscount.toFixed(2)}</p>
-        </div>
-
-        <div className="flex justify-between items-center mb-3 border-t pt-3">
-          <p className="text-lg font-medium">Total Amount</p>
-          <p className="text-2xl font-bold">₹{finalAmount.toFixed(2)}</p>
-        </div>
+        {isEditMode ? (
+          <>
+            <div className="flex justify-between items-center mb-1">
+              <p className="text-md">Subtotal</p>
+              <p className="text-md">₹{subtotal.toFixed(2)}</p>
+            </div>
+            <div className="flex justify-between items-center mb-1 text-red-600">
+              <p className="text-md">Discount</p>
+              <p className="text-md">- ₹{totalDiscount.toFixed(2)}</p>
+            </div>
+            <div className="flex justify-between items-center mb-1 border-t pt-1">
+              <p className="text-lg font-medium">Total Amount</p>
+              <p className="text-2xl font-bold">₹{finalAmount.toFixed(2)}</p>
+            </div>
+            <div className="flex justify-between items-center mb-3">
+              <p className="text-md font-medium text-[#00A8E8]">Amount Due </p>
+              <p className="text-md font-bold text-[#00A8E8]">₹{amountToPayNow.toFixed(2)}</p>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex justify-between items-center mb-1">
+              <p className="text-md">Subtotal</p>
+              <p className="text-md">₹{subtotal.toFixed(2)}</p>
+            </div>
+            <div className="flex justify-between items-center mb-1 text-red-600">
+              <p className="text-md">Discount</p>
+              <p className="text-md">- ₹{totalDiscount.toFixed(2)}</p>
+            </div>
+            <div className="flex justify-between items-center mb-3 border-t pt-3">
+              <p className="text-lg font-medium">Total Amount</p>
+              <p className="text-2xl font-bold">₹{finalAmount.toFixed(2)}</p>
+            </div>
+          </>
+        )}
         <CustomButton onClick={handleProceedToPayment} variant={Variant.Filled} className="w-full flex items-center justify-center py-4 text-xl font-semibold">
           {isEditMode ? 'Update & Proceed to Payment' : 'Proceed to Payment'}
         </CustomButton>

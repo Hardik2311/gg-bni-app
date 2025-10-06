@@ -20,7 +20,6 @@ export interface PaymentCompletionData {
     appliedDebit: number;
 }
 
-// ✅ FIX: Added new props to handle edit mode
 interface PaymentDrawerProps {
     isOpen: boolean;
     onClose: () => void;
@@ -36,8 +35,6 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({
     onClose,
     subtotal,
     onPaymentComplete,
-    // ✅ FIX: Destructure new props with default values
-    isPartyNameEditable = true,
     initialPartyName,
     initialPartyNumber,
 }) => {
@@ -73,7 +70,6 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({
     const totalEnteredAmount = useMemo(() => Object.values(selectedPayments).reduce((sum, amount) => sum + (amount || 0), 0), [selectedPayments]);
     const remainingAmount = useMemo(() => finalPayableAmount - totalEnteredAmount, [finalPayableAmount, totalEnteredAmount]);
 
-    // ✅ FIX: This effect now uses the initial props to set the state for edit mode
     useEffect(() => {
         if (isOpen) {
             setDiscount(0);
@@ -87,6 +83,14 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({
             setUseDebit(false);
         }
     }, [isOpen, subtotal, initialPartyName, initialPartyNumber]);
+
+    // ✅ FIX: This effect disables and clears payment modes if the total payable is zero.
+    useEffect(() => {
+        if (finalPayableAmount <= 0) {
+            setSelectedPayments({});
+        }
+    }, [finalPayableAmount]);
+
 
     const handlePartyNumberBlur = async () => {
         setCustomerCredit(0);
@@ -134,7 +138,7 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({
     };
 
     const handleConfirm = async () => {
-        if (!partyName.trim()) {
+        if (!partyName.trim() || partyName.trim().toLowerCase() === 'na') {
             setModal({ message: 'A valid Party Name is required.', type: State.ERROR });
             return;
         }
@@ -173,7 +177,7 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({
     const handleDiscountPressEnd = () => { if (longPressTimer.current) clearTimeout(longPressTimer.current); };
     const handleDiscountClick = () => {
         if (isDiscountLocked) {
-            setDiscountInfo("Cannot edit the Discount.");
+            setDiscountInfo("Long press to edit Discount.");
             setTimeout(() => setDiscountInfo(null), 3000);
         }
     };
@@ -213,9 +217,8 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({
                                 value={partyNumber}
                                 onChange={(e) => setPartyNumber(e.target.value)}
                                 onBlur={handlePartyNumberBlur}
-                                // ✅ FIX: Input is now read-only in edit mode
-                                readOnly={!isPartyNameEditable}
-                                className={`w-full bg-gray-100 p-2 text-sm rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500 ${!isPartyNameEditable ? 'cursor-not-allowed' : ''}`}
+                                // ✅ FIX: readOnly attribute removed to make it editable
+                                className="w-full bg-gray-100 p-2 text-sm rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500"
                             />
                             {isFetchingParty && <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">Searching...</div>}
                         </div>
@@ -224,9 +227,8 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({
                             placeholder="Party Name*"
                             value={partyName}
                             onChange={(e) => setPartyName(e.target.value)}
-                            // ✅ FIX: Input is now read-only in edit mode
-                            readOnly={!isPartyNameEditable}
-                            className={`w-full bg-gray-100 p-2 text-sm rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500 ${!isPartyNameEditable ? 'cursor-not-allowed' : ''}`}
+                            // ✅ FIX: readOnly attribute removed to make it editable
+                            className="w-full bg-gray-100 p-2 text-sm rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500"
                         />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -239,6 +241,8 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({
                                 onChange={(e) => handleAmountChange(mode.id, e.target.value)}
                                 onFill={() => handleFillRemaining(mode.id)}
                                 showFillButton={remainingAmount > 0.01}
+                                // ✅ FIX: Payment modes are disabled if there's nothing to pay
+                                disabled={finalPayableAmount <= 0}
                             />
                         ))}
                     </div>

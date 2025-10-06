@@ -182,8 +182,13 @@ const SalesReturnPage: React.FC = () => {
     });
   };
 
-  const handleItemChange = (id: string, field: keyof TransactionItem, value: string | number) => {
-    setOriginalSaleItems(prev => prev.map(item => {
+  const handleListChange = (
+    setter: React.Dispatch<React.SetStateAction<any[]>>,
+    id: string,
+    field: keyof (TransactionItem | ExchangeItem),
+    value: string | number
+  ) => {
+    setter(prev => prev.map(item => {
       if (item.id === id) {
         const updatedItem = { ...item, [field]: value };
         if (field === 'quantity' || field === 'unitPrice') {
@@ -194,6 +199,11 @@ const SalesReturnPage: React.FC = () => {
       return item;
     }));
   };
+
+  const handleRemoveFromList = (setter: React.Dispatch<React.SetStateAction<any[]>>, id: string) => {
+    setter(prev => prev.filter(item => item.id !== id));
+  };
+
 
   const handleClear = () => {
     setSelectedSale(null);
@@ -226,8 +236,19 @@ const SalesReturnPage: React.FC = () => {
     }
   };
 
+  // ✅ FIX: Rounding is now only applied if the exchange item has a discount
   const addExchangeItem = (itemToAdd: Item) => {
-    const finalExchangePrice = itemToAdd.mrp * (1 - (itemToAdd.discount || 0) / 100);
+    let finalExchangePrice = itemToAdd.mrp * (1 - (itemToAdd.discount || 0) / 100);
+
+    // Only apply rounding if the item has a discount
+    if (itemToAdd.discount && itemToAdd.discount > 0) {
+      if (finalExchangePrice < 100) {
+        finalExchangePrice = Math.ceil(finalExchangePrice / 5) * 5;
+      } else {
+        finalExchangePrice = Math.ceil(finalExchangePrice / 10) * 10;
+      }
+    }
+
     setExchangeItems(prev => [...prev, {
       id: crypto.randomUUID(), originalItemId: itemToAdd.id!, name: itemToAdd.name,
       quantity: 1, unitPrice: finalExchangePrice, amount: finalExchangePrice, mrp: itemToAdd.mrp
@@ -238,18 +259,11 @@ const SalesReturnPage: React.FC = () => {
     if (item) addExchangeItem(item);
   };
 
-  const handleRemoveItem = (id: string) => {
-    setExchangeItems(prev => prev.filter(item => item.id !== id));
-  };
-
   const { totalReturnValue, totalExchangeValue, finalBalance } = useMemo(() => {
     const totalReturnValue = itemsToReturn.reduce((sum, item) => sum + item.amount, 0);
     const totalExchangeValue = exchangeItems.reduce((sum, item) => sum + item.amount, 0);
-    const balanceBeforeRound = totalReturnValue - totalExchangeValue;
-    let roundedAmount = balanceBeforeRound < 100
-      ? Math.ceil(balanceBeforeRound / 5) * 5
-      : Math.ceil(balanceBeforeRound / 10) * 10;
-    return { totalReturnValue, totalExchangeValue, finalBalance: roundedAmount };
+    const finalBalance = totalReturnValue - totalExchangeValue;
+    return { totalReturnValue, totalExchangeValue, finalBalance };
   }, [itemsToReturn, exchangeItems]);
 
   const saveReturnTransaction = async (completionData?: Partial<PaymentCompletionData>) => {
@@ -467,7 +481,6 @@ const SalesReturnPage: React.FC = () => {
                 {originalSaleItems.map((item) => {
                   const isSelected = selectedReturnIds.has(item.id);
                   return (
-                    // --- MODIFIED SECTION START ---
                     <div
                       key={item.id}
                       className={`p-3 border rounded-lg flex items-center gap-3 transition-all ${isSelected ? 'bg-red-50 shadow-sm' : 'bg-gray-50'}`}
@@ -491,7 +504,7 @@ const SalesReturnPage: React.FC = () => {
                             <input
                               type="number"
                               value={item.quantity}
-                              onChange={(e) => handleItemChange(item.id, 'quantity', Number(e.target.value))}
+                              onChange={(e) => handleListChange(setOriginalSaleItems, item.id, 'quantity', Number(e.target.value))}
                               className="w-16 p-1 border border-gray-300 rounded text-center text-sm"
                               disabled={!isSelected}
                             />
@@ -505,7 +518,6 @@ const SalesReturnPage: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    // --- MODIFIED SECTION END ---
                   );
                 })}
               </div>
@@ -538,7 +550,7 @@ const SalesReturnPage: React.FC = () => {
                         className="p-3 bg-gray-700 text-white rounded-lg flex items-center justify-center"
                         title="Scan Item Barcode"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>
                       </button>
                     </div>
                   </div>
@@ -550,14 +562,14 @@ const SalesReturnPage: React.FC = () => {
                         {exchangeItems.map((item) => (
                           <div key={item.id} className="grid grid-cols-12 gap-x-2 gap-y-2 items-center p-3 border rounded-lg bg-green-50 shadow-sm">
                             <div className="col-span-12 font-medium text-gray-800">{item.name}</div>
-                            <input type="number" value={item.quantity} onChange={(e) => handleItemChange(item.id, 'quantity', Number(e.target.value))} className="col-span-3 p-2 border border-gray-300 rounded text-center" />
+                            <input type="number" value={item.quantity} onChange={(e) => handleListChange(setExchangeItems, item.id, 'quantity', Number(e.target.value))} className="col-span-3 p-2 border border-gray-300 rounded text-center" />
                             <p className="col-span-4 text-center text-gray-500 line-through border border-gray-300 p-2 rounded bg-white">
                               ₹{item.mrp.toFixed(2)}
                             </p>
                             <p className="col-span-4 text-center font-semibold border border-gray-300 p-2 rounded bg-white">
                               ₹{item.unitPrice.toFixed(2)}
                             </p>
-                            <button onClick={() => handleRemoveItem(item.id)} className="col-span-1 justify-self-center text-red-500 text-2xl hover:text-red-700">&times;</button>
+                            <button onClick={() => handleRemoveFromList(setExchangeItems, item.id)} className="col-span-1 justify-self-center text-red-500 text-2xl hover:text-red-700">&times;</button>
                           </div>
                         ))}
                       </div>
