@@ -86,6 +86,7 @@ const useJournalData = (companyId?: string) => {
           quantity: item.quantity || 0,
           finalPrice: type === 'Credit' ? (item.finalPrice || 0) : (item.purchasePrice || 0),
           mrp: item.mrp || 0,
+          discount: item.discount || 0,
         }));
 
         const calculatedTotal = Object.values(paymentMethods).reduce(
@@ -293,8 +294,11 @@ const Journal: React.FC = () => {
 
 
   const handleEditInvoice = (invoice: Invoice) => {
-    const route = invoice.type === 'Credit' ? ROUTES.SALES : ROUTES.PURCHASE;
-    navigate(route, { state: { invoiceData: invoice, isEditMode: true } });
+    if (invoice.type === 'Credit') {
+      navigate(ROUTES.SALES, { state: { invoiceData: invoice, isEditMode: true } });
+    } else {
+      navigate(ROUTES.PURCHASE, { state: { purchaseId: invoice.id, isEditMode: true } });
+    }
   };
 
   const handleSalesReturn = (invoice: Invoice) => {

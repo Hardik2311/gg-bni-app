@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import type { Item } from '../../constants/models';
+import type { Item, Purchase as OriginalPurchase } from '../../constants/models';
 import { ROUTES } from '../../constants/routes.constants';
 import { db } from '../../lib/firebase';
-import { addDoc, collection, serverTimestamp, doc, updateDoc, increment as firebaseIncrement } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, doc, updateDoc, increment as firebaseIncrement, getDoc } from 'firebase/firestore';
 import { useAuth, useDatabase } from '../../context/auth-context';
 import BarcodeScanner from '../../UseComponents/BarcodeScanner';
 import PaymentDrawer, { type PaymentCompletionData } from '../../Components/PaymentDrawer';
@@ -14,7 +14,6 @@ import { CustomButton } from '../../Components';
 import { Variant } from '../../enums';
 import { PurchaseInvoiceNumber } from '../../UseComponents/InvoiceCounter';
 
-
 // --- Helper Types & Interfaces ---
 interface PurchaseItem {
   id: string;
@@ -22,6 +21,8 @@ interface PurchaseItem {
   purchasePrice: number;
   quantity: number;
 }
+type Purchase = OriginalPurchase & { id: string };
+
 
 // --- Main Purchase Page Component ---
 const PurchasePage: React.FC = () => {
@@ -29,6 +30,7 @@ const PurchasePage: React.FC = () => {
   const location = useLocation();
   const { currentUser } = useAuth();
   const dbOperations = useDatabase();
+
   const [modal, setModal] = useState<{ message: string; type: State } | null>(null);
   const [items, setItems] = useState<PurchaseItem[]>([]);
   const [availableItems, setAvailableItems] = useState<Item[]>([]);
@@ -37,7 +39,12 @@ const PurchasePage: React.FC = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
 
-  // The isActive function now correctly uses the `location` hook
+  // New state for the "Print QR" confirmation modal
+  const [showPrintQrModal, setShowPrintQrModal] = useState<PurchaseItem[] | null>(null);
+
+  const [editModeData, setEditModeData] = useState<Purchase | null>(null);
+  const purchaseIdToEdit = location.state?.purchaseId as string | undefined;
+
   const isActive = (path: string) => location.pathname === path;
 
   useEffect(() => {
@@ -46,27 +53,41 @@ const PurchasePage: React.FC = () => {
       return;
     }
 
-    const fetchItems = async () => {
+    const initializePage = async () => {
       try {
         setIsLoading(true);
         const fetchedItems = await dbOperations.getItems();
         setAvailableItems(fetchedItems);
+
+        if (purchaseIdToEdit) {
+          const purchaseDocRef = doc(db, 'purchases', purchaseIdToEdit);
+          const docSnap = await getDoc(purchaseDocRef);
+          if (docSnap.exists()) {
+            const purchaseData = { id: docSnap.id, ...docSnap.data() } as Purchase;
+            setEditModeData(purchaseData);
+            setItems(purchaseData.items);
+          } else {
+            throw new Error("Purchase document not found.");
+          }
+        }
         setError(null);
-      } catch (err) {
-        console.error('Failed to fetch items:', err);
-        setError('Failed to load items. Please try again later.');
+      } catch (err: any) {
+        console.error('Failed to initialize page:', err);
+        setError('Failed to load data. Please try again later.');
+        setTimeout(() => navigate(ROUTES.JOURNAL || ROUTES.PURCHASE), 2000);
       } finally {
         setIsLoading(false);
       }
     };
-    fetchItems();
-  }, [dbOperations]);
+
+    initializePage();
+  }, [dbOperations, purchaseIdToEdit, navigate]);
 
   const addItemToCart = (itemToAdd: Item) => {
     const itemExists = items.find((item) => item.id === itemToAdd.id);
     if (itemExists) {
       setItems((prevItems) =>
-        prevItems.map((item) =>
+        prevItems.map((item: PurchaseItem) =>
           item.id === itemToAdd.id ? { ...item, quantity: item.quantity + 1 } : item
         )
       );
@@ -77,17 +98,19 @@ const PurchasePage: React.FC = () => {
           id: itemToAdd.id!,
           name: itemToAdd.name,
           purchasePrice: itemToAdd.purchasePrice || 0,
+          mrp: itemToAdd.mrp || 0,
+          barcode: itemToAdd.barcode || '',
           quantity: 1,
         },
       ]);
     }
   };
 
-  const totalAmount = React.useMemo(() => items.reduce((sum, item) => sum + item.purchasePrice * item.quantity, 0), [items]);
+  const totalAmount = useMemo(() => items.reduce((sum, item) => sum + item.purchasePrice * item.quantity, 0), [items]);
 
   const handleQuantityChange = (id: string, delta: number) => {
     setItems((prevItems) =>
-      prevItems.map((item) =>
+      prevItems.map((item: PurchaseItem) =>
         item.id === id ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item
       )
     );
@@ -97,7 +120,7 @@ const PurchasePage: React.FC = () => {
     setItems((prevItems) => prevItems.filter((item) => item.id !== id));
   };
 
-  const handleItemSelected = (item: Item) => {
+  const handleItemSelected = (item: Item | null) => {
     if (item) {
       addItemToCart(item);
     }
@@ -112,49 +135,103 @@ const PurchasePage: React.FC = () => {
   };
 
   const handleSavePurchase = async (completionData: PaymentCompletionData) => {
-    if (!currentUser) {
-      throw new Error('User is not authenticated.');
+    if (!currentUser) throw new Error('User is not authenticated.');
+
+    if (editModeData) {
+      await updateExistingPurchase(completionData);
+    } else {
+      await createNewPurchase(completionData);
     }
-    const { paymentDetails, discount, finalAmount, partyName, partyNumber } = completionData;
+  };
+
+  const createNewPurchase = async (completionData: PaymentCompletionData) => {
     const newInvoiceNumber = await PurchaseInvoiceNumber();
-
-
     const purchaseData = {
-      userId: currentUser.uid,
-      partyName: partyName.trim(),
-      partyNumber: partyNumber.trim(),
+      userId: currentUser!.uid,
+      partyName: completionData.partyName.trim(),
+      partyNumber: completionData.partyNumber.trim(),
       invoiceNumber: newInvoiceNumber,
-      discount,
-      items: items.map(({ id, name, purchasePrice, quantity }) => ({
-        id, name, purchasePrice, quantity,
-      })),
-      totalAmount: finalAmount,
-      paymentMethods: paymentDetails,
+      discount: completionData.discount,
+      items: items.map(({ id, name, purchasePrice, quantity }) => ({ id, name, purchasePrice, quantity })),
+      totalAmount: completionData.finalAmount,
+      paymentMethods: completionData.paymentDetails,
       createdAt: serverTimestamp(),
-      companyId: currentUser.companyId,
+      companyId: currentUser!.companyId,
     };
 
     try {
       await addDoc(collection(db, 'purchases'), purchaseData);
-      const updatePromises = items.map(item =>
-        updateDoc(doc(db, "items", item.id), {
-          amount: firebaseIncrement(item.quantity)
-        })
+      const updatePromises = items.map((item: PurchaseItem) =>
+        updateDoc(doc(db, "items", item.id), { amount: firebaseIncrement(item.quantity) })
       );
       await Promise.all(updatePromises);
 
+      // --- NEW LOGIC: Show QR modal instead of simple success modal ---
       setIsDrawerOpen(false);
-      setModal({ message: 'Purchase saved successfully!', type: State.SUCCESS });
-
-      setTimeout(() => {
-        setModal(null);
-        setItems([]);
-      }, 1500);
+      const savedItems = [...items]; // Keep a copy of the items
+      setItems([]); // Clear the cart for the next purchase
+      setShowPrintQrModal(savedItems); // Show the new modal with the saved items
 
     } catch (err) {
       console.error('Error saving purchase:', err);
       throw err;
     }
+  };
+
+  const updateExistingPurchase = async (completionData: PaymentCompletionData) => {
+    if (!editModeData) return;
+    const updatedPurchaseData = {
+      partyName: completionData.partyName.trim(),
+      partyNumber: completionData.partyNumber.trim(),
+      discount: completionData.discount,
+      items: items.map(({ id, name, purchasePrice, quantity }) => ({ id, name, purchasePrice, quantity })),
+      totalAmount: completionData.finalAmount,
+      paymentMethods: completionData.paymentDetails,
+    };
+
+    try {
+      const stockUpdatePromises = calculateStockChanges();
+      const purchaseUpdatePromise = updateDoc(doc(db, 'purchases', editModeData.id), updatedPurchaseData);
+      await Promise.all([...stockUpdatePromises, purchaseUpdatePromise]);
+      // For updates, we just show a simple success and navigate away
+      showSuccessModal('Purchase updated successfully!', ROUTES.JOURNAL || ROUTES.JOURNAL);
+    } catch (err) {
+      console.error('Error updating purchase:', err);
+      throw err;
+    }
+  };
+
+  const calculateStockChanges = () => {
+    if (!editModeData) return [];
+    const originalItems = new Map(editModeData.items.map((item: PurchaseItem) => [item.id, item.quantity]));
+    const currentItems = new Map(items.map((item: PurchaseItem) => [item.id, item.quantity]));
+    const allItemIds = new Set([...originalItems.keys(), ...currentItems.keys()]);
+    const updatePromises: Promise<void>[] = [];
+
+    allItemIds.forEach(id => {
+      const oldQty = originalItems.get(id) || 0;
+      const newQty = currentItems.get(id) || 0;
+      const difference = newQty - oldQty;
+
+      if (difference !== 0) {
+        const itemRef = doc(db, 'items', id);
+        updatePromises.push(updateDoc(itemRef, { amount: firebaseIncrement(difference) }));
+      }
+    });
+    return updatePromises;
+  };
+
+  const showSuccessModal = (message: string, navigateTo?: string) => {
+    setIsDrawerOpen(false);
+    setModal({ message, type: State.SUCCESS });
+    setTimeout(() => {
+      setModal(null);
+      if (navigateTo) {
+        navigate(navigateTo);
+      } else {
+        setItems([]);
+      }
+    }, 1500);
   };
 
   const handleBarcodeScanned = (barcode: string) => {
@@ -168,30 +245,50 @@ const PurchasePage: React.FC = () => {
     }
   };
 
+  // --- New handlers for the QR Print Modal ---
+  const handleNavigateToQrPage = () => {
+    if (showPrintQrModal) {
+      // Ensure QR_GENERATOR route exists in your routes constants
+      navigate(ROUTES.PAYMENT, { state: { prefilledItems: showPrintQrModal } });
+      setShowPrintQrModal(null);
+    }
+  };
+
+  const handleCloseQrModal = () => {
+    setShowPrintQrModal(null);
+  };
+
+
   return (
     <div className="flex flex-col min-h-screen bg-white w-full pb-16">
       {modal && <Modal message={modal.message} onClose={() => setModal(null)} type={modal.type} />}
       <BarcodeScanner isOpen={isScannerOpen} onClose={() => setIsScannerOpen(false)} onScanSuccess={handleBarcodeScanned} />
 
-      <div className="flex flex-col p-1 bg-white border-b border-gray-200 shadow-sm flex-shrink-0">
-        <h1 className="text-2xl font-bold text-gray-800 text-center mb-2">Purchase</h1>
-        <div className="flex items-center justify-center gap-6">
-          <CustomButton
-            variant={Variant.Transparent}
-            onClick={() => navigate(ROUTES.PURCHASE)}
-            active={isActive(ROUTES.PURCHASE)}
-          >
-            Purchase
-          </CustomButton>
-          <CustomButton
-            variant={Variant.Transparent}
-            onClick={() => navigate(ROUTES.PURCHASE_RETURN)}
-            active={isActive(ROUTES.PURCHASE_RETURN)}
-          >
-            Purchase Return
-          </CustomButton>
+      {/* --- New QR Print Modal --- */}
+      {showPrintQrModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm mx-4">
+            <h3 className="text-lg font-bold text-gray-800">Purchase Saved!</h3>
+            <p className="my-4 text-gray-600">Do you want to print QR codes for the purchased items?</p>
+            <div className="flex justify-end gap-4 mt-6">
+              <CustomButton variant={Variant.Outline} onClick={handleCloseQrModal}>
+                No, thanks
+              </CustomButton>
+              <CustomButton variant={Variant.Filled} onClick={handleNavigateToQrPage}>
+                Yes, Print QR
+              </CustomButton>
+            </div>
+          </div>
         </div>
-        <div className="w-6"></div>
+      )}
+
+
+      <div className="flex flex-col p-1 bg-white border-b border-gray-200 shadow-sm flex-shrink-0">
+        <h1 className="text-2xl font-bold text-gray-800 text-center mb-2">{editModeData ? 'Edit Purchase' : 'Purchase'}</h1>
+        <div className="flex items-center justify-center gap-6">
+          <CustomButton variant={Variant.Transparent} onClick={() => navigate(ROUTES.PURCHASE)} active={isActive(ROUTES.PURCHASE)}>Purchase</CustomButton>
+          <CustomButton variant={Variant.Transparent} onClick={() => navigate(ROUTES.PURCHASE_RETURN)} active={isActive(ROUTES.PURCHASE_RETURN)}>Purchase Return</CustomButton>
+        </div>
       </div>
 
       <div className="flex-grow p-4 bg-gray-50 w-full overflow-y-auto box-border">
@@ -218,41 +315,29 @@ const PurchasePage: React.FC = () => {
               <h3 className="text-gray-700 text-lg font-medium">Cart</h3>
             </div>
             {items.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 bg-gray-100 rounded-lg">No items added.</div>
+              <div className="text-center py-8 text-gray-500 bg-gray-100 rounded-lg">{isLoading ? 'Loading...' : 'No items added.'}</div>
             ) : (
-              items.map(item => (
+              items.map((item: PurchaseItem) => (
                 <div key={item.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-
                   <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-semibold text-gray-800">{item.name.slice(0, 25)}</p>
-                    </div>
-                    <button onClick={() => handleDeleteItem(item.id)} className="text-black-400 hover:text-red-500 flex-shrink-0 ml-4" title="Remove item">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-                    </button>
+                    <div><p className="font-semibold text-gray-800">{item.name.slice(0, 25)}</p></div>
+                    <button onClick={() => handleDeleteItem(item.id)} className="text-gray-500 hover:text-red-500 flex-shrink-0 ml-4" title="Remove item"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg></button>
                   </div>
-
-                  <div className="flex justify-between items-center mt-2">
-                    <p className="text-sm text-gray-500">₹{item.purchasePrice.toFixed(2)}</p>
-                  </div>
-
+                  <div className="flex justify-between items-center mt-2"><p className="text-sm text-gray-500">₹{item.purchasePrice.toFixed(2)}</p></div>
                   <hr className="my-3 border-gray-200" />
-
                   <div className="flex justify-between items-center">
                     <p className="text-sm font-medium text-gray-600">Qty</p>
                     <div className="flex items-center gap-5 text-lg">
-                      <button onClick={() => handleQuantityChange(item.id, 1)} className="text-gray-700 hover:text-black font-semibold">+</button>
-                      <span className="font-bold text-gray-900 w-8 text-center">{item.quantity}</span>
                       <button onClick={() => handleQuantityChange(item.id, -1)} disabled={item.quantity === 1} className="text-gray-700 hover:text-black disabled:text-gray-300 font-semibold">-</button>
+                      <span className="font-bold text-gray-900 w-8 text-center">{item.quantity}</span>
+                      <button onClick={() => handleQuantityChange(item.id, 1)} className="text-gray-700 hover:text-black font-semibold">+</button>
                     </div>
                   </div>
-
                 </div>
               ))
             )}
           </div>
         </div>
-
       </div>
 
       <div className="flex-shrink-0 p-4 bg-white border-t shadow-[0_-2px_5px_rgba(0,0,0,0.05)]">
@@ -260,8 +345,8 @@ const PurchasePage: React.FC = () => {
           <p className="text-gray-700 text-lg font-medium">Total Amount</p>
           <p className="text-gray-900 text-2xl font-bold">₹{totalAmount.toFixed(2)}</p>
         </div>
-        <CustomButton onClick={handleProceedToPayment} variant={Variant.Filled} className=" flex items-center justify-center max-w-fit py-4 text-xl font-semibold">
-          Proceed to Payment
+        <CustomButton onClick={handleProceedToPayment} variant={Variant.Filled} className="w-full flex items-center justify-center py-4 text-xl font-semibold">
+          {editModeData ? 'Update Purchase' : 'Proceed to Payment'}
         </CustomButton>
       </div>
 
@@ -270,6 +355,9 @@ const PurchasePage: React.FC = () => {
         onClose={() => setIsDrawerOpen(false)}
         subtotal={totalAmount}
         onPaymentComplete={handleSavePurchase}
+        isPartyNameEditable={!editModeData}
+        initialPartyName={editModeData ? editModeData.partyName : ''}
+        initialPartyNumber={editModeData ? editModeData.partyNumber : ''}
       />
     </div>
   );

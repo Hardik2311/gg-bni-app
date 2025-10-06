@@ -42,7 +42,7 @@ const MainLayout = () => {
           </Button>
         </PermissionWrapper>
         <PermissionWrapper
-          requiredPermission={Permissions.ViewTransactions}
+          requiredPermission={Permissions.ViewPNLReport}
           behavior="hide"
         >
           <Button
@@ -50,7 +50,7 @@ const MainLayout = () => {
             className="w-full mb-2 rounded"
             onClick={() => navigate(`${ROUTES.PAYMENT}`)}
           >
-            Create Barcode
+            Print Barcode
           </Button>
         </PermissionWrapper>
         <PermissionWrapper

@@ -161,12 +161,41 @@ export const getFirestoreOperations = (companyId: string) => {
     const data = docSnap.data() as { companyId?: string };
     return data.companyId === companyId;
   };
+  // In your lib/items_firebase.ts file
+
+  // CORRECTED function based on your screenshots
+  const getBusinessInfo = async () => {
+    const businessCollectionRef = collection(db, 'business_info');
+
+    // Create a query to find the document where the 'companyID' field matches
+    // NOTE: The field name "companyID" is case-sensitive and must match your database
+    const q = query(businessCollectionRef, where("companyId", "==", String(companyId)));
+
+    const querySnapshot = await getDocs(q);
+
+    if (!querySnapshot.empty) {
+      // Get the first document from the query results
+      const docSnap = querySnapshot.docs[0];
+      const data = docSnap.data();
+      const businessPhoneNumber = data.phoneNumber || 'Your Phone Number';
+      // Builds the address from city, state, and postalCode fields
+      const address = `${data.city || ''}, ${data.state || ''} - ${data.postalCode || ''}`;
+
+      return {
+        name: data.businessName as string,
+        address: address,
+        phoneNumber: businessPhoneNumber,
+      };
+    } else {
+      // This error is more specific now
+      throw new Error(`Business information document not found for companyID: ${companyId}`);
+    }
+  };
 
   return {
-    /**
-     * ✅ CORRECTED: Fetches groups by finding unique names in 'items',
-     * then gets the full group data from the 'itemGroups' collection.
-     */
+    // ...your existing returned functions: getItems, addItem
+    getBusinessInfo, // <-- Add the corrected function here
+
     getDistinctItemGroupsFromItems: async (): Promise<ItemGroup[]> => {
       const q = query(itemRef, where('companyId', '==', companyId));
       const itemsSnapshot = await getDocs(q);
