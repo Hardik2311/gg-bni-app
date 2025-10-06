@@ -32,7 +32,7 @@ const PurchaseReport = lazy(() => import('../Pages/Reports/PurchaseReport'));
 const PnlReport = lazy(() => import('../Pages/Reports/PNLReport'));
 const BusInfo = lazy(() => import('../Pages/Auth/BusInfo'));
 const BusAddress = lazy(() => import('../Pages/Auth/BusAddress'));
-const Payment = lazy(() => import('../Pages/Master/Payment'));
+const PrintQR = lazy(() => import('../Pages/Master/PrintQR'));
 const Permissionsetting = lazy(() => import('../Pages/Settings/Permissionsetting'));
 const UnauthorizedPage = lazy(() => import('../Pages/Unauthorized'));
 const SalesSettingsPage = lazy(() => import('../Pages/Settings/SalesSetting'));
@@ -121,10 +121,10 @@ const router = createBrowserRouter([
         ),
       },
       {
-        path: ROUTES.PAYMENT,
+        path: ROUTES.PRINTQR,
         element: (
           <PermissionWrapper requiredPermission={Permissions.ManagePayments}>
-            <Payment />
+            <PrintQR />
           </PermissionWrapper>
         ),
       },
