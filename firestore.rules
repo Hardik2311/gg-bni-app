@@ -9,8 +9,8 @@ match /users/{userId} {
 
 // Rule for 'business_info' collection
 match /business_info/{userId} {
-  allow create: if request.auth != null && request.auth.uid == userId;
-  allow read, update: if request.auth != null && request.auth.uid == userId;
+  allow create: if request.auth != null;
+  allow read, update: if request.auth != null;
 }
 // Rule for the 'itemGroups' collection
 match /itemGroups/{itemGroupId} {

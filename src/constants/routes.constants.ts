@@ -22,7 +22,7 @@ export const ROUTES = {
   PNL_REPORT: '/pnl-report',
   BUSINESS_INFO: '/bus-info',
   BUSINESS_ADDRESS: '/bus-address',
-  PAYMENT: '/payment',
+  PRINTQR: '/printqr',
   PERMSETTING: '/permsetting',
   UNAUTHORIZED: '/unauthorized',
   SALESETTING: '/sales-setting',

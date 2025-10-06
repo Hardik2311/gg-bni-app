@@ -249,7 +249,7 @@ const PurchasePage: React.FC = () => {
   const handleNavigateToQrPage = () => {
     if (showPrintQrModal) {
       // Ensure QR_GENERATOR route exists in your routes constants
-      navigate(ROUTES.PAYMENT, { state: { prefilledItems: showPrintQrModal } });
+      navigate(ROUTES.PRINTQR, { state: { prefilledItems: showPrintQrModal } });
       setShowPrintQrModal(null);
     }
   };

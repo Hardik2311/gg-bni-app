@@ -48,7 +48,7 @@ const MainLayout = () => {
           <Button
             variant="outline"
             className="w-full mb-2 rounded"
-            onClick={() => navigate(`${ROUTES.PAYMENT}`)}
+            onClick={() => navigate(`${ROUTES.PRINTQR}`)}
           >
             Print Barcode
           </Button>
