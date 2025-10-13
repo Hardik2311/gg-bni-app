@@ -108,7 +108,6 @@ const Sales: React.FC = () => {
       const itemDiscountAmount = (itemTotal * (item.discount || 0)) / 100;
       const priceAfterDiscount = itemTotal - itemDiscountAmount;
 
-      // ✅ FIX: Only apply rounding if a discount exists on the item
       const finalItemPrice = (item.discount && item.discount > 0)
         ? applyRounding(priceAfterDiscount)
         : priceAfterDiscount;
@@ -355,23 +354,23 @@ const Sales: React.FC = () => {
           <button onClick={() => setIsScannerOpen(true)} className='bg-transparent text-gray-700 p-3 border border-gray-700 rounded-md font-semibold transition hover:bg-gray-800' title="Scan Barcode">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>
           </button>
-          <div>
+        </div>
+      </div>
+
+      <div className="flex-1 flex flex-col bg-gray-50 overflow-y-hidden">
+        <div className="pt-2 flex-shrink-0 grid grid-cols-2 border-b pb-2">
+          <h3 className="text-gray-700 text-lg font-medium">Cart</h3>
+          <div className="flex items-center gap-2">
             <label htmlFor="worker-select" className="block text-sm text-gray-700 mb-1">Salesman</label>
             <select
               value={selectedWorker?.uid || ''}
               onChange={(e) => setSelectedWorker(workers.find(s => s.uid === e.target.value) || null)}
-              className="w-15 p-2 border rounded-md shadow-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+              className="w-23 p-2 border rounded-md shadow-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
               disabled={!hasPermission(Permissions.ViewTransactions) || isEditMode}
             >
               {workers.map(w => <option key={w.uid} value={w.uid}>{w.name || 'Unnamed'}</option>)}
             </select>
           </div>
-        </div>
-      </div>
-
-      <div className="flex-1 flex flex-col bg-gray-50 overflow-y-hidden">
-        <div className="px-2 pt-2 flex-shrink-0">
-          <h3 className="text-gray-700 text-lg font-medium">Cart</h3>
           {discountInfo && (
             <div className="flex items-center text-sm mt-4 p-3 bg-yellow-100 text-yellow-800 rounded-lg">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
@@ -385,7 +384,7 @@ const Sales: React.FC = () => {
             {items.length === 0 ? (
               <div className="text-center py-8 text-gray-500 bg-gray-100 rounded-lg">No items added.</div>
             ) : (
-              items.map(item => {
+              [...items].reverse().map(item => {
                 const priceAfterDiscount = item.mrp * (1 - (item.discount || 0) / 100);
                 const roundedPrice = (item.discount && item.discount > 0) ? applyRounding(priceAfterDiscount) : priceAfterDiscount;
 
@@ -395,16 +394,21 @@ const Sales: React.FC = () => {
                     <div className="flex justify-between items-start">
                       <p className="font-semibold text-gray-800">{item.name.slice(0, 30)}</p>
                       <button onClick={() => handleDeleteItem(item.id)} disabled={!item.isEditable} className="text-black-400 hover:text-red-500 flex-shrink-0 ml-4 disabled:text-gray-300 disabled:cursor-not-allowed" title="Remove item">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
                       </button>
                     </div>
 
-                    <div className="flex justify-between items-center mt-2">
+                    <div className="flex justify-between items-center mt-1">
                       <div className="flex items-baseline gap-2">
                         <p className="text-sm text-gray-500 line-through">₹{item.mrp.toFixed(2)}</p>
                         <p className="text-sm font-semibold text-gray-600">₹{roundedPrice.toFixed(2)}</p>
                       </div>
 
+                    </div>
+
+                    <hr className="my-1 border-gray-200" />
+
+                    <div className="flex justify-between items-center">
                       <div
                         className="flex items-center gap-2"
                         onMouseDown={handleDiscountPressStart}
@@ -414,26 +418,21 @@ const Sales: React.FC = () => {
                         onTouchEnd={handleDiscountPressEnd}
                         onClick={handleDiscountClick}
                       >
-                        <label htmlFor={`discount-${item.id}`} className={`text-sm text-gray-600`}>Discount</label>
+                        <label htmlFor={`discount-${item.id}`} className={`text-sm text-gray-600`}>Disc</label>
                         <input
                           id={`discount-${item.id}`} type="number" value={item.discount || ''}
                           onChange={(e) => handleDiscountChange(item.id, parseFloat(e.target.value))}
                           readOnly={isDiscountLocked || !item.isEditable}
-                          className={`w-14 p-1 bg-gray-100 rounded-md text-right font-medium text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDiscountLocked || !item.isEditable ? 'cursor-not-allowed' : ''}`}
+                          className={`w-12 p-1 bg-gray-100 rounded-md text-center font-medium text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDiscountLocked || !item.isEditable ? 'cursor-not-allowed' : ''}`}
                           placeholder="0"
                         />
-                        <span className="text-sm text-gray-600">%</span>
+                        <span className="text-sm text-gray-600 pr-20">%</span>
                       </div>
-                    </div>
-
-                    <hr className="my-3 border-gray-200" />
-
-                    <div className="flex justify-between items-center">
                       <p className="text-sm font-medium text-gray-600">Qty</p>
-                      <div className="flex items-center gap-5 text-lg">
-                        <button onClick={() => handleQuantityChange(item.id, -1)} disabled={item.quantity === 1 || !item.isEditable} className="text-gray-700 hover:text-black disabled:text-gray-300 disabled:cursor-not-allowed">-</button>
-                        <span className="font-bold text-gray-900 w-8 text-center">{item.quantity}</span>
-                        <button onClick={() => handleQuantityChange(item.id, 1)} disabled={!item.isEditable} className="text-gray-700 hover:text-black font-semibold disabled:text-gray-300 disabled:cursor-not-allowed">+</button>
+                      <div className="flex items-center gap-2 text-lg border border-gray-300 rounded-md">
+                        <button onClick={() => handleQuantityChange(item.id, -1)} disabled={item.quantity === 1 || !item.isEditable} className="text-gray-700 pl-4 hover:text-black disabled:text-gray-300 disabled:cursor-not-allowed">-</button>
+                        <span className="font-bold text-gray-900 w-8 border-l border-r rounded-none p-0 focus:ring-0 text-center">{item.quantity}</span>
+                        <button onClick={() => handleQuantityChange(item.id, 1)} disabled={!item.isEditable} className="text-gray-700 pr-4 hover:text-black font-semibold disabled:text-gray-300 disabled:cursor-not-allowed">+</button>
                       </div>
                     </div>
 

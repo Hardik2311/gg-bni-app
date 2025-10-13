@@ -8,27 +8,27 @@ const Reports = () => {
     location.pathname === '/reports' || location.pathname === '/reports/';
 
   return (
-    <div className="flex flex-col h-screen w-full bg-white shadow-lg overflow-hidden font-poppins">
+    <div className="flex flex-col h-screen w-full bg-gray-100 shadow-lg overflow-hidden font-poppins">
       <div className="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm flex-shrink-0">
         <h1 className="text-2xl font-bold text-gray-800 m-0 flex-grow text-center">Reports</h1>
       </div>
 
-      <div className="flex grid grid-cols-2 p-4 gap-4 overflow-y-auto bg-gray-100 box-border">
+      <div className="flex grid grid-cols-2 p-4 gap-2 overflow-y-auto bg-gray-100 box-border">
         {isDefaultReportsView ? (
           <>
-            <Link to={ROUTES.SALES_REPORT} className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-200 text-gray-800 transition-all duration-200 ease-in-out hover:transform hover:-translate-y-0.5 hover:shadow-lg no-underline">
+            <Link to={ROUTES.SALES_REPORT} className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm mb-2 border border-gray-200 text-gray-800 transition-all duration-200 ease-in-out hover:transform hover:-translate-y-0.5 hover:shadow-lg no-underline">
               <span className="text-lg font-medium">Sales Report</span>
               <span className="text-xl text-gray-500">→</span>
             </Link>
-            <Link to={ROUTES.PURCHASE_REPORT} className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-200 text-gray-800 transition-all duration-200 ease-in-out hover:transform hover:-translate-y-0.5 hover:shadow-lg no-underline">
+            <Link to={ROUTES.PURCHASE_REPORT} className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm mb-2 border border-gray-200 text-gray-800 transition-all duration-200 ease-in-out hover:transform hover:-translate-y-0.5 hover:shadow-lg no-underline">
               <span className="text-lg font-medium">Purchase Report</span>
               <span className="text-xl text-gray-500">→</span>
             </Link>
-            <Link to={ROUTES.ITEM_REPORT} className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-200 text-gray-800 transition-all duration-200 ease-in-out hover:transform hover:-translate-y-0.5 hover:shadow-lg no-underline">
+            <Link to={ROUTES.ITEM_REPORT} className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm mb-2 border border-gray-200 text-gray-800 transition-all duration-200 ease-in-out hover:transform hover:-translate-y-0.5 hover:shadow-lg no-underline">
               <span className="text-lg font-medium">Item Report</span>
               <span className="text-xl text-gray-500">→</span>
             </Link>
-            <Link to={ROUTES.PNL_REPORT} className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-200 text-gray-800 transition-all duration-200 ease-in-out hover:transform hover:-translate-y-0.5 hover:shadow-lg no-underline">
+            <Link to={ROUTES.PNL_REPORT} className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm mb-2 border border-gray-200 text-gray-800 transition-all duration-200 ease-in-out hover:transform hover:-translate-y-0.5 hover:shadow-lg no-underline">
               <span className="text-lg font-medium">P&L Report</span>
               <span className="text-xl text-gray-500">→</span>
             </Link>

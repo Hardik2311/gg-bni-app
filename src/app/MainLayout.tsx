@@ -42,7 +42,7 @@ const MainLayout = () => {
           </Button>
         </PermissionWrapper>
         <PermissionWrapper
-          requiredPermission={Permissions.ViewPNLReport}
+          requiredPermission={Permissions.ManagePayments}
           behavior="hide"
         >
           <Button

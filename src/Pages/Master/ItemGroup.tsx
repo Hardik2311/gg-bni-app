@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, NavLink } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import type { ItemGroup } from '../../constants/models';
 import { useDatabase } from '../../context/auth-context';
 import { ROUTES } from '../../constants/routes.constants';
+import { CustomButton } from '../../Components';
+import { Variant } from '../../enums';
 
 // --- Icon Components ---
 const EditIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4Z"></path></svg>;
@@ -22,21 +24,18 @@ const ItemGroupPage: React.FC = () => {
   const [editingGroupName, setEditingGroupName] = useState<string>('');
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
-  /**
-   * ✅ NEW: This function now performs the sync operation you requested.
-   */
+  const isActive = (path: string) => location.pathname === path;
+
   const fetchAndSyncGroups = useCallback(async () => {
     if (!dbOperations) return;
     setLoading(true);
     setError(null);
     try {
-      // Step 1: Fetch all items and all existing canonical groups concurrently.
       const [allItems, existingGroups] = await Promise.all([
         dbOperations.getItems(),
         dbOperations.getItemGroups(),
       ]);
 
-      // Step 2: Get a unique Set of group names used in 'items'.
       const distinctNamesFromItems = new Set<string>();
       allItems.forEach(item => {
         if (item.itemGroupId) {
@@ -44,7 +43,6 @@ const ItemGroupPage: React.FC = () => {
         }
       });
 
-      // Step 3: Find which group names are missing from the canonical 'itemGroups' list.
       const existingGroupNames = new Set<string>(existingGroups.map(g => g.name));
       const missingGroupNames: string[] = [];
       distinctNamesFromItems.forEach(name => {
@@ -53,7 +51,6 @@ const ItemGroupPage: React.FC = () => {
         }
       });
 
-      // Step 4: If there are missing groups, create them in the 'itemGroups' database.
       if (missingGroupNames.length > 0) {
         showSuccessMessage(`Syncing... Found and created ${missingGroupNames.length} new group(s).`);
         const createPromises = missingGroupNames.map(name =>
@@ -62,7 +59,6 @@ const ItemGroupPage: React.FC = () => {
         await Promise.all(createPromises);
       }
 
-      // Step 5: Fetch the final, complete list from 'itemGroups' and display it.
       const finalGroups = await dbOperations.getItemGroups();
       finalGroups.sort((a, b) => a.name.localeCompare(b.name));
       setItemGroups(finalGroups);
@@ -79,15 +75,12 @@ const ItemGroupPage: React.FC = () => {
     fetchAndSyncGroups();
   }, [fetchAndSyncGroups]);
 
-  // --- All other functions below operate on the official 'itemGroups' list ---
-
   const showSuccessMessage = (message: string) => {
     setSuccessMessage(message);
     setTimeout(() => setSuccessMessage(null), 3500);
   };
 
   const handleAddItemGroup = async () => {
-    // This function manually adds a new group to the official list.
     if (newItemGroupName.trim() === '') return setError('Item group name cannot be empty.');
     if (itemGroups.some(g => g.name.toLowerCase() === newItemGroupName.trim().toLowerCase())) {
       return setError('This group name already exists.');
@@ -99,7 +92,7 @@ const ItemGroupPage: React.FC = () => {
       await dbOperations.createItemGroup({ name: newItemGroupName.trim(), description: '' });
       setNewItemGroupName('');
       showSuccessMessage('Group created successfully!');
-      await fetchAndSyncGroups(); // Refresh the list
+      await fetchAndSyncGroups();
     } catch (err) {
       console.error('Error adding item group:', err);
       setError('Failed to add item group.');
@@ -129,7 +122,7 @@ const ItemGroupPage: React.FC = () => {
     try {
       await dbOperations.updateGroupAndSyncItems(groupToUpdate, newName);
       handleCancelEdit();
-      await fetchAndSyncGroups(); // Refresh the list
+      await fetchAndSyncGroups();
       showSuccessMessage(`Group renamed to "${newName}" and items updated.`);
     } catch (err) {
       console.error('Error updating item group:', err);
@@ -150,7 +143,7 @@ const ItemGroupPage: React.FC = () => {
     try {
       await dbOperations.deleteItemGroupIfUnused(groupToDelete);
       setConfirmingDeleteId(null);
-      await fetchAndSyncGroups(); // Refresh list after delete
+      await fetchAndSyncGroups();
       showSuccessMessage(`Group "${groupToDelete.name}" deleted.`);
     } catch (err: any) {
       console.error('Error deleting item group:', err);
@@ -160,17 +153,29 @@ const ItemGroupPage: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-white w-full font-sans">
-      <header className="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
-        <button onClick={() => navigate(ROUTES.HOME)} className="text-2xl font-bold text-gray-600 hover:text-gray-800">&times;</button>
-        <nav className="flex-1 flex justify-center items-center gap-6">
-          <NavLink to={ROUTES.ITEM_ADD} className={({ isActive }) => `flex-1 max-w-[120px] cursor-pointer border-b-2 py-3 text-center text-base font-medium transition ${isActive ? 'border-blue-600 font-semibold text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>Item Add</NavLink>
-          <NavLink to={ROUTES.ITEM_GROUP} className={({ isActive }) => `flex-1 max-w-[120px] cursor-pointer border-b-2 py-3 text-center text-base font-medium transition ${isActive ? 'border-blue-600 font-semibold text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>Item Groups</NavLink>
-        </nav>
-        <div className="w-6"></div>
-      </header>
+    <div className="flex flex-col min-h-screen bg-gray-100 w-full pt-25 ">
 
-      <main className="flex-grow p-4 bg-gray-50 w-full">
+      <div className="fixed top-0 left-0 right-0 z-10 p-4 bg-gray-100 flex flex-col">
+        <h1 className="text-2xl font-bold text-gray-800 text-center mb-4">Item Groups</h1>
+        <div className="flex items-center justify-center gap-6">
+          <CustomButton
+            variant={Variant.Transparent}
+            onClick={() => navigate(ROUTES.ITEM_ADD)}
+            active={isActive(ROUTES.ITEM_ADD)}
+          >
+            Item Add
+          </CustomButton>
+          <CustomButton
+            variant={Variant.Transparent}
+            onClick={() => navigate(ROUTES.ITEM_GROUP)}
+            active={isActive(ROUTES.ITEM_GROUP)}
+          >
+            Item Groups
+          </CustomButton>
+        </div>
+      </div>
+
+      <main className="flex-grow p-4 bg-gray-100 w-full overflow-y-auto">
         {error && <div className="mb-4 p-3 bg-red-100 text-red-800 rounded-lg text-sm font-semibold"><p>{error}</p></div>}
         {successMessage && <div className="mb-4 p-3 bg-green-100 text-green-800 rounded-lg text-sm font-semibold"><p>{successMessage}</p></div>}
 
@@ -186,7 +191,7 @@ const ItemGroupPage: React.FC = () => {
           ) : itemGroups.length === 0 ? (
             <p className="text-gray-500 text-center py-8">No item groups found.</p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {itemGroups.map((group) => (
                 <div key={group.id} className="flex items-center justify-between p-3 bg-white rounded-lg shadow-sm border" onMouseLeave={() => setConfirmingDeleteId(null)}>
                   {editingGroupId === group.id ? (

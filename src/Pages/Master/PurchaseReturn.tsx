@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useNavigate, NavLink, useParams, useLocation } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { db } from '../../lib/firebase';
 import {
   collection,
@@ -53,7 +53,7 @@ const PurchaseReturnPage: React.FC = () => {
   const [modeOfReturn, setModeOfReturn] = useState<string>('Exchange');
   const [newItemsReceived, setNewItemsReceived] = useState<TransactionItem[]>([]);
   const [returnDate, setReturnDate] = useState<string>(new Date().toISOString().split('T')[0]);
-
+  const isActive = (path: string) => location.pathname === path;
 
   const [originalPurchaseItems, setOriginalPurchaseItems] = useState<TransactionItem[]>([]);
   const [selectedReturnIds, setSelectedReturnIds] = useState<Set<string>>(new Set());
@@ -342,17 +342,17 @@ const PurchaseReturnPage: React.FC = () => {
       {modal && <Modal message={modal.message} onClose={() => setModal(null)} type={modal.type} />}
       <BarcodeScanner isOpen={scannerPurpose !== null} onClose={() => setScannerPurpose(null)} onScanSuccess={handleBarcodeScanned} />
 
-      <div className="flex items-center justify-between p-4 bg-white border-b sticky top-0 z-10">
-        <button onClick={() => navigate(ROUTES.HOME)} className="text-2xl font-bold">&times;</button>
+      <div className="flex flex-col p-1 bg-white border-b border-gray-200 shadow-sm flex-shrink-0">
+        <h1 className="text-2xl font-bold text-gray-800 text-center mb-2">Purchase Return</h1>
         <div className="flex justify-center gap-x-6">
-          <NavLink to={ROUTES.PURCHASE} className="px-2 py-3 text-lg">Purchase</NavLink>
-          <NavLink to={ROUTES.PURCHASE_RETURN} className={({ isActive }) => `px-2 py-3 text-lg border-b-2 ${isActive ? 'border-blue-600 text-blue-600 font-semibold' : 'border-transparent text-slate-500'}`}>Purchase Return</NavLink>
+          <CustomButton variant={Variant.Transparent} onClick={() => navigate(ROUTES.PURCHASE)} active={isActive(ROUTES.PURCHASE)}>Purchase</CustomButton>
+          <CustomButton variant={Variant.Transparent} onClick={() => navigate(ROUTES.PURCHASE_RETURN)} active={isActive(ROUTES.PURCHASE_RETURN)}>Purchase Return</CustomButton>
         </div>
         <div className="w-6"></div>
       </div>
 
-      <div className="flex-grow p-4 bg-gray-100 ">
-        <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+      <div className="flex-grow p-2 bg-gray-100 ">
+        <div className="bg-white p-6 rounded-lg shadow-md mb-2">
           <div className="relative" ref={dropdownRef}>
             <label htmlFor="search-purchase" className="block text-lg font-medium mb-2">Search Original Purchase</label>
             <div className="flex gap-2">
@@ -384,7 +384,7 @@ const PurchaseReturnPage: React.FC = () => {
 
         {selectedPurchase && (
           <>
-            <div className="bg-white p-6 rounded-lg shadow-md mt-6">
+            <div className="bg-white p-6 rounded-lg shadow-md mt-2">
               <div className="space-y-4">
                 <div className='grid grid-cols-2 gap-4'>
                   <div>
@@ -402,7 +402,7 @@ const PurchaseReturnPage: React.FC = () => {
                 </div>
               </div>
 
-              <h3 className="text-xl font-semibold mt-6 mb-4">Select Items to Return</h3>
+              <h3 className="text-xl font-semibold mt-3 mb-4">Select Items to Return</h3>
               <div className="flex flex-col gap-3">
                 {originalPurchaseItems.map((item) => {
                   const isSelected = selectedReturnIds.has(item.id);
@@ -447,7 +447,7 @@ const PurchaseReturnPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-lg shadow-md mt-6">
+            <div className="bg-white p-6 rounded-lg shadow-md mt-2">
               <div>
                 <label htmlFor="mode-of-return" className="block font-medium mb-1">Transaction Type</label>
                 <select id="mode-of-return" value={modeOfReturn} onChange={(e) => setModeOfReturn(e.target.value)} className="w-full p-2 border rounded bg-white">
@@ -456,7 +456,7 @@ const PurchaseReturnPage: React.FC = () => {
                 </select>
               </div>
               {modeOfReturn === 'Exchange' && (
-                <div className="pt-6 border-t mt-6">
+                <div className="pt-3 border-t mt-3">
                   <div className="flex gap-2 items-end">
                     <div className="flex-grow">
                       <SearchableItemInput
@@ -495,7 +495,7 @@ const PurchaseReturnPage: React.FC = () => {
               )}
             </div>
 
-            <div className="bg-white p-6 rounded-lg shadow-md mt-6">
+            <div className="bg-white p-6 rounded-lg shadow-md mt-2">
               <div className="p-4 bg-gray-100 rounded-lg space-y-3">
                 <div className="flex justify-between items-center text-md text-red-700"><p>Total Return Value (Debit)</p><p className="font-medium">₹{totalReturnValue.toFixed(2)}</p></div>
                 <div className="flex justify-between items-center text-md text-green-700"><p>Total New Items Value (Credit)</p><p className="font-medium">₹{totalNewItemsValue.toFixed(2)}</p></div>

@@ -48,7 +48,7 @@ const formatDate = (date: Date): string => {
 
 const SummaryCard: React.FC<{ title: string; value: string; valueClassName?: string }> =
   ({ title, value, valueClassName = 'text-gray-900' }) => (
-    <div className="bg-white p-6 rounded-lg shadow-md text-center">
+    <div className="bg-white p-4 rounded-lg shadow-md text-center">
       <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">{title}</h3>
       <p className={`text-3xl font-bold mt-2 ${valueClassName}`}>{value}</p>
     </div>
@@ -93,7 +93,7 @@ const PnlListTable: React.FC<{
   };
 
   return (
-    <div className="bg-white p-2 rounded-lg shadow-md mt-4">
+    <div className="bg-white p-2 rounded-lg shadow-md mt-2">
       <div className="max-h-96 overflow-y-auto">
         <table className="w-full text-sm text-center">
           <thead className="text-xs text-slate-500 bg-slate-100 sticky top-0">
@@ -349,15 +349,15 @@ const PnlReportPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4">
-      <div className="flex items-center justify-between pb-3 border-b mb-4">
+    <div className="min-h-screen bg-gray-100 p-2">
+      <div className="flex items-center justify-between pb-3 border-b mb-2">
         <h1 className="flex-1 text-xl text-center font-bold text-gray-800">Profit & Loss Report</h1>
         <button onClick={() => navigate(-1)} className="p-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
         </button>
       </div>
 
-      <div className="bg-white p-4 rounded-lg shadow-md mb-6">
+      <div className="bg-white p-4 rounded-lg shadow-md mb-2">
         <FilterSelect value={datePreset} onChange={(e) => handleDatePresetChange(e.target.value)}>
           <option value="today">Today</option>
           <option value="yesterday">Yesterday</option>
@@ -381,13 +381,13 @@ const PnlReportPage: React.FC = () => {
         </div>
         <button
           onClick={handleApplyFilters}
-          className="w-full mt-4 px-6 py-3 bg-blue-600 text-white text-lg font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition"
+          className="w-full mt-2 px-3 py-1 bg-blue-600 text-white text-lg font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition"
         >
           Apply
         </button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-2 gap-2">
         <SummaryCard
           title="Total Sales"
           value={`₹${pnlSummary.totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
@@ -410,8 +410,8 @@ const PnlReportPage: React.FC = () => {
         />
       </div>
 
-      <div className="bg-white p-4 rounded-lg shadow-md flex justify-between items-center mt-6">
-        <h2 className="text-lg font-semibold text-gray-700">Sales Details</h2>
+      <div className="bg-white p-4 rounded-lg shadow-md flex justify-between items-center mt-2">
+        <h2 className="text-lg font-semibold text-gray-700">P&L Details</h2>
         <div className="flex items-center gap-2">
           <button onClick={() => setIsListVisible(!isListVisible)} className="px-4 py-2 bg-slate-200 text-slate-800 font-semibold rounded-md hover:bg-slate-300 transition">
             {isListVisible ? 'Hide List' : 'Show List'}
