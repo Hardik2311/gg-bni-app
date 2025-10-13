@@ -63,7 +63,7 @@ const ItemListTable: React.FC<{
   };
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow-md mt-6">
+    <div className="bg-white p-2 rounded-lg shadow-md mt-2">
       <h2 className="text-lg font-semibold text-gray-700 mb-4">Filtered Items List</h2>
       <div className="max-h-96 overflow-y-auto">
         <table className="w-full text-sm text-center">
@@ -211,15 +211,15 @@ const ItemReport: React.FC = () => {
   if (error) return <div className="p-4 text-red-500 font-semibold text-center">{error}</div>;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 font-sans">
-      <div className="flex items-center justify-between pb-3 border-b mb-4">
+    <div className="min-h-screen bg-gray-50 p-2">
+      <div className="flex items-center justify-between pb-3 border-b mb-2">
         <h1 className="flex-1 text-xl text-center font-bold text-gray-800">Item Report</h1>
         <button onClick={() => navigate(-1)} className="rounded-full bg-gray-200 p-2 text-gray-900 hover:bg-gray-300">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
         </button>
       </div>
 
-      <div className="bg-white p-2 rounded-lg shadow-md mb-4">
+      <div className="bg-white p-2 rounded-lg mb-2">
         <h2 className="text-center font-semibold text-gray-700 mb-2">FILTERS</h2>
         <div className="flex space-x-3 items-end">
           <FilterSelect label="Item Group" value={itemGroupId} onChange={(e) => setItemGroupId(e.target.value)}>
@@ -233,7 +233,7 @@ const ItemReport: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-2">
         <SummaryCard title="Total Items" value={Math.round(summary.totalItems).toString()} />
         <SummaryCard title="Average MRP" value={`₹${Math.round(summary.averageMrp).toFixed(0)}`} />
         <SummaryCard title="Avg. Cost Price" value={`₹${Math.round(summary.averagePurchasePrice).toFixed(0)}`} />
@@ -242,7 +242,7 @@ const ItemReport: React.FC = () => {
         <SummaryCard title="Avg. Margin %" value={`${Math.round(summary.averageMarginPercentage).toFixed(0)} %`} />
       </div>
 
-      <div className="bg-white p-4 rounded-lg shadow-md flex justify-between items-center">
+      <div className="bg-white p-4 rounded-lg flex justify-between items-center">
         <h2 className="text-lg font-semibold text-gray-700">Report Details</h2>
         <div className="flex items-center space-x-3">
           <button onClick={() => setIsListVisible(!isListVisible)} className="px-4 py-2 bg-slate-200 text-slate-800 font-semibold rounded-md hover:bg-slate-300 transition">

@@ -106,8 +106,8 @@ const Account: React.FC = () => {
   return (
     <div className="flex min-h-screen flex-col bg-white">
       {/* Header and User Info Section */}
-      <div className="relative flex flex-col items-center bg-white px-1 py-5">
-        <div className="mt-8 relative mb-4">
+      <div className="relative flex flex-col items-center bg-gray-100 px-1 py-5">
+        <div className="mt-2 relative mb-4">
           <img
             className="h-32 w-32 rounded-full object-cover border-4 border-white shadow-lg"
             src="https://github.com/shadcn.png"
@@ -119,7 +119,7 @@ const Account: React.FC = () => {
         <h2 className="mb-1 text-2xl font-semibold text-slate-900">
           {profileData.name}
         </h2>
-        <p className="mb-8 text-base text-gray-500">
+        <p className="mb-6 text-base text-gray-400">
           {profileData.email}
         </p>
 
@@ -141,7 +141,7 @@ const Account: React.FC = () => {
       </div>
 
       {/* Share Your Business Card Section */}
-      <div className="flex-1 bg-gray-100 p-6 rounded-t-[2rem] shadow-[0_-5px_20px_-5px_rgba(0,0,0,0.1)] -mt-2">
+      <div className="flex-1 bg-gray-100 p-2 ">
         <div className="w-full">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-slate-800">
@@ -180,7 +180,7 @@ const Account: React.FC = () => {
               <p className="font-semibold text-slate-600">Template 3</p>
             </div>
           </div>
-          <div className="w-full flex justify-center mt-2 space-y-2 flex-col">
+          <div className="w-full flex grid grid-cols-2 gap-4 justify-center mt-2 space-y-2 flex-col">
 
             <PermissionWrapper
               requiredPermission={Permissions.ViewPNLReport}
@@ -207,7 +207,7 @@ const Account: React.FC = () => {
                 hover:shadow-lg
               "
               >
-                <span className="text-lg font-medium">Masters Setting</span>
+                <span className="text-lg font-medium">Setting</span>
                 <span className="text-xl text-gray-600">→</span>
               </Link>
             </PermissionWrapper>

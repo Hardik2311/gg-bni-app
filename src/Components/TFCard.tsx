@@ -102,7 +102,7 @@ interface TopSoldItemsCardProps {
 }
 
 export const TopSoldItemsCard: React.FC<TopSoldItemsCardProps> = ({ isDataVisible }) => {
-  const [viewMode, setViewMode] = useState<'quantity' | 'price'>('quantity');
+  const [viewMode, setViewMode] = useState<'quantity' | 'price'>('price');
   const { topItemsByQuantity, topItemsByPrice, loading, error } = useTopItems();
 
   const renderContent = () => {
@@ -155,16 +155,16 @@ export const TopSoldItemsCard: React.FC<TopSoldItemsCardProps> = ({ isDataVisibl
         <CardTitle>Top 5 Items</CardTitle>
         <div className="flex items-center p-1 bg-gray-100 rounded-lg">
           <button
-            onClick={() => setViewMode('quantity')}
-            className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${viewMode === 'quantity' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
-          >
-            Qty
-          </button>
-          <button
             onClick={() => setViewMode('price')}
             className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${viewMode === 'price' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
           >
             Amt
+          </button>
+          <button
+            onClick={() => setViewMode('quantity')}
+            className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${viewMode === 'quantity' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
+          >
+            Qty
           </button>
         </div>
       </CardHeader>

@@ -50,6 +50,7 @@ interface ExchangeItem {
   quantity: number;
   unitPrice: number;
   amount: number;
+  discount: number;
 }
 
 const SalesReturnPage: React.FC = () => {
@@ -86,11 +87,15 @@ const SalesReturnPage: React.FC = () => {
     [originalSaleItems, selectedReturnIds]
   );
 
+  // --- Unused state from your logic ---
+  const [items] = useState<OriginalSalesItem[]>([]);
+
   useEffect(() => {
     if (!currentUser || !currentUser.companyId || !dbOperations) {
       setIsLoading(false);
       return;
     }
+
     const fetchData = async () => {
       setIsLoading(true);
       setError(null);
@@ -122,7 +127,7 @@ const SalesReturnPage: React.FC = () => {
       }
     };
     fetchData();
-  }, [currentUser, dbOperations, invoiceId, state]);
+  }, [currentUser, dbOperations, invoiceId, state, items]); // Added items to dependency array
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -185,13 +190,28 @@ const SalesReturnPage: React.FC = () => {
   const handleListChange = (
     setter: React.Dispatch<React.SetStateAction<any[]>>,
     id: string,
-    field: keyof (TransactionItem | ExchangeItem),
+    field: keyof TransactionItem | keyof ExchangeItem,
     value: string | number
   ) => {
     setter(prev => prev.map(item => {
       if (item.id === id) {
         const updatedItem = { ...item, [field]: value };
-        if (field === 'quantity' || field === 'unitPrice') {
+
+        if (field === 'discount') {
+          const discountValue = Number(value) || 0;
+          let newPrice = updatedItem.mrp * (1 - discountValue / 100);
+
+          if (discountValue > 0) {
+            if (newPrice < 100) {
+              newPrice = Math.ceil(newPrice / 5) * 5;
+            } else {
+              newPrice = Math.ceil(newPrice / 10) * 10;
+            }
+          }
+          updatedItem.unitPrice = newPrice;
+        }
+
+        if (field === 'quantity' || field === 'unitPrice' || field === 'discount') {
           updatedItem.amount = Number(updatedItem.quantity) * Number(updatedItem.unitPrice);
         }
         return updatedItem;
@@ -203,7 +223,6 @@ const SalesReturnPage: React.FC = () => {
   const handleRemoveFromList = (setter: React.Dispatch<React.SetStateAction<any[]>>, id: string) => {
     setter(prev => prev.filter(item => item.id !== id));
   };
-
 
   const handleClear = () => {
     setSelectedSale(null);
@@ -236,12 +255,53 @@ const SalesReturnPage: React.FC = () => {
     }
   };
 
-  // ✅ FIX: Rounding is now only applied if the exchange item has a discount
-  const addExchangeItem = (itemToAdd: Item) => {
-    let finalExchangePrice = itemToAdd.mrp * (1 - (itemToAdd.discount || 0) / 100);
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const [isDiscountLocked, setIsDiscountLocked] = useState(true);
+  const [discountInfo, setDiscountInfo] = useState<string | null>(null);
 
-    // Only apply rounding if the item has a discount
-    if (itemToAdd.discount && itemToAdd.discount > 0) {
+  const handleDiscountPressStart = () => {
+    longPressTimer.current = setTimeout(() => setIsDiscountLocked(false), 500);
+  };
+
+  const handleDiscountPressEnd = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  };
+
+  const handleDiscountClick = () => {
+    if (isDiscountLocked) {
+      setDiscountInfo("Cannot edit the discount");
+      setTimeout(() => setDiscountInfo(null), 3000);
+    }
+  };
+
+  // --- MODIFIED --- This function now correctly updates the 'exchangeItems' state.
+  const handleDiscountChange = (id: string, discountValue: number) => {
+    const newDiscount = Math.max(0, Math.min(100, discountValue || 0));
+    setExchangeItems(prev => prev.map(item => {
+      if (item.id === id) {
+        const updatedItem = { ...item, discount: newDiscount };
+        let newPrice = updatedItem.mrp * (1 - newDiscount / 100);
+
+        if (newDiscount > 0) {
+          if (newPrice < 100) {
+            newPrice = Math.ceil(newPrice / 5) * 5;
+          } else {
+            newPrice = Math.ceil(newPrice / 10) * 10;
+          }
+        }
+        updatedItem.unitPrice = newPrice;
+        updatedItem.amount = Number(updatedItem.quantity) * Number(updatedItem.unitPrice);
+        return updatedItem;
+      }
+      return item;
+    }));
+  };
+
+  const addExchangeItem = (itemToAdd: Item) => {
+    const discount = itemToAdd.discount || 0;
+    let finalExchangePrice = itemToAdd.mrp * (1 - (discount / 100));
+
+    if (discount > 0) {
       if (finalExchangePrice < 100) {
         finalExchangePrice = Math.ceil(finalExchangePrice / 5) * 5;
       } else {
@@ -250,8 +310,14 @@ const SalesReturnPage: React.FC = () => {
     }
 
     setExchangeItems(prev => [...prev, {
-      id: crypto.randomUUID(), originalItemId: itemToAdd.id!, name: itemToAdd.name,
-      quantity: 1, unitPrice: finalExchangePrice, amount: finalExchangePrice, mrp: itemToAdd.mrp
+      id: crypto.randomUUID(),
+      originalItemId: itemToAdd.id!,
+      name: itemToAdd.name,
+      quantity: 1,
+      unitPrice: finalExchangePrice,
+      amount: finalExchangePrice,
+      mrp: itemToAdd.mrp,
+      discount: discount,
     }]);
   };
 
@@ -391,8 +457,8 @@ const SalesReturnPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex-grow p-4 bg-gray-100 ">
-        <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+      <div className="flex-grow p-2 bg-gray-100 ">
+        <div className="bg-white p-6 rounded-lg shadow-md mb-2">
           <div className="relative" ref={salesDropdownRef}>
             <label htmlFor="search-sale" className="block text-lg font-medium mb-2">
               Search Original Sale
@@ -440,7 +506,7 @@ const SalesReturnPage: React.FC = () => {
 
         {selectedSale && (
           <>
-            <div className="bg-white p-6 rounded-lg shadow-md mt-6">
+            <div className="bg-white p-6 rounded-lg shadow-md mt-2">
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -476,7 +542,7 @@ const SalesReturnPage: React.FC = () => {
                 </div>
               </div>
 
-              <h3 className="text-xl font-semibold mt-6 mb-4">Select Items to Return</h3>
+              <h3 className="text-xl font-semibold mt-4 mb-3">Select Items to Return</h3>
               <div className="flex flex-col gap-3">
                 {originalSaleItems.map((item) => {
                   const isSelected = selectedReturnIds.has(item.id);
@@ -523,7 +589,7 @@ const SalesReturnPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-lg shadow-md mt-6">
+            <div className="bg-white p-2 rounded-lg shadow-md mt-2">
               <div>
                 <label htmlFor="mode-of-return" className="block font-medium text-sm mb-1">Transaction Type</label>
                 <select id="mode-of-return" value={modeOfReturn} onChange={(e) => setModeOfReturn(e.target.value)} className="w-full p-2 border rounded bg-white">
@@ -532,7 +598,7 @@ const SalesReturnPage: React.FC = () => {
                 </select>
               </div>
               {modeOfReturn === 'Exchange' && (
-                <div className="mt-6 border-t pt-6">
+                <div className="mt-3 border-t pt-4">
                   <div className="flex items-end gap-4">
                     <div className="flex-grow">
                       <SearchableItemInput
@@ -557,19 +623,64 @@ const SalesReturnPage: React.FC = () => {
 
                   {exchangeItems.length > 0 && (
                     <>
-                      <h3 className="text-xl font-semibold mt-6 mb-4">Exchange Items</h3>
-                      <div className="flex flex-col gap-4 mb-6">
+                      <h3 className="text-xl font-semibold mt-2 mb-1">Exchange Items</h3>
+                      {/* --- MODIFIED --- This div now displays the discountInfo message */}
+                      {discountInfo && <div className="text-red-500 text-center text-sm mb-2">{discountInfo}</div>}
+                      <div className="flex flex-col gap-2 mb-2">
                         {exchangeItems.map((item) => (
-                          <div key={item.id} className="grid grid-cols-12 gap-x-2 gap-y-2 items-center p-3 border rounded-lg bg-green-50 shadow-sm">
-                            <div className="col-span-12 font-medium text-gray-800">{item.name}</div>
-                            <input type="number" value={item.quantity} onChange={(e) => handleListChange(setExchangeItems, item.id, 'quantity', Number(e.target.value))} className="col-span-3 p-2 border border-gray-300 rounded text-center" />
-                            <p className="col-span-4 text-center text-gray-500 line-through border border-gray-300 p-2 rounded bg-white">
-                              ₹{item.mrp.toFixed(2)}
-                            </p>
-                            <p className="col-span-4 text-center font-semibold border border-gray-300 p-2 rounded bg-white">
-                              ₹{item.unitPrice.toFixed(2)}
-                            </p>
-                            <button onClick={() => handleRemoveFromList(setExchangeItems, item.id)} className="col-span-1 justify-self-center text-red-500 text-2xl hover:text-red-700">&times;</button>
+                          <div key={item.id} className="p-3 border rounded-lg bg-white shadow-sm">
+                            <div className="flex justify-between items-start mb-2">
+                              <p className="font-semibold text-gray-800 pr-2">{item.name}</p>
+                              <button onClick={() => handleRemoveFromList(setExchangeItems, item.id)} className="text-gray-500 hover:text-red-600 flex-shrink-0">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                              </button>
+                            </div>
+                            <div className="flex items-baseline gap-2 mb-3">
+                              <p className="text-sm text-gray-400 line-through">₹{item.mrp.toFixed(2)}</p>
+                              <p className="text-lg font-bold text-gray-900">₹{item.unitPrice.toFixed(2)}</p>
+                            </div>
+                            <hr className="my-1 border-gray-200" />
+                            <div className="flex justify-between items-center">
+                              <div className="flex items-center gap-1 bg-gray-100 rounded p-1">
+                                <div
+                                  className="flex items-center gap-2"
+                                  onMouseDown={handleDiscountPressStart}
+                                  onMouseUp={handleDiscountPressEnd}
+                                  onMouseLeave={handleDiscountPressEnd}
+                                  onTouchStart={handleDiscountPressStart}
+                                  onTouchEnd={handleDiscountPressEnd}
+                                  onClick={handleDiscountClick}
+                                >
+                                  <label htmlFor={`discount-${item.id}`} className="text-sm text-gray-600 ">Disc</label>
+                                  <input
+                                    id={`discount-${item.id}`} type="number" value={item.discount || ''}
+                                    onChange={(e) => handleDiscountChange(item.id, parseFloat(e.target.value))}
+                                    readOnly={isDiscountLocked}
+                                    className={`w-12 p-1 bg-gray-100 rounded-md text-center font-medium text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDiscountLocked ? 'cursor-pointer' : ''}`}
+                                    placeholder="0"
+                                  />
+                                  <span className="text-sm text-gray-600 pr-1">%</span>
+                                </div>
+                              </div>
+                              <p className="text-sm font-medium text-gray-600">Qty</p>
+                              <div className="flex items-center border border-gray-300 rounded">
+                                <button
+                                  onClick={() => handleListChange(setExchangeItems, item.id, 'quantity', Math.max(1, item.quantity - 1))}
+                                  className="px-3 py-1 font-bold text-lg text-gray-700 hover:bg-gray-100"
+                                >
+                                  -
+                                </button>
+                                <span className="w-10 text-center font-semibold text-md text-gray-800 border-l border-r">
+                                  {item.quantity}
+                                </span>
+                                <button
+                                  onClick={() => handleListChange(setExchangeItems, item.id, 'quantity', item.quantity + 1)}
+                                  className="px-3 py-1 font-bold text-lg text-gray-700 hover:bg-gray-100"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -579,7 +690,7 @@ const SalesReturnPage: React.FC = () => {
               )}
             </div>
 
-            <div className="bg-white p-6 rounded-lg shadow-md mt-6">
+            <div className="bg-white p-6 rounded-lg shadow-md mt-2">
               <div className="p-4 bg-gray-100 rounded-lg space-y-3">
                 <div className="flex justify-between items-center text-md text-blue-700"><p>Return Sale Amount</p><p className="font-medium">₹{totalReturnValue.toFixed(2)}</p></div>
                 <div className="flex justify-between items-center text-md text-blue-700"><p>Total Exchange Value</p><p className="font-medium">₹{totalExchangeValue.toFixed(2)}</p></div>

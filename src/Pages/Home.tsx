@@ -46,7 +46,7 @@ const Home = () => {
     <FilterProvider>
       <div className="flex min-h-screen w-full flex-col bg-slate-100">
         {/* Header */}
-        <header className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white p-4 shadow-sm">
+        <header className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white p-2 shadow-sm">
           <div className="w-14"></div>
           <div className="flex-1 text-center">
             <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
@@ -69,14 +69,14 @@ const Home = () => {
           </div>
         </header>
 
-        <main className="flex-grow overflow-y-auto p-4 sm:p-6">
+        <main className="flex-grow overflow-y-auto p-2 sm:p-2">
           <div className="mx-auto max-w-7xl">
             <PermissionWrapper requiredPermission={Permissions.ViewSalescard} behavior="hide">
-              <div className="mb-6">
+              <div className="mb-2">
                 <FilterControls />
               </div>
             </PermissionWrapper>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 pb-10">
               <PermissionWrapper requiredPermission={Permissions.ViewSalescard} behavior="hide">
                 <SalesCard isDataVisible={isDataVisible} />
               </PermissionWrapper>

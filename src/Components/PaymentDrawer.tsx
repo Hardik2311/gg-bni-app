@@ -84,7 +84,6 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({
         }
     }, [isOpen, subtotal, initialPartyName, initialPartyNumber]);
 
-    // ✅ FIX: This effect disables and clears payment modes if the total payable is zero.
     useEffect(() => {
         if (finalPayableAmount <= 0) {
             setSelectedPayments({});
@@ -138,7 +137,7 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({
     };
 
     const handleConfirm = async () => {
-        if (!partyName.trim() || partyName.trim().toLowerCase() === 'na') {
+        if (!partyName.trim()) {
             setModal({ message: 'A valid Party Name is required.', type: State.ERROR });
             return;
         }
@@ -177,7 +176,7 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({
     const handleDiscountPressEnd = () => { if (longPressTimer.current) clearTimeout(longPressTimer.current); };
     const handleDiscountClick = () => {
         if (isDiscountLocked) {
-            setDiscountInfo("Long press to edit Discount.");
+            setDiscountInfo("Cannot edit Discount.");
             setTimeout(() => setDiscountInfo(null), 3000);
         }
     };
@@ -200,38 +199,38 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({
         <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose}>
             {modal && <Modal message={modal.message} onClose={() => setModal(null)} type={modal.type} />}
             <div className="fixed bottom-0 left-0 right-0 bg-gray-50 rounded-t-2xl shadow-xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-                <div className="p-4 sticky top-0 bg-gray-50 z-10 border-b">
-                    <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-2"></div>
+                <div className="p-2 sticky top-0 bg-gray-50 z-10 border-b">
+                    <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto "></div>
                     <button onClick={onClose} className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-gray-200 p-2 text-gray-900">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
                     </button>
                     <h2 className="text-xl font-bold text-center text-gray-800">Payment</h2>
                 </div>
-                <div className="overflow-y-auto p-3 space-y-3">
-                    <div className="bg-white rounded-xl shadow-sm p-3 space-y-2">
+                <div className="p-2 space-y-2">
+                    <div className="bg-white rounded-sm shadow-sm p-2 space-y-1">
                         <h3 className="font-semibold text-gray-800 text-sm">Customer Details</h3>
-                        <div className="relative">
+                        <div className="grid grid-cols-2 md:grid-cols-2 gap-2">
+                            <div className="relative">
+                                <input
+                                    type="number"
+                                    placeholder="Party Number"
+                                    value={partyNumber}
+                                    onChange={(e) => setPartyNumber(e.target.value)}
+                                    onBlur={handlePartyNumberBlur}
+                                    className="w-full bg-gray-100 p-2 text-sm rounded-sm border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                                {isFetchingParty && <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">Searching...</div>}
+                            </div>
                             <input
-                                type="number"
-                                placeholder="Party Number"
-                                value={partyNumber}
-                                onChange={(e) => setPartyNumber(e.target.value)}
-                                onBlur={handlePartyNumberBlur}
-                                // ✅ FIX: readOnly attribute removed to make it editable
-                                className="w-full bg-gray-100 p-2 text-sm rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                                type="text"
+                                placeholder="Party Name*"
+                                value={partyName}
+                                onChange={(e) => setPartyName(e.target.value)}
+                                className="w-full bg-gray-100 p-2 text-sm rounded-sm border-gray-300 focus:ring-blue-500 focus:border-blue-500"
                             />
-                            {isFetchingParty && <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">Searching...</div>}
                         </div>
-                        <input
-                            type="text"
-                            placeholder="Party Name*"
-                            value={partyName}
-                            onChange={(e) => setPartyName(e.target.value)}
-                            // ✅ FIX: readOnly attribute removed to make it editable
-                            className="w-full bg-gray-100 p-2 text-sm rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500"
-                        />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-2 grid">
                         {transactiontypes.map((mode) => (
                             <FloatingLabelInput
                                 key={mode.id}
@@ -241,25 +240,25 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({
                                 onChange={(e) => handleAmountChange(mode.id, e.target.value)}
                                 onFill={() => handleFillRemaining(mode.id)}
                                 showFillButton={remainingAmount > 0.01}
-                                // ✅ FIX: Payment modes are disabled if there's nothing to pay
                                 disabled={finalPayableAmount <= 0}
                             />
                         ))}
                     </div>
                 </div>
-                <div className="p-4 mt-auto sticky bottom-0 bg-white border-t">
-                    <div className="flex justify-between items-center mb-2">
+                <div className="p-2 mt-15 sticky bottom-0 bg-white border-t">
+                    <div className="flex justify-between items-center mb-1">
                         <span className="text-sm text-gray-600">Subtotal:</span>
                         <span className="font-medium text-sm">₹{subtotal.toFixed(2)}</span>
                     </div>
-                    <div className="flex items-center justify-between mb-2 gap-2 p-2 -m-2 rounded-lg" onMouseDown={handleDiscountPressStart} onMouseUp={handleDiscountPressEnd} onMouseLeave={handleDiscountPressEnd} onTouchStart={handleDiscountPressStart} onTouchEnd={handleDiscountPressEnd} onClick={handleDiscountClick}>
+                    <div className="flex items-center justify-between mb-1 gap-2 p-2 -m-2 rounded-lg" onMouseDown={handleDiscountPressStart} onMouseUp={handleDiscountPressEnd} onMouseLeave={handleDiscountPressEnd} onTouchStart={handleDiscountPressStart} onTouchEnd={handleDiscountPressEnd} onClick={handleDiscountClick}>
                         <label htmlFor="discount" className={`text-sm text-gray-600 ${isDiscountLocked ? 'cursor-pointer' : ''}`}>Discount (₹):</label>
-                        {discountInfo && <div className="...">{discountInfo}</div>}
+                        {discountInfo && <div className="flex items-center text-sm bg-red-100 text-red-800 rounded-lg"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
+                            {discountInfo}</div>}
                         <input id="discount" type="number" placeholder="0.00" value={discount || ''} onChange={handleDiscountChange} readOnly={isDiscountLocked} className={`w-20 text-right bg-gray-100 p-1 text-sm rounded-md border-gray-300 focus:ring-blue-500 focus:border-blue-500 ${isDiscountLocked ? 'cursor-not-allowed text-gray-500' : ''}`} />
                     </div>
 
                     {customerCredit > 0 && (
-                        <div className="flex justify-between items-center mb-2 text-green-600">
+                        <div className="flex justify-between items-center mb-1 text-green-600">
                             <label htmlFor="useCreditCheckbox" className="flex items-center text-sm cursor-pointer">
                                 <input type="checkbox" id="useCreditCheckbox" checked={useCredit} onChange={(e) => setUseCredit(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
                                 <span className="ml-2">Credit Balance (Available: ₹{customerCredit.toFixed(2)})</span>
@@ -269,7 +268,7 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({
                     )}
 
                     {customerDebit > 0 && (
-                        <div className="flex justify-between items-center mb-2 text-orange-600">
+                        <div className="flex justify-between items-center mb-1 text-orange-600">
                             <label htmlFor="useDebitCheckbox" className="flex items-center text-sm cursor-pointer">
                                 <input type="checkbox" id="useDebitCheckbox" checked={useDebit} onChange={(e) => setUseDebit(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
                                 <span className="ml-2">Debit Note (Available: ₹{customerDebit.toFixed(2)})</span>
@@ -278,17 +277,17 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({
                         </div>
                     )}
 
-                    <div className="flex justify-between items-center mb-2 border-t pt-2">
+                    <div className="flex justify-between items-center mb-1 border-t pt-1">
                         <span className="text-gray-800 font-semibold">Total Payable:</span>
                         <span className="font-bold text-lg text-blue-600">₹{finalPayableAmount.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between items-center mb-3">
+                    <div className="flex justify-between items-center mb-2">
                         <span className="text-gray-600">Remaining:</span>
                         <span className={`font-bold text-md ${Math.abs(remainingAmount) < 0.01 ? 'text-green-600' : 'text-red-600'}`}>
                             ₹{remainingAmount.toFixed(2)}
                         </span>
                     </div>
-                    <button onClick={handleConfirm} disabled={isSubmitting || Math.abs(remainingAmount) > 0.01} className="w-full flex items-center justify-center bg-blue-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-blue-700 transition-colors disabled:bg-gray-400">
+                    <button onClick={handleConfirm} disabled={isSubmitting || Math.abs(remainingAmount) > 0.01} className="w-full flex items-center justify-center bg-blue-600 text-white font-bold py-1 px-3 rounded-sm hover:bg-blue-700 transition-colors disabled:bg-gray-400">
                         {isSubmitting ? 'Submitting...' : 'Confirm & Save Sale'}
                     </button>
                 </div>

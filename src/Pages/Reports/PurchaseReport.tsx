@@ -153,7 +153,7 @@ const PurchaseListTable: React.FC<{
   };
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow-md mt-6">
+    <div className="bg-white p-4 rounded-lg shadow-md mt-2">
       <div className="max-h-96 overflow-y-auto">
         <table className="w-full text-sm text-center">
           <thead className="text-xs text-slate-500 bg-slate-100 sticky top-0">
@@ -349,14 +349,14 @@ const PurchaseReport: React.FC = () => {
   if (error) return <div className="p-4 text-center text-red-500">{error}</div>;
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4 pb-16">
-      <div className="flex items-center justify-between pb-3 border-b mb-4">
+    <div className="min-h-screen bg-gray-100 p-2 pb-16">
+      <div className="flex items-center justify-between pb-3 border-b mb-2">
         <h1 className="flex-1 text-xl text-center font-bold text-gray-800">Purchase Report</h1>
         <button onClick={() => navigate(-1)} className="p-2"> <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg></button>
       </div>
 
-      <div className="bg-white p-4 rounded-lg shadow-md mb-6">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="bg-white p-4 rounded-lg shadow-md mb-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <FilterSelect value={datePreset} onChange={(e) => handleDatePresetChange(e.target.value)}>
             <option value="today">Today</option>
             <option value="yesterday">Yesterday</option>
@@ -369,17 +369,17 @@ const PurchaseReport: React.FC = () => {
             <input type="date" value={customEndDate} onChange={e => { setCustomEndDate(e.target.value); setDatePreset('custom'); }} className="w-full p-2 text-sm bg-gray-50 border rounded-md" placeholder="End Date" />
           </div>
         </div>
-        <button onClick={handleApplyFilters} className="w-full mt-4 px-6 py-3 bg-blue-600 text-white text-lg font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">Apply</button>
+        <button onClick={handleApplyFilters} className="w-full mt-2 px-3 py-1 bg-blue-600 text-white text-lg font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">Apply</button>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
         <SummaryCard title="Total Purchases" value={`₹${Math.round(summary.totalPurchases || 0)}`} />
         <SummaryCard title="Total Orders" value={summary.totalOrders?.toString() || '0'} />
         <SummaryCard title="Total Items" value={summary.totalItemsPurchased?.toString() || '0'} />
         <SummaryCard title="Avg Purchase Value" value={`₹${Math.round(summary.averagePurchaseValue || 0)}`} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 mb-2">
         <div className="lg:col-span-2">
           <TopSuppliersList suppliers={topSuppliers} />
         </div>

@@ -1,5 +1,3 @@
-// src/pages/UserAdd/UserAdd.tsx
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../lib/firebase';
@@ -7,10 +5,7 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ICONS } from '../../constants/icon.constants';
 import { ROUTES } from '../../constants/routes.constants';
 import { ROLES, Variant } from '../../enums';
-
-// --- CHANGE 1: Assume your useAuth hook and User type are defined something like this ---
-// You will import this from your actual auth context file.
-import { useAuth } from '../../context/auth-context'; // Example path
+import { useAuth } from '../../context/auth-context';
 import { registerUserWithDetails } from '../../lib/auth_operations';
 
 import { CustomIcon } from '../../Components';
@@ -51,7 +46,7 @@ const UserAdd: React.FC = () => {
       const finalUserData = {
         name: fullName.trim(),
         phoneNumber: phoneNumber.trim(),
-        Email: email.trim(),
+        email: email.trim(), // Corrected 'Email' to 'email' for consistency
         role: role,
         createdAt: serverTimestamp(),
         companyId: currentUser.companyId,
@@ -139,18 +134,24 @@ const UserAdd: React.FC = () => {
             disabled={isSubmitting}
           />
 
-          <div>
-            <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+          {/* ✅ FIX: Wrapped select in a div and applied consistent styling */}
+          <div className="relative">
             <select
               id="role"
               value={role}
               onChange={(e) => setRole(e.target.value as ROLES)}
-              className="w-full p-3 bg-gray-50 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full px-3 py-4 text-base text-gray-900 bg-white border border-gray-300 rounded-lg appearance-none peer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               disabled={isSubmitting}
             >
               <option value={ROLES.SALESMAN}>Salesman</option>
               <option value={ROLES.MANAGER}>Manager</option>
             </select>
+            <label
+              htmlFor="role"
+              className="absolute text-base text-gray-500 duration-300 transform -translate-y-4 scale-75 top-4 z-10 origin-[0] start-2.5 peer-focus:text-blue-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-4"
+            >
+              Role
+            </label>
           </div>
 
           {error && <p className="text-sm text-center text-red-600 font-medium">{error}</p>}

@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { useAuth, useDatabase } from '../context/auth-context';
-import { collection, query, onSnapshot, where } from 'firebase/firestore';
+import { collection, query, onSnapshot, where, Timestamp } from 'firebase/firestore';
 import { Spinner } from '../constants/Spinner';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
 import { useFilter } from './Filter';
 
+// --- Interfaces ---
 interface SaleDoc {
   salesmanId: string;
   totalAmount: number;
   companyId: string;
-  createdAt: any; // Firestore Timestamp
+  createdAt: Timestamp;
 }
 interface TopSalesperson {
   name: string;
@@ -18,56 +19,51 @@ interface TopSalesperson {
   totalAmount: number;
 }
 
-// ✅ The hook no longer needs any parameters
+// --- Custom Hook to Fetch and Process Top Salespeople ---
 const useTopSalespeople = () => {
-  const { currentUser } = useAuth(); // Get user from the auth context
-  const dbOperations = useDatabase(); // Get DB functions from the database context
+  const { currentUser } = useAuth();
+  const dbOperations = useDatabase();
   const { filters } = useFilter();
 
-  const [topSalespeople, setTopSalespeople] = useState<TopSalesperson[]>([]);
+  const [topByAmount, setTopByAmount] = useState<TopSalesperson[]>([]);
+  const [topByCount, setTopByCount] = useState<TopSalesperson[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Wait for all required data from contexts and filters.
-    if (!currentUser || !currentUser.companyId || !dbOperations || !filters.startDate || !filters.endDate) {
-      // If contexts are not ready yet, we are in a loading state.
+    if (!currentUser?.companyId || !dbOperations || !filters.startDate || !filters.endDate) {
       setLoading(!currentUser || !dbOperations);
       return;
     }
 
     setLoading(true);
-
     const start = new Date(filters.startDate);
     start.setHours(0, 0, 0, 0);
     const end = new Date(filters.endDate);
     end.setHours(23, 59, 59, 999);
 
-    // ✅ Query is now simpler and safer, using data directly from our hooks.
     const salesQuery = query(
       collection(db, 'sales'),
-      where('companyId', '==', currentUser.companyId), // Ensures multi-company safety
+      where('companyId', '==', currentUser.companyId),
       where('createdAt', '>=', start),
       where('createdAt', '<=', end)
     );
 
     const unsubscribe = onSnapshot(salesQuery, async (snapshot) => {
       try {
-        // Get the list of valid salesmen for this company
         const salesmen = await dbOperations.getSalesmen();
         const salesmanMap = new Map(salesmen.map(s => [s.uid, s.name]));
 
         if (salesmanMap.size === 0) {
-          setTopSalespeople([]);
+          setTopByAmount([]);
+          setTopByCount([]);
           setLoading(false);
           return;
         }
 
         const stats = new Map<string, { billCount: number; totalAmount: number }>();
-
         snapshot.docs.forEach((doc) => {
           const sale = doc.data() as SaleDoc;
-          // Aggregate stats only for valid salesmen
           if (sale.salesmanId && salesmanMap.has(sale.salesmanId)) {
             const currentStats = stats.get(sale.salesmanId) || { billCount: 0, totalAmount: 0 };
             stats.set(sale.salesmanId, {
@@ -77,56 +73,51 @@ const useTopSalespeople = () => {
           }
         });
 
-        if (stats.size === 0) {
-          setTopSalespeople([]);
-          return;
-        }
+        const allSalespeople = Array.from(stats.entries()).map(([userId, { billCount, totalAmount }]) => ({
+          name: salesmanMap.get(userId) || 'Unknown',
+          billCount,
+          totalAmount,
+        }));
 
-        const topUsers = Array.from(stats.entries())
-          .sort((a, b) => b[1].totalAmount - a[1].totalAmount)
-          .slice(0, 5)
-          .map(([userId, { billCount, totalAmount }]) => ({
-            name: salesmanMap.get(userId) || 'Unknown',
-            billCount,
-            totalAmount,
-          }));
+        // Sort by Total Amount for the 'Amount' view
+        const sortedByAmount = [...allSalespeople].sort((a, b) => b.totalAmount - a.totalAmount).slice(0, 5);
+        setTopByAmount(sortedByAmount);
 
-        setTopSalespeople(topUsers);
+        // Sort by Bill Count for the 'Quantity' view
+        const sortedByCount = [...allSalespeople].sort((a, b) => b.billCount - a.billCount).slice(0, 5);
+        setTopByCount(sortedByCount);
+
         setError(null);
-
       } catch (err) {
         console.error('Error processing sales data:', err);
         setError('Failed to process sales data.');
       } finally {
         setLoading(false);
       }
-
     }, (err: Error) => {
       console.error('Error fetching sales:', err);
       setError(`Failed to load sales data: ${err.message}`);
       setLoading(false);
     });
 
-    // ✅ Standard and simple cleanup for the listener
     return () => unsubscribe();
-
   }, [currentUser, dbOperations, filters]);
 
-  return { topSalespeople, loading, error };
+  return { topByAmount, topByCount, loading, error };
 };
 
+// --- Main Card Component ---
 interface TopSalespersonCardProps {
   isDataVisible: boolean;
 }
 
 export const TopSalespersonCard: React.FC<TopSalespersonCardProps> = ({ isDataVisible }) => {
-  // ✅ No longer need to pass user?.uid here
-  const { topSalespeople, loading, error } = useTopSalespeople();
+  const [viewMode, setViewMode] = useState<'amount' | 'quantity'>('amount');
+  const { topByAmount, topByCount, loading, error } = useTopSalespeople();
 
   const renderContent = () => {
     if (loading) return <Spinner />;
     if (error) return <p className="text-center text-red-500">{error}</p>;
-
     if (!isDataVisible) {
       return (
         <div className="flex flex-col items-center justify-center text-center text-gray-500 py-8">
@@ -136,27 +127,31 @@ export const TopSalespersonCard: React.FC<TopSalespersonCardProps> = ({ isDataVi
       );
     }
 
-    if (topSalespeople.length === 0) {
+    const salespeopleToDisplay = viewMode === 'amount' ? topByAmount : topByCount;
+
+    if (salespeopleToDisplay.length === 0) {
       return <p className="text-center text-gray-500 py-8">No sales data for this period.</p>;
     }
 
     return (
       <ul className="space-y-4">
-        {topSalespeople.map((person, index) => (
+        {salespeopleToDisplay.map((person, index) => (
           <li key={person.name + index} className="flex items-center">
-            <div className="flex items-center w-2/5">
-              <span className="text-sm font-bold text-blue-600 bg-blue-100 rounded-full h-6 w-6 flex items-center justify-center mr-3 flex-shrink-0">
-                {index + 1}
-              </span>
+            <div className="flex items-center w-3/5">
+              <span className={`text-sm font-bold rounded-full h-6 w-6 flex items-center justify-center mr-3 flex-shrink-0 ${viewMode === 'amount' ? 'text-blue-600 bg-blue-100' : 'text-blue-600 bg-blue-100'}`}>{index + 1}</span>
               <span className="font-medium text-gray-700 truncate">{person.name}</span>
             </div>
-            <div className="w-1/5 text-center">
-              <span className="text-xs text-gray-500">{person.billCount} sales</span>
-            </div>
             <div className="w-2/5 text-right">
-              <span className="font-semibold text-gray-800">
-                {person.totalAmount.toLocaleString('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0 })}
-              </span>
+              {viewMode === 'amount' ? (
+                <span className="font-semibold text-gray-800">
+                  {person.totalAmount.toLocaleString('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0 })}
+                </span>
+              ) : (
+                <>
+                  <span className="font-semibold text-gray-800">{person.billCount}</span>
+                  <span className="text-xs text-gray-500 ml-1">sales</span>
+                </>
+              )}
             </div>
           </li>
         ))}
@@ -166,8 +161,22 @@ export const TopSalespersonCard: React.FC<TopSalespersonCardProps> = ({ isDataVi
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Top 5 Salespeople</CardTitle>
+        <div className="flex items-center p-1 bg-gray-100 rounded-lg">
+          <button
+            onClick={() => setViewMode('amount')}
+            className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${viewMode === 'amount' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
+          >
+            Amt
+          </button>
+          <button
+            onClick={() => setViewMode('quantity')}
+            className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${viewMode === 'quantity' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
+          >
+            Qty
+          </button>
+        </div>
       </CardHeader>
       <CardContent>{renderContent()}</CardContent>
     </Card>

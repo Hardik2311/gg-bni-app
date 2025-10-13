@@ -7,8 +7,6 @@ import {
     onSnapshot,
     Timestamp,
     where,
-    doc,
-    getDoc,
 } from 'firebase/firestore';
 import { Spinner } from '../constants/Spinner';
 import {
@@ -19,59 +17,35 @@ import {
 } from './ui/card';
 import { useFilter } from './Filter';
 
+// --- Interfaces ---
 interface SaleDoc {
     paymentMethods?: { [key: string]: number };
     createdAt: Timestamp;
     companyId?: string;
 }
-interface UserDoc {
-    companyId?: string;
+
+// --- Data structure for our aggregated data ---
+interface PaymentStats {
+    totalAmount: number;
+    count: number;
 }
 
-const usePaymentData = (userId?: string) => {
+// --- Custom Hook to Fetch and Process Payment Data ---
+const usePaymentData = () => {
+    const { currentUser } = useAuth();
     const { filters } = useFilter();
-    const [paymentData, setPaymentData] = useState<{ [key: string]: number }>({});
+    const [paymentData, setPaymentData] = useState<{ [key: string]: PaymentStats }>({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [companyId, setCompanyId] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!userId) {
-            setLoading(false);
+        if (!currentUser?.companyId || !filters.startDate || !filters.endDate) {
+            setLoading(!currentUser);
             return;
         }
+
         setLoading(true);
-
-        const fetchUserCompany = async () => {
-            try {
-                const userDocRef = doc(db, 'users', userId);
-                const userDocSnap = await getDoc(userDocRef);
-                if (userDocSnap.exists()) {
-                    const userData = userDocSnap.data() as UserDoc;
-                    if (userData.companyId) {
-                        setCompanyId(userData.companyId);
-                    } else {
-                        throw new Error("Company ID not found on user profile.");
-                    }
-                } else {
-                    throw new Error("User profile not found.");
-                }
-            } catch (err: any) {
-                console.error('Error fetching user company data:', err);
-                setError(`Failed to get company info: ${err.message}`);
-                setLoading(false);
-            }
-        };
-
-        fetchUserCompany();
-    }, [userId]);
-
-
-    useEffect(() => {
-        if (!userId || !companyId || !filters.startDate || !filters.endDate) {
-            return;
-        }
-        setLoading(true);
+        setError(null);
 
         const start = new Date(filters.startDate);
         start.setHours(0, 0, 0, 0);
@@ -80,9 +54,9 @@ const usePaymentData = (userId?: string) => {
 
         const salesQuery = query(
             collection(db, 'sales'),
-            where('companyId', '==', companyId),
+            where('companyId', '==', currentUser.companyId),
             where('createdAt', '>=', start),
-            where('createdAt', '<=', end),
+            where('createdAt', '<=', end)
         );
 
         const unsubscribe = onSnapshot(salesQuery, (snapshot) => {
@@ -90,12 +64,20 @@ const usePaymentData = (userId?: string) => {
                 const sale = doc.data() as SaleDoc;
                 if (sale.paymentMethods) {
                     for (const method in sale.paymentMethods) {
-                        const capitalizedMethod = method.charAt(0).toUpperCase() + method.slice(1);
-                        acc[capitalizedMethod] = (acc[capitalizedMethod] || 0) + sale.paymentMethods[method];
+                        if (sale.paymentMethods[method] > 0) { // Only count if a value was entered
+                            const capitalizedMethod = method.charAt(0).toUpperCase() + method.slice(1);
+
+                            const currentStats = acc[capitalizedMethod] || { totalAmount: 0, count: 0 };
+
+                            acc[capitalizedMethod] = {
+                                totalAmount: currentStats.totalAmount + sale.paymentMethods[method],
+                                count: currentStats.count + 1
+                            };
+                        }
                     }
                 }
                 return acc;
-            }, {} as { [key: string]: number });
+            }, {} as { [key: string]: PaymentStats });
 
             setPaymentData(paymentTotals);
             setLoading(false);
@@ -106,18 +88,20 @@ const usePaymentData = (userId?: string) => {
         });
 
         return () => unsubscribe();
-    }, [userId, companyId, filters]);
+    }, [currentUser, filters]);
 
     return { paymentData, loading, error };
 };
 
+
+// --- Main Payment Chart Component ---
 interface PaymentChartProps {
     isDataVisible: boolean;
 }
 
 export const PaymentChart: React.FC<PaymentChartProps> = ({ isDataVisible }) => {
-    const { currentUser } = useAuth();
-    const { paymentData, loading, error } = usePaymentData(currentUser?.uid);
+    const [viewMode, setViewMode] = useState<'amount' | 'quantity'>('amount');
+    const { paymentData, loading, error } = usePaymentData();
 
     const renderContent = () => {
         if (loading) return <Spinner />;
@@ -132,26 +116,36 @@ export const PaymentChart: React.FC<PaymentChartProps> = ({ isDataVisible }) => 
             );
         }
 
-        const sortedData = Object.entries(paymentData).sort((a, b) => b[1] - a[1]);
+        const dataToSort = Object.entries(paymentData);
 
-        if (sortedData.length === 0) {
+        if (viewMode === 'amount') {
+            dataToSort.sort(([, a], [, b]) => b.totalAmount - a.totalAmount);
+        } else {
+            dataToSort.sort(([, a], [, b]) => b.count - a.count);
+        }
+
+        if (dataToSort.length === 0) {
             return <p className="text-center text-gray-500">No payment data for this period.</p>;
         }
 
-        const maxValue = Math.max(...sortedData.map(([, value]) => value), 1);
+        const maxValue = Math.max(...dataToSort.map(([, stats]) => viewMode === 'amount' ? stats.totalAmount : stats.count), 1);
 
         return (
             <div className="space-y-4">
-                {sortedData.map(([method, value]) => (
+                {dataToSort.map(([method, stats]) => (
                     <div key={method}>
                         <div className="flex justify-between items-center text-sm mb-1">
                             <span className="font-medium text-gray-600 capitalize">{method}</span>
-                            <span className="font-semibold text-gray-800">₹{value.toLocaleString('en-IN')}</span>
+                            {viewMode === 'amount' ? (
+                                <span className="font-semibold text-gray-800">₹{stats.totalAmount.toLocaleString('en-IN')}</span>
+                            ) : (
+                                <span className="font-semibold text-gray-800">{stats.count} <span className="text-xs font-normal text-gray-500">times</span></span>
+                            )}
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2.5">
                             <div
                                 className="bg-blue-600 h-2.5 rounded-full transition-all duration-500"
-                                style={{ width: `${(value / maxValue) * 100}%` }}
+                                style={{ width: `${((viewMode === 'amount' ? stats.totalAmount : stats.count) / maxValue) * 100}%` }}
                             ></div>
                         </div>
                     </div>
@@ -162,8 +156,22 @@ export const PaymentChart: React.FC<PaymentChartProps> = ({ isDataVisible }) => 
 
     return (
         <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Payment Methods</CardTitle>
+                <div className="flex items-center p-1 bg-gray-100 rounded-lg">
+                    <button
+                        onClick={() => setViewMode('amount')}
+                        className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${viewMode === 'amount' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
+                    >
+                        Amt
+                    </button>
+                    <button
+                        onClick={() => setViewMode('quantity')}
+                        className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${viewMode === 'quantity' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
+                    >
+                        Qty
+                    </button>
+                </div>
             </CardHeader>
             <CardContent>{renderContent()}</CardContent>
         </Card>

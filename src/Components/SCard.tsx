@@ -114,7 +114,7 @@ export const SalesCard: React.FC<SalesCardProps> = ({ isDataVisible }) => {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className='-mb-4'>
         <CardTitle>Total Sales</CardTitle>
       </CardHeader>
       <CardContent>

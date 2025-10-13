@@ -126,9 +126,9 @@ export const FilterControls: React.FC = () => {
     };
 
     return (
-        <div className="bg-white p-4 rounded-lg shadow-md w-full max-w-lg mx-auto">
+        <div className="bg-white p-2 rounded-lg shadow-md w-full max-w-lg mx-auto">
             <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <Menubar className="sm:col-span-1">
                         <MenubarMenu>
                             <MenubarTrigger className="w-full justify-center">
@@ -145,7 +145,7 @@ export const FilterControls: React.FC = () => {
                             </MenubarContent>
                         </MenubarMenu>
                     </Menubar>
-                    <div className="sm:col-span-2 grid grid-cols-2 gap-4">
+                    <div className="sm:col-span-2 grid grid-cols-2 gap-2">
                         <FormattedDateInput value={localFilters.startDate} onChange={(e) => handleDateChange('startDate', e.target.value)} />
                         <FormattedDateInput value={localFilters.endDate} onChange={(e) => handleDateChange('endDate', e.target.value)} />
                     </div>
@@ -153,7 +153,7 @@ export const FilterControls: React.FC = () => {
                 <div>
                     <button
                         onClick={handleApply}
-                        className="w-full px-4 py-2 bg-blue-600 text-white font-semibold rounded-md shadow-sm hover:bg-blue-700 transition-colors"
+                        className="w-full px-3 py-1 bg-blue-600 text-white font-semibold rounded-md shadow-sm hover:bg-blue-700 transition-colors"
                     >
                         Apply
                     </button>
