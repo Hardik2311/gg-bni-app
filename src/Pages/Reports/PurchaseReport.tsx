@@ -373,10 +373,10 @@ const PurchaseReport: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
-        <SummaryCard title="Total Purchases" value={`₹${Math.round(summary.totalPurchases || 0)}`} />
+        <SummaryCard title="Total Cost" value={`₹${Math.round(summary.totalPurchases || 0)}`} />
         <SummaryCard title="Total Orders" value={summary.totalOrders?.toString() || '0'} />
         <SummaryCard title="Total Items" value={summary.totalItemsPurchased?.toString() || '0'} />
-        <SummaryCard title="Avg Purchase Value" value={`₹${Math.round(summary.averagePurchaseValue || 0)}`} />
+        <SummaryCard title="Avg Purchase" value={`₹${Math.round(summary.averagePurchaseValue || 0)}`} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 mb-2">

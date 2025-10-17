@@ -155,7 +155,7 @@ const ItemGroupPage: React.FC = () => {
   return (
     <div className="flex flex-col min-h-screen bg-gray-100 w-full pt-25 ">
 
-      <div className="fixed top-0 left-0 right-0 z-10 p-4 bg-gray-100 flex flex-col">
+      <div className="fixed top-0 left-0 right-0 z-10 p-4 bg-gray-100 border-b border-gray-300 flex flex-col">
         <h1 className="text-2xl font-bold text-gray-800 text-center mb-4">Item Groups</h1>
         <div className="flex items-center justify-center gap-6">
           <CustomButton

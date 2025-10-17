@@ -13,7 +13,7 @@ const MainLayout = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="h-dvh w-screen flex flex-col overflow-hidden bg-gray-50">
+    <div className="h-dvh w-screen flex flex-col overflow-hidden bg-gray-100">
 
       <main className="flex-1 min-h-0 overflow-y-auto p-4">
         <Suspense fallback={<div>Loading...</div>}>
@@ -85,7 +85,7 @@ const MainLayout = () => {
             <Link
               key={to}
               to={to}
-              className={`flex-1 flex flex-row items-center justify-center gap-1 py-2 rounded-lg text-sm transition-colors border border-[rgba(0,0,0,0.15)] duration-200 ${location.pathname === to ? 'bg-sky-500 text-white' : 'text-black-500 hover:bg-gray-100'}`}
+              className={`flex-1 flex flex-row items-center justify-center gap-1 py-2 rounded-sm text-sm transition-colors border border-[rgba(0,0,0,0.15)] duration-200 ${location.pathname === to ? 'bg-sky-500 text-white' : 'text-black-500 hover:bg-gray-100'}`}
             >
               <div>{icon}</div>
               <span className="font-medium">{label}</span>

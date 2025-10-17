@@ -17,7 +17,9 @@ const CustomButton = React.forwardRef<HTMLButtonElement, ButtonProps>(
       [Variant.Filled]:
         'bg-black text-white border border-black border-2 hover:bg-gray-800',
       [Variant.Transparent]:
-        'bg-white text-black border border-slate-300 hover:text-slate-700',
+        'bg-white text-black border border-slate-300 hover:text-slate-700 ',
+      [Variant.Payment]:
+        'bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-lg py-3 px-8 rounded-sm transition-colors',
     };
 
     const activeClasses = {
@@ -25,6 +27,7 @@ const CustomButton = React.forwardRef<HTMLButtonElement, ButtonProps>(
         'bg-sky-500 text-white font-bold border-sky-500',
       [Variant.Outline]: '',
       [Variant.Filled]: '',
+      [Variant.Payment]: '',
     };
 
     return (

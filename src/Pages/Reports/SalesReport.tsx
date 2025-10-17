@@ -392,9 +392,9 @@ const SalesReport: React.FC = () => {
 
       <div className="grid grid-cols-2 gap-2 mb-2">
         <SummaryCard title="Total Sales" value={`₹${Math.round(summary.totalSales || 0).toLocaleString('en-IN')}`} />
-        <SummaryCard title="Total Transactions" value={summary.totalTransactions?.toString() || '0'} />
-        <SummaryCard title="Total Items Sold" value={summary.totalItemsSold?.toString() || '0'} />
-        <SummaryCard title="Average Sale Value" value={`₹${Math.round(summary.averageSaleValue || 0).toLocaleString('en-IN')}`} />
+        <SummaryCard title="Total Bills" value={summary.totalTransactions?.toString() || '0'} />
+        <SummaryCard title="Items Sold" value={summary.totalItemsSold?.toString() || '0'} />
+        <SummaryCard title="Avg Sale Value" value={`₹${Math.round(summary.averageSaleValue || 0).toLocaleString('en-IN')}`} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 mb-2">

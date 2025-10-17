@@ -11,7 +11,12 @@ import { registerUserWithDetails } from '../../lib/auth_operations';
 import { CustomIcon } from '../../Components';
 import { FloatingLabelInput } from '../../Components/ui/FloatingLabelInput';
 import { CustomButton } from '../../Components/CustomButton';
+import { ReusableDropdown, type Option } from '../../Components/Dropdown';
 
+const roleOptions: Option<ROLES>[] = [
+  { value: ROLES.SALESMAN, label: 'Salesman' },
+  { value: ROLES.MANAGER, label: 'Manager' },
+];
 const UserAdd: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser, loading } = useAuth();
@@ -84,7 +89,7 @@ const UserAdd: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-white p-6">
+    <div className="flex flex-col min-h-screen bg-gray-100 p-6">
       <button
         onClick={() => navigate(ROUTES.HOME)}
         className="self-start mb-8 transition-opacity hover:opacity-75"
@@ -134,25 +139,15 @@ const UserAdd: React.FC = () => {
             disabled={isSubmitting}
           />
 
-          {/* ✅ FIX: Wrapped select in a div and applied consistent styling */}
-          <div className="relative">
-            <select
-              id="role"
-              value={role}
-              onChange={(e) => setRole(e.target.value as ROLES)}
-              className="w-full px-3 py-4 text-base text-gray-900 bg-white border border-gray-300 rounded-lg appearance-none peer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={isSubmitting}
-            >
-              <option value={ROLES.SALESMAN}>Salesman</option>
-              <option value={ROLES.MANAGER}>Manager</option>
-            </select>
-            <label
-              htmlFor="role"
-              className="absolute text-base text-gray-500 duration-300 transform -translate-y-4 scale-75 top-4 z-10 origin-[0] start-2.5 peer-focus:text-blue-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-4"
-            >
-              Role
-            </label>
-          </div>
+          <ReusableDropdown
+            options={roleOptions}
+            value={role}
+            onChange={setRole}
+            placeholder="Select a role..."
+            disabled={isSubmitting}
+            className="w-full"
+          />
+
 
           {error && <p className="text-sm text-center text-red-600 font-medium">{error}</p>}
           {success && <p className="text-sm text-center text-green-600 font-medium">{success}</p>}
