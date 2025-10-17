@@ -260,11 +260,10 @@ const PurchasePage: React.FC = () => {
 
 
   return (
-    <div className="flex flex-col min-h-screen bg-white w-full pb-16">
+    <div className="flex flex-col h-screen bg-gray-100 w-full">
       {modal && <Modal message={modal.message} onClose={() => setModal(null)} type={modal.type} />}
       <BarcodeScanner isOpen={isScannerOpen} onClose={() => setIsScannerOpen(false)} onScanSuccess={handleBarcodeScanned} />
 
-      {/* --- New QR Print Modal --- */}
       {showPrintQrModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
           <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm mx-4">
@@ -282,70 +281,85 @@ const PurchasePage: React.FC = () => {
         </div>
       )}
 
-
-      <div className="flex flex-col p-1 bg-white border-b border-gray-200 shadow-sm flex-shrink-0">
-        <h1 className="text-2xl font-bold text-gray-800 text-center mb-2">{editModeData ? 'Edit Purchase' : 'Purchase'}</h1>
-        <div className="flex items-center justify-center gap-6">
-          <CustomButton variant={Variant.Transparent} onClick={() => navigate(ROUTES.PURCHASE)} active={isActive(ROUTES.PURCHASE)}>Purchase</CustomButton>
-          <CustomButton variant={Variant.Transparent} onClick={() => navigate(ROUTES.PURCHASE_RETURN)} active={isActive(ROUTES.PURCHASE_RETURN)}>Purchase Return</CustomButton>
+      {/* --- TOP FIXED SECTION --- */}
+      <div className="flex-shrink-0">
+        <div className="flex flex-col p-1 bg-gray-100 border-b border-gray-300">
+          <h1 className="text-2xl font-bold text-gray-800 text-center mb-2">{editModeData ? 'Edit Purchase' : 'Purchase'}</h1>
+          <div className="flex items-center justify-center gap-6">
+            <CustomButton variant={Variant.Transparent} onClick={() => navigate(ROUTES.PURCHASE)} active={isActive(ROUTES.PURCHASE)}>Purchase</CustomButton>
+            <CustomButton variant={Variant.Transparent} onClick={() => navigate(ROUTES.PURCHASE_RETURN)} active={isActive(ROUTES.PURCHASE_RETURN)}>Purchase Return</CustomButton>
+          </div>
         </div>
-      </div>
-
-      <div className="flex-grow p-4 bg-gray-50 w-full overflow-y-auto box-border">
-        <div className="flex-1 overflow-y-auto p-4">
-          <div className="flex flex-col gap-3">
-            <div className="mb-4">
-              <div className="flex gap-2 items-end">
-                <div className="flex-grow">
-                  <SearchableItemInput
-                    label="Search & Add Item"
-                    placeholder="Search by name or barcode..."
-                    items={availableItems}
-                    onItemSelected={handleItemSelected}
-                    isLoading={isLoading}
-                    error={error}
-                  />
-                </div>
-                <button onClick={() => setIsScannerOpen(true)} className="p-3 bg-gray-700 text-white rounded-md font-semibold transition hover:bg-gray-800" title="Scan Barcode">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>
-                </button>
-              </div>
+        <div className="p-4 bg-white border-b mt-2 rounded-sm">
+          <div className="flex gap-2 items-end">
+            <div className="flex-grow">
+              <SearchableItemInput
+                label="Search & Add Item"
+                placeholder="Search by name or barcode..."
+                items={availableItems}
+                onItemSelected={handleItemSelected}
+                isLoading={isLoading}
+                error={error}
+              />
             </div>
-            <div className="px-2 pt-2 flex-shrink-0">
-              <h3 className="text-gray-700 text-lg font-medium">Cart</h3>
-            </div>
-            {items.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 bg-gray-100 rounded-lg">{isLoading ? 'Loading...' : 'No items added.'}</div>
-            ) : (
-              items.map((item: PurchaseItem) => (
-                <div key={item.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-                  <div className="flex justify-between items-start">
-                    <div><p className="font-semibold text-gray-800">{item.name.slice(0, 25)}</p></div>
-                    <button onClick={() => handleDeleteItem(item.id)} className="text-gray-500 hover:text-red-500 flex-shrink-0 ml-4" title="Remove item"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg></button>
-                  </div>
-                  <div className="flex justify-between items-center mt-2"><p className="text-sm text-gray-500">₹{item.purchasePrice.toFixed(2)}</p></div>
-                  <hr className="my-3 border-gray-200" />
-                  <div className="flex justify-between items-center">
-                    <p className="text-sm font-medium text-gray-600">Qty</p>
-                    <div className="flex items-center gap-5 text-lg">
-                      <button onClick={() => handleQuantityChange(item.id, -1)} disabled={item.quantity === 1} className="text-gray-700 hover:text-black disabled:text-gray-300 font-semibold">-</button>
-                      <span className="font-bold text-gray-900 w-8 text-center">{item.quantity}</span>
-                      <button onClick={() => handleQuantityChange(item.id, 1)} className="text-gray-700 hover:text-black font-semibold">+</button>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
+            <button onClick={() => setIsScannerOpen(true)} className="p-3 bg-gray-700 text-white rounded-md font-semibold transition hover:bg-gray-800" title="Scan Barcode">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="flex-shrink-0 p-4 bg-white border-t shadow-[0_-2px_5px_rgba(0,0,0,0.05)]">
+      {/* --- MIDDLE SCROLLABLE SECTION --- */}
+      <div className='flex-grow overflow-y-auto p-2'>
+        <h3 className="text-gray-700 text-lg font-medium px-2 mb-2">Cart</h3>
+        <div className="flex flex-col gap-2">
+          {items.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 bg-gray-100 rounded-sm">{isLoading ? 'Loading...' : 'No items added.'}</div>
+          ) : (
+            items.map((item: PurchaseItem) => (
+              <div key={item.id} className="relative bg-white rounded-lg shadow-sm border p-2 flex flex-col gap-1">
+                <div className="flex justify-between items-start">
+                  <p className="font-semibold text-gray-800 pr-8">{item.name}</p>
+                  <button
+                    onClick={() => handleDeleteItem(item.id)}
+                    className="absolute top-4 right-4 text-gray-400 hover:text-red-500"
+                    title="Remove item"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="flex justify-between items-center text-sm">
+                  <span className="font-semibold text-sm text-gray-800">₹{item.purchasePrice.toFixed(2)}</span>
+                </div>
+
+                <hr className="my-1 border-gray-200" />
+
+                <div className="flex justify-between items-center">
+                  <p className="font-medium text-sm text-gray-600">Quantity</p>
+                  <div className="flex items-center gap-3 text-lg border border-gray-300 rounded-md">
+                    <button onClick={() => handleQuantityChange(item.id, -1)} disabled={item.quantity === 1} className="px-3 py-0.5 text-gray-700 hover:bg-gray-100 rounded-l-md disabled:text-gray-300">-</button>
+                    <span className="font-bold text-gray-900 w-8 text-center border-l border-r px-2">{item.quantity}</span>
+                    <button onClick={() => handleQuantityChange(item.id, 1)} className="px-3 py-0.5 text-gray-700 hover:bg-gray-100 rounded-r-md font-semibold">+</button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* --- BOTTOM FIXED SECTION --- */}
+      <div className="flex-shrink-0 p-4 bg-white border-t rounded-sm shadow-[0_-2px_5px_rgba(0,0,0,0.05)] mb-4">
         <div className="flex justify-between items-center mb-3">
           <p className="text-gray-700 text-lg font-medium">Total Amount</p>
           <p className="text-gray-900 text-2xl font-bold">₹{totalAmount.toFixed(2)}</p>
         </div>
-        <CustomButton onClick={handleProceedToPayment} variant={Variant.Filled} className="w-full flex items-center justify-center py-4 text-xl font-semibold">
+      </div>
+      <div className="px-14 py-1 mb-24">
+        <CustomButton onClick={handleProceedToPayment} variant={Variant.Payment} className="w-full flex items-center justify-center py-4 text-xl font-semibold">
           {editModeData ? 'Update Purchase' : 'Proceed to Payment'}
         </CustomButton>
       </div>

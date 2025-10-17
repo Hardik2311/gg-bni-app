@@ -413,32 +413,32 @@ const Journal: React.FC = () => {
                   {invoice.status === 'Unpaid' && (
                     <button
                       onClick={(e) => { e.stopPropagation(); openPaymentModal(invoice); }}
-                      className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                      className="px-4 py-2 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
                     >
                       Settle
                     </button>
                   )}
 
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleEditInvoice(invoice); }}
-                    className="px-4 py-2 text-sm font-medium text-white bg-gray-600 rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
-                  >
-                    Edit
-                  </button>
 
                   {invoice.status === 'Paid' && (
                     <button
                       onClick={(e) => { e.stopPropagation(); promptDeleteInvoice(invoice); }}
-                      className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+                      className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
                     >
                       Delete
                     </button>
                   )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleEditInvoice(invoice); }}
+                    className="px-4 py-2 text-sm font-medium text-white bg-gray-400 rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
+                  >
+                    Edit
+                  </button>
 
                   {invoice.type === 'Credit' && (
                     <button
                       onClick={(e) => { e.stopPropagation(); handleSalesReturn(invoice); }}
-                      className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                      className="px-4 py-2 text-sm font-medium text-white bg-sky-500 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
                     >
                       Return
                     </button>
@@ -446,7 +446,7 @@ const Journal: React.FC = () => {
                   {invoice.type === 'Debit' && (
                     <button
                       onClick={(e) => { e.stopPropagation(); handlePurchaseReturn(invoice); }}
-                      className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors"
+                      className="px-4 py-2 text-sm font-medium text-white bg-sky-500 rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors"
                     >
                       Return
                     </button>
@@ -466,7 +466,7 @@ const Journal: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen w-full flex-col overflow-hidden bg-white shadow-md">
+    <div className="flex min-h-screen w-full flex-col overflow-hidden bg-gray-100 mb-10 ">
       {modal && (
         <Modal
           message={modal.message}
@@ -528,7 +528,7 @@ const Journal: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex justify-center border-b border-gray-500 p-2 mb-4">
+      <div className="flex justify-center border-b border-gray-500 p-2 mb-2">
         <CustomButton variant={Variant.Transparent} active={activeType === 'Credit'} onClick={() => setActiveType('Credit')}>Sales</CustomButton>
         <CustomButton variant={Variant.Transparent} active={activeType === 'Debit'} onClick={() => setActiveType('Debit')}>Purchase</CustomButton>
       </div>
@@ -536,7 +536,7 @@ const Journal: React.FC = () => {
         <CustomToggleItem className="mr-2" onClick={() => setActiveTab('Paid')} data-state={activeTab === 'Paid' ? 'on' : 'off'}>Paid</CustomToggleItem>
         <CustomToggleItem onClick={() => setActiveTab('Unpaid')} data-state={activeTab === 'Unpaid' ? 'on' : 'off'}>Unpaid</CustomToggleItem>
       </CustomToggle>
-      <div className="flex-grow overflow-y-auto bg-slate-100 p-2 space-y-3 pt-4">
+      <div className="flex-grow overflow-y-auto bg-slate-100  space-y-3 pt-4">
         {renderContent()}
       </div>
     </div >

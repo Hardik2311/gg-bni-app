@@ -235,11 +235,9 @@ const PurchaseReturnPage: React.FC = () => {
   const { totalReturnValue, totalNewItemsValue, finalBalance } = useMemo(() => {
     const totalReturnValue = itemsToReturn.reduce((sum, item) => sum + item.amount, 0);
     const totalNewItemsValue = newItemsReceived.reduce((sum, item) => sum + item.amount, 0);
-    const originalAmount = selectedPurchase?.totalAmount || 0;
-    const newBillAmount = originalAmount - totalReturnValue + totalNewItemsValue;
     const finalBalance = totalReturnValue - totalNewItemsValue;
-    return { totalReturnValue, totalNewItemsValue, newBillAmount, finalBalance };
-  }, [itemsToReturn, newItemsReceived, selectedPurchase]);
+    return { totalReturnValue, totalNewItemsValue, finalBalance };
+  }, [itemsToReturn, newItemsReceived]);
 
   const saveReturnTransaction = async (completionData?: Partial<PaymentCompletionData>) => {
     if (!currentUser || !selectedPurchase) return;
@@ -342,7 +340,7 @@ const PurchaseReturnPage: React.FC = () => {
       {modal && <Modal message={modal.message} onClose={() => setModal(null)} type={modal.type} />}
       <BarcodeScanner isOpen={scannerPurpose !== null} onClose={() => setScannerPurpose(null)} onScanSuccess={handleBarcodeScanned} />
 
-      <div className="flex flex-col p-1 bg-white border-b border-gray-200 shadow-sm flex-shrink-0">
+      <div className="flex flex-col p-1 bg-gray-100 border-b border-gray-300 flex-shrink-0">
         <h1 className="text-2xl font-bold text-gray-800 text-center mb-2">Purchase Return</h1>
         <div className="flex justify-center gap-x-6">
           <CustomButton variant={Variant.Transparent} onClick={() => navigate(ROUTES.PURCHASE)} active={isActive(ROUTES.PURCHASE)}>Purchase</CustomButton>
@@ -354,17 +352,17 @@ const PurchaseReturnPage: React.FC = () => {
       <div className="flex-grow p-2 bg-gray-100 ">
         <div className="bg-white p-6 rounded-lg shadow-md mb-2">
           <div className="relative" ref={dropdownRef}>
-            <label htmlFor="search-purchase" className="block text-lg font-medium mb-2">Search Original Purchase</label>
+            <label htmlFor="search-purchase" className="block text-base font-medium mb-2">Search Original Purchase</label>
             <div className="flex gap-2">
               <input
                 type="text" id="search-purchase" value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setIsDropdownOpen(true); }}
                 onFocus={() => setIsDropdownOpen(true)}
                 placeholder={selectedPurchase ? `${selectedPurchase.partyName} (${selectedPurchase.invoiceNumber})` : "Search by Supplier or Invoice"}
-                className="flex-grow p-3 border rounded-lg" autoComplete="off" readOnly={!!selectedPurchase}
+                className="flex-grow p-2 border rounded-lg" autoComplete="off" readOnly={!!selectedPurchase}
               />
               {selectedPurchase && (
-                <button onClick={handleClear} className="py-2 px-4 bg-blue-600 text-white font-semibold rounded-lg">
+                <button onClick={handleClear} className="py-2 px-4 bg-sky-500 text-white font-semibold rounded-lg">
                   Clear
                 </button>
               )}
@@ -402,12 +400,11 @@ const PurchaseReturnPage: React.FC = () => {
                 </div>
               </div>
 
-              <h3 className="text-xl font-semibold mt-3 mb-4">Select Items to Return</h3>
+              <h3 className="text-sm font-semibold mt-4 mb-2">Select Items to Return</h3>
               <div className="flex flex-col gap-3">
                 {originalPurchaseItems.map((item) => {
                   const isSelected = selectedReturnIds.has(item.id);
                   return (
-                    // --- MODIFIED SECTION START ---
                     <div
                       key={item.id}
                       className={`p-3 border rounded-lg flex items-center gap-3 transition-all ${isSelected ? 'bg-red-50 shadow-sm' : 'bg-gray-50'}`}
@@ -469,24 +466,48 @@ const PurchaseReturnPage: React.FC = () => {
                       />
                     </div>
                     <button onClick={() => setScannerPurpose('item')} className="p-3 bg-gray-700 text-white rounded-lg flex items-center justify-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-ท3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>
                     </button>
                   </div>
                   {newItemsReceived.length > 0 && (
-                    <div className="flex flex-col gap-4 mt-4">
-                      <h3 className="text-lg font-semibold mb-2">New Items Received</h3>
+                    <div className="flex flex-col gap-3 mt-4">
+                      <h3 className="text-sm font-semibold">New Items Received</h3>
                       {newItemsReceived.map((item) => (
-                        <div key={item.id} className="grid grid-cols-12 gap-x-2 gap-y-2 items-center p-3 border rounded-lg bg-green-50 shadow-sm">
-                          <div className="col-span-12 font-medium text-gray-800">{item.name}</div>
-                          <input
-                            type="number" value={item.quantity}
-                            onChange={(e) => handleItemChange(setNewItemsReceived, item.id, 'quantity', Number(e.target.value))}
-                            className="col-span-4 p-2 border rounded text-center"
-                          />
-                          <p className="col-span-7 text-center font-semibold border p-2 rounded bg-white">
-                            ₹{item.amount.toFixed(2)}
-                          </p>
-                          <button onClick={() => handleRemoveItem(setNewItemsReceived, item.id)} className="col-span-1 justify-self-center text-red-500 text-2xl hover:text-red-700">&times;</button>
+                        <div key={item.id} className="relative flex flex-col p-2 border rounded-lg bg-white shadow-sm">
+                          <p className="font-semibold text-gray-800 pr-8">{item.name}</p>
+                          <div className="flex justify-between items-center mt-2"><p className="text-sm text-gray-500">₹{item.unitPrice.toFixed(2)}</p></div>
+
+                          <button
+                            onClick={() => handleRemoveItem(setNewItemsReceived, item.id)}
+                            className="absolute top-3 right-3 text-red-500 font-bold text-lg hover:text-red-700"
+                          >
+                            &times;
+                          </button>
+                          <div className="border-t w-full my-2"></div>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <label className="text-sm font-medium text-gray-600">Qty</label>
+                              <div className="flex items-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleItemChange(setNewItemsReceived, item.id, 'quantity', Math.max(1, item.quantity - 1))}
+                                  className="px-3 py-1 text-lg font-bold text-gray-500"
+                                >
+                                  -
+                                </button>
+                                <span className="px-4 py-1 text-center font-semibold text-gray-800">
+                                  {item.quantity}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleItemChange(setNewItemsReceived, item.id, 'quantity', item.quantity + 1)}
+                                  className="px-3 py-1 text-lg font-bold text-gray-500"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -507,9 +528,9 @@ const PurchaseReturnPage: React.FC = () => {
         )}
       </div>
 
-      <div className="sticky bottom-0 p-4 bg-white border-t pb-16">
+      <div className="sticky bottom-0 p-4 bg-gray-100 pb-16 items-center px-16">
         {selectedPurchase && (
-          <CustomButton onClick={handleProcessReturn} variant={Variant.Filled} className="w-full py-4 text-xl font-semibold">
+          <CustomButton onClick={handleProcessReturn} variant={Variant.Payment} className="w-full py-4 text-xl font-semibold">
             Process Transaction
           </CustomButton>
         )}

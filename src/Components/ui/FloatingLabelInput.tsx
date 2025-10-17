@@ -29,7 +29,7 @@ const FloatingLabelInput = React.forwardRef<
       />
       <label
         htmlFor={inputId}
-        className="absolute pointer-events-none left-3 -top-2.5 text-sm text-gray-600 bg-white px-1 transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-base peer-focus:-top-2.5 peer-focus:text-sm"
+        className="absolute pointer-events-none left-3 -top-2.5 text-sm text-gray-600 bg-gray-100 px-1 transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-base peer-focus:-top-2.5 peer-focus:text-sm"
       >
         {label}
         {props.required && <span className="text-red-500">*</span>}

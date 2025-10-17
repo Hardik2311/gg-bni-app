@@ -39,7 +39,7 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({
     initialPartyNumber,
 }) => {
     const { currentUser } = useAuth();
-    const [partyName, setPartyName] = useState('NA');
+    const [partyName, setPartyName] = useState('');
     const [partyNumber, setPartyNumber] = useState('');
     const [discount, setDiscount] = useState(0);
     const [customerCredit, setCustomerCredit] = useState(0);
@@ -74,7 +74,7 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({
         if (isOpen) {
             setDiscount(0);
             setSelectedPayments({});
-            setPartyName(initialPartyName || 'NA');
+            setPartyName(initialPartyName || '');
             setPartyNumber(initialPartyNumber || '');
             setIsDiscountLocked(true);
             setCustomerCredit(0);
@@ -137,10 +137,6 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({
     };
 
     const handleConfirm = async () => {
-        if (!partyName.trim()) {
-            setModal({ message: 'A valid Party Name is required.', type: State.ERROR });
-            return;
-        }
         if (Math.abs(remainingAmount) > 0.01) {
             setModal({ message: `Amount mismatch. Remaining: ₹${remainingAmount.toFixed(2)}`, type: State.ERROR });
             return;
@@ -156,7 +152,7 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({
                 appliedDebit,
             });
 
-            if (partyNumber && partyNumber.length >= 10 && currentUser?.companyId) {
+            if (partyNumber && partyNumber.length >= 20 && currentUser?.companyId) {
                 const customerDocRef = doc(db, 'customers', partyNumber);
                 await setDoc(customerDocRef, {
                     name: partyName, number: partyNumber, companyId: currentUser.companyId,
@@ -223,7 +219,7 @@ const PaymentDrawer: React.FC<PaymentDrawerProps> = ({
                             </div>
                             <input
                                 type="text"
-                                placeholder="Party Name*"
+                                placeholder="Party Name"
                                 value={partyName}
                                 onChange={(e) => setPartyName(e.target.value)}
                                 className="w-full bg-gray-100 p-2 text-sm rounded-sm border-gray-300 focus:ring-blue-500 focus:border-blue-500"

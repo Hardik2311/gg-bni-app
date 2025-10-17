@@ -57,7 +57,7 @@ const SearchableItemInput: React.FC<SearchableItemInputProps> = ({
 
     return (
         <div className="relative" ref={dropdownRef}>
-            <label className="block text-gray-700 text-sm font-medium mb-1">
+            <label className="block text-sm font-medium mb-1">
                 {label}
             </label>
             <input

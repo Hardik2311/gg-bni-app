@@ -16,7 +16,7 @@ const FormattedDateInput: React.FC<{ value: string; onChange: (e: React.ChangeEv
 
     return (
         <div className="relative w-full">
-            <div className="w-full p-2 text-sm border border-slate-300 rounded-md bg-white flex justify-between items-center pointer-events-none">
+            <div className="w-full p-2 text-sm border border-slate-300 rounded-sm bg-white flex justify-between items-center pointer-events-none">
                 <span className={value ? 'text-slate-800' : 'text-slate-400'}>
                     {displayValue}
                 </span>
@@ -126,8 +126,8 @@ export const FilterControls: React.FC = () => {
     };
 
     return (
-        <div className="bg-white p-2 rounded-lg shadow-md w-full max-w-lg mx-auto">
-            <div className="space-y-4">
+        <div className="bg-white p-2 rounded-sm shadow-md w-full max-w-lg mx-auto">
+            <div className="space-y-2">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <Menubar className="sm:col-span-1">
                         <MenubarMenu>
@@ -153,7 +153,7 @@ export const FilterControls: React.FC = () => {
                 <div>
                     <button
                         onClick={handleApply}
-                        className="w-full px-3 py-1 bg-blue-600 text-white font-semibold rounded-md shadow-sm hover:bg-blue-700 transition-colors"
+                        className="w-full px-3 py-1 bg-blue-600 text-white font-semibold rounded-sm shadow-sm hover:bg-blue-700 transition-colors"
                     >
                         Apply
                     </button>

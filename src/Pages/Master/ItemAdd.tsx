@@ -184,7 +184,7 @@ const ItemAdd: React.FC = () => {
       />
 
       {/* Header with Title and Navigation Buttons */}
-      <div className="fixed top-0 left-0 right-0 z-10 p-4 bg-white border-b border-gray-200 shadow-sm flex flex-col">
+      <div className="fixed top-0 left-0 right-0 z-10 p-4 bg-gray-100 border-b border-gray-300  flex flex-col">
         <h1 className="text-2xl font-bold text-gray-800 text-center mb-4">Add Item</h1>
         <div className="flex items-center justify-center gap-6">
           <CustomButton
@@ -205,14 +205,14 @@ const ItemAdd: React.FC = () => {
       </div>
 
       {/* Main content area */}
-      <div className="flex-grow p-4 md:p-6 mt-28 bg-gray-100 w-full overflow-y-auto">
+      <div className="flex-grow p-2 md:p-6 mt-28 bg-gray-100 w-full overflow-y-auto mb-10">
         {error && <div className="mb-4 text-center p-3 bg-red-100 text-red-700 rounded-lg font-medium">{error}</div>}
         {success && <div className="mb-4 text-center p-3 bg-green-100 text-green-700 rounded-lg font-medium">{success}</div>}
 
         {/* Bulk Import Section */}
-        <div className="bg-white p-2 rounded-lg shadow-md mb-6">
-          <div className="flex flex-col items-center justify-center mb-6 pb-6 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-700 mb-2">Bulk Import</h2>
+        <div className="bg-white p-2 rounded-lg shadow-md mb-4">
+          <div className="flex flex-col items-center justify-center mb-4 ">
+            <h2 className="text-lg font-semibold text-gray-700 mb-2">Bulk Import</h2>
             <p className="text-sm text-center text-gray-500 mb-4 max-w-sm">
               Upload an EXCEL file with columns: Name, MRP, Purchase Price, Discount, Tax, Item Group ID, Amount and Barcode, RestockQuantity.
             </p>
@@ -226,7 +226,7 @@ const ItemAdd: React.FC = () => {
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
-              className="w-full max-w-xs bg-sky-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-sky-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center text-lg"
+              className="w-full max-w-xs bg-sky-500 text-white py-2 px-4 rounded-lg font-semibold hover:bg-sky-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center text-lg"
             >
               {isUploading ? 'Uploading...' : 'Import from Excel'}
             </button>
@@ -234,8 +234,8 @@ const ItemAdd: React.FC = () => {
         </div>
 
         {/* Add a Single Item Section */}
-        <div className="bg-white p-6 rounded-lg shadow-md pb-28">
-          <h2 className="text-xl font-semibold text-gray-700 mb-4">Add a Single Item</h2>
+        <div className="bg-white p-6 rounded-lg shadow-md mb-24 ">
+          <h2 className="text-lg font-semibold text-gray-700 mb-4">Add a Single Item</h2>
           <div className="space-y-4">
             {/* Item Name */}
             <div>
@@ -316,7 +316,7 @@ const ItemAdd: React.FC = () => {
       </div>
 
       {/* Sticky Bottom Bar */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-lg flex items-center justify-center pb-18">
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-100 flex items-center justify-center pb-18">
         <button
           onClick={handleAddItem}
           className="bg-sky-500 text-white py-3 px-6 rounded-lg text-lg font-semibold shadow-md hover:bg-sky-600 transition-colors"
