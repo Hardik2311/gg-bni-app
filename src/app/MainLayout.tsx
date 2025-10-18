@@ -6,7 +6,7 @@ import { FloatingButton } from '../Components/FloatingButton';
 import { ROUTES } from '../constants/routes.constants';
 import { useNavigate } from 'react-router-dom';
 import { Permissions } from '../enums';
-import PermissionWrapper from '../context/PermissionWrapper';
+import ShowWrapper from '../context/ShowWrapper';
 
 const MainLayout = () => {
   const location = useLocation();
@@ -29,9 +29,8 @@ const MainLayout = () => {
         >
           Add Sales
         </Button>
-        <PermissionWrapper
+        <ShowWrapper
           requiredPermission={Permissions.ViewTransactions}
-          behavior="hide"
         >
           <Button
             variant="outline"
@@ -40,10 +39,9 @@ const MainLayout = () => {
           >
             Add Purchase
           </Button>
-        </PermissionWrapper>
-        <PermissionWrapper
+        </ShowWrapper>
+        <ShowWrapper
           requiredPermission={Permissions.ManagePayments}
-          behavior="hide"
         >
           <Button
             variant="outline"
@@ -52,11 +50,9 @@ const MainLayout = () => {
           >
             Print Barcode
           </Button>
-        </PermissionWrapper>
-        <PermissionWrapper
-          requiredPermission={Permissions.ViewTransactions}
-          behavior="hide"
-        >
+        </ShowWrapper>
+        <ShowWrapper
+          requiredPermission={Permissions.ViewTransactions}>
           <Button
             variant="outline"
             className="w-full mb-2 rounded"
@@ -64,10 +60,9 @@ const MainLayout = () => {
           >
             Add Item
           </Button>
-        </PermissionWrapper>
-        <PermissionWrapper
+        </ShowWrapper>
+        <ShowWrapper
           requiredPermission={Permissions.ViewPNLReport}
-          behavior="hide"
         >
           <Button
             variant="outline"
@@ -76,7 +71,7 @@ const MainLayout = () => {
           >
             Add User
           </Button>
-        </PermissionWrapper>
+        </ShowWrapper>
       </FloatingButton>
 
       <nav className="fixed bottom-0 left-0 w-full border-t border-slate-200 bg-white">

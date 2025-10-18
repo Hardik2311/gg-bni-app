@@ -7,7 +7,7 @@ import { SalesBarChartReport } from '../Components/SBGraph';
 import { SalesCard } from '../Components/SCard';
 import { TopSoldItemsCard } from '../Components/TFCard';
 import { TopSalespersonCard } from '../Components/TSCard';
-import PermissionWrapper from '../context/PermissionWrapper';
+import ShowWrapper from '../context/ShowWrapper';
 import { Permissions } from '../enums';
 import { FilterControls, FilterProvider } from '../Components/Filter';
 import { PaymentChart } from '../Components/PaymentChart';
@@ -53,7 +53,7 @@ const Home = () => {
             <p className="text-sm text-slate-500">{isLoading ? 'Loading...' : businessName}</p>
           </div>
           <div className="w-14 flex justify-end">
-            <PermissionWrapper requiredPermission={Permissions.ViewSalescard} behavior="hide">
+            <ShowWrapper requiredPermission={Permissions.ViewSalescard}>
               <button
                 onClick={() => setIsDataVisible(!isDataVisible)}
                 className="p-2 rounded-full hover:bg-slate-200 transition-colors"
@@ -65,39 +65,39 @@ const Home = () => {
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" /><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" /><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" /><line x1="2" x2="22" y1="2" y2="22" /></svg>
                 )}
               </button>
-            </PermissionWrapper>
+            </ShowWrapper>
           </div>
         </header>
 
         <main className="flex-grow overflow-y-auto p-2 sm:p-2">
           <div className="mx-auto max-w-7xl">
-            <PermissionWrapper requiredPermission={Permissions.ViewSalescard} behavior="hide">
+            <ShowWrapper requiredPermission={Permissions.ViewSalescard}>
               <div className="mb-2">
                 <FilterControls />
               </div>
-            </PermissionWrapper>
+            </ShowWrapper>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 pb-30">
-              <PermissionWrapper requiredPermission={Permissions.ViewSalescard} behavior="hide">
+              <ShowWrapper requiredPermission={Permissions.ViewSalescard}>
                 <SalesCard isDataVisible={isDataVisible} />
-              </PermissionWrapper>
-              <PermissionWrapper requiredPermission={Permissions.ViewSalesbarchart} behavior="hide">
+              </ShowWrapper>
+              <ShowWrapper requiredPermission={Permissions.ViewSalesbarchart}>
                 <SalesBarChartReport isDataVisible={isDataVisible} />
-              </PermissionWrapper>
-              <PermissionWrapper requiredPermission={Permissions.ViewSalescard} behavior="hide">
+              </ShowWrapper>
+              <ShowWrapper requiredPermission={Permissions.ViewSalescard}>
                 <PaymentChart isDataVisible={isDataVisible} />
-              </PermissionWrapper>
-              <PermissionWrapper requiredPermission={Permissions.ViewTopSoldItems} behavior="hide">
+              </ShowWrapper>
+              <ShowWrapper requiredPermission={Permissions.ViewTopSoldItems} >
                 <TopSoldItemsCard isDataVisible={isDataVisible} />
-              </PermissionWrapper>
-              <PermissionWrapper requiredPermission={Permissions.ViewSalescard} behavior="hide">
+              </ShowWrapper>
+              <ShowWrapper requiredPermission={Permissions.ViewSalescard}>
                 <TopSalespersonCard isDataVisible={isDataVisible} />
-              </PermissionWrapper>
-              <PermissionWrapper requiredPermission={Permissions.ViewAttendance} behavior="hide">
+              </ShowWrapper>
+              <ShowWrapper requiredPermission={Permissions.ViewAttendance} >
                 <AttendancePage />
-              </PermissionWrapper>
-              <PermissionWrapper requiredPermission={Permissions.Viewrestockcard} behavior="hide">
+              </ShowWrapper>
+              <ShowWrapper requiredPermission={Permissions.Viewrestockcard}>
                 <RestockAlertsCard />
-              </PermissionWrapper>
+              </ShowWrapper>
             </div>
           </div>
         </main>
