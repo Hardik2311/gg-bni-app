@@ -47,6 +47,8 @@ const Sales: React.FC = () => {
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const [isDiscountLocked, setIsDiscountLocked] = useState(true);
   const [discountInfo, setDiscountInfo] = useState<string | null>(null);
+  const [isPriceLocked, setIsPriceLocked] = useState(true);
+  const [priceInfo, setPriceInfo] = useState<string | null>(null);
   const [workers, setWorkers] = useState<User[]>([]);
   const [selectedWorker, setSelectedWorker] = useState<User | null>(null);
   const isActive = (path: string) => location.pathname === path;
@@ -214,6 +216,20 @@ const Sales: React.FC = () => {
     if (isDiscountLocked) {
       setDiscountInfo("Cannot edit the discount");
       setTimeout(() => setDiscountInfo(null), 3000);
+    }
+  };
+  const handlePricePressStart = () => {
+    longPressTimer.current = setTimeout(() => setIsPriceLocked(false), 500);
+  };
+
+  const handlePricePressEnd = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  };
+
+  const handlePriceClick = () => {
+    if (isPriceLocked) {
+      setPriceInfo("Cannot edit the price");
+      setTimeout(() => setPriceInfo(null), 3000);
     }
   };
 
@@ -421,9 +437,15 @@ const Sales: React.FC = () => {
             </select>
           </div>
           {discountInfo && (
-            <div className="flex items-center text-sm mt-4 p-3 bg-yellow-100 text-yellow-800 rounded-lg">
+            <div className="flex items-center text-sm bg-red-100 text-red-800 rounded-lg">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
               <span>{discountInfo}</span>
+            </div>
+          )}
+          {priceInfo && (
+            <div className="flex items-center text-sm bg-red-100 text-red-800 rounded-lg">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
+              <span>{priceInfo}</span>
             </div>
           )}
         </div>
@@ -477,17 +499,27 @@ const Sales: React.FC = () => {
                       <div className="flex items-baseline gap-2">
                         <p className="text-sm text-gray-500 line-through">₹{item.mrp.toFixed(2)}</p>
                         <div className="flex items-center">
-                          <span className="text-sm font-semibold text-gray-600 mr-1">₹</span>
-                          <input
-                            type="number"
-                            value={displayPrice}
-                            onChange={(e) => handleCustomPriceChange(item.id, e.target.value)}
-                            onBlur={() => handleCustomPriceBlur(item.id)}
-                            disabled={!item.isEditable}
-                            className="w-16 mr-10 p-1 bg-gray-100 rounded-sm text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-200 disabled:cursor-not-allowed"
-                            step="0.01"
-                            placeholder='Price'
-                          />
+                          <div
+                            className="flex items-center gap-2"
+                            onMouseDown={handlePricePressStart}
+                            onMouseUp={handlePricePressEnd}
+                            onMouseLeave={handlePricePressEnd}
+                            onTouchStart={handlePricePressStart}
+                            onTouchEnd={handlePricePressEnd}
+                            onClick={handlePriceClick}
+                          >
+                            <span className="text-sm font-semibold text-gray-600 mr-1">₹</span>
+                            <input
+                              type="number"
+                              value={displayPrice}
+                              onChange={(e) => handleCustomPriceChange(item.id, e.target.value)}
+                              onBlur={() => handleCustomPriceBlur(item.id)}
+                              readOnly={isPriceLocked || !item.isEditable}
+                              className="w-16 mr-10 p-1 bg-gray-100 rounded-sm text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-200 disabled:cursor-not-allowed"
+                              step="0.01"
+                              placeholder='Price'
+                            />
+                          </div>
                         </div>
                       </div>
                       <p className="text-sm font-medium text-gray-600">Qty</p>

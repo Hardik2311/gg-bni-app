@@ -17,7 +17,6 @@ interface SearchableItemInputProps {
 const SearchableItemInput: React.FC<SearchableItemInputProps> = ({
     items,
     onItemSelected,
-    label,
     placeholder = "Search...",
     isLoading = false,
     error = null
@@ -57,9 +56,6 @@ const SearchableItemInput: React.FC<SearchableItemInputProps> = ({
 
     return (
         <div className="relative" ref={dropdownRef}>
-            <label className="block text-sm font-medium mb-1">
-                {label}
-            </label>
             <input
                 type="text"
                 value={searchQuery}

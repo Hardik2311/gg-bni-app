@@ -1,34 +1,33 @@
-import React from 'react';
 import { useAuth } from '../context/auth-context';
 import AccessDeniedPage from '../Pages/Unauthorized';
-import { Permissions } from '../enums';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Outlet, useMatches } from 'react-router-dom';
 import { ROUTES } from '../constants/routes.constants';
+import { Permissions } from '../enums';
 
-interface WrapperProps {
-    children: React.ReactNode;
-    requiredPermission?: Permissions;
-    behavior?: 'showPage' | 'hide';
+interface RouteHandle {
     isPublic?: boolean;
+    requiredPermission?: Permissions | null;
 }
 
-const PermissionWrapper = ({ children, requiredPermission, behavior = 'showPage', isPublic = false }: WrapperProps) => {
+const PermissionWrapper = () => {
     const { currentUser, hasPermission } = useAuth();
-    const redirectPath = ROUTES.LANDING;
+    const matches = useMatches();
 
-    if (isPublic) {
-        return currentUser ? <Navigate to={ROUTES.HOME} replace /> : <>{children}</>;
+    const routeConfig = matches[matches.length - 1]?.handle as RouteHandle | undefined;
+
+    if (routeConfig?.isPublic) {
+        return currentUser ? <Navigate to={ROUTES.HOME} replace /> : <Outlet />;
     }
 
     if (!currentUser) {
-        return <Navigate to={redirectPath} replace />;
+        return <Navigate to={ROUTES.LANDING} replace />;
     }
 
-    if (requiredPermission && !hasPermission(requiredPermission)) {
-        return behavior === 'showPage' ? <AccessDeniedPage /> : null;
+    if (routeConfig?.requiredPermission && !hasPermission(routeConfig.requiredPermission)) {
+        return <AccessDeniedPage />;
     }
 
-    return <>{children}</>;
-}
+    return <Outlet />;
+};
 
 export default PermissionWrapper;

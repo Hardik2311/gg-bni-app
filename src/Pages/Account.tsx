@@ -1,39 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom'; // Import Outlet
-import { useAuth } from '../context/auth-context'; // Import useAuth hook
-import { logoutUser } from '../lib/auth_operations'; // Import logout function
-import { db } from '../lib/firebase'; // Import Firestore database instance
+import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../context/auth-context';
+import { logoutUser } from '../lib/auth_operations';
+import { db } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { ROUTES } from '../constants/routes.constants'; // Import routes for navigation
-import { Permissions } from '../enums'; // Import Permissions enum
-import PermissionWrapper from '../context/PermissionWrapper'; // Import PermissionWrapper
+import { ROUTES } from '../constants/routes.constants';
+import { Permissions } from '../enums';
+import ShowWrapper from '../context/ShowWrapper';
 
-// Define a type for the user profile data
 interface UserProfile {
   name: string;
   email: string;
-  // Add other fields from your Firestore user document here
 }
 
 const Account: React.FC = () => {
   const navigate = useNavigate();
 
-  const { currentUser, loading: loadingAuth } = useAuth(); // Get user and auth loading state
+  const { currentUser, loading: loadingAuth } = useAuth();
   const [profileData, setProfileData] = useState<UserProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // useEffect to fetch user data from Firestore
   useEffect(() => {
     const fetchUserProfile = async () => {
-      // First, check if auth state is still loading or no user is logged in
       if (loadingAuth) {
         return;
       }
       if (!currentUser) {
         setLoadingProfile(false);
         setError('No user is currently logged in.');
-        navigate(ROUTES.LOGIN); // Redirect to login if currentUser is null
+        navigate(ROUTES.LOGIN);
         return;
       }
 
@@ -58,26 +54,23 @@ const Account: React.FC = () => {
     };
 
     fetchUserProfile();
-  }, [currentUser, loadingAuth, navigate]); // Rerun effect when auth state changes
+  }, [currentUser, loadingAuth, navigate]);
 
-  // Function to handle logout logic
+
   const handleLogout = async () => {
     try {
-      await logoutUser(); // Call the imported logout function
-      navigate(ROUTES.LANDING); // Redirect to the landing page
+      await logoutUser();
+      navigate(ROUTES.LANDING);
     } catch (err) {
       console.error('Logout failed:', err);
-      // You can add a user-facing alert here
+
     }
   };
 
-  // Function to handle edit profile
   const handleEditProfile = () => {
-    // Navigate to the nested edit profile route
     navigate(`${ROUTES.EDIT_PROFILE}`);
   };
 
-  // Conditional rendering for different states
   if (loadingAuth || loadingProfile) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 text-slate-500">
@@ -102,27 +95,20 @@ const Account: React.FC = () => {
     );
   }
 
-  // Render the actual content once data is loaded
   return (
     <div className="flex min-h-screen flex-col bg-gray-100">
-      {/* --- MODIFIED HEADER SECTION STARTS HERE --- */}
       <div className="bg-gray-100 p-6 pb-4 border-b border-gray-300">
         <h1 className="text-4xl text-center font-bold text-slate-800 mb-4">Account</h1>
 
-        {/* Centered Profile Info */}
         <div className="flex flex-col items-center">
-          {/* Profile Picture with Settings Gear */}
           <div className="relative mb-4">
-            {/* Your Original Profile Picture */}
             <img
               className="w-28 h-28 rounded-full object-cover border-4 border-white shadow-lg"
               src="https://github.com/shadcn.png"
               alt="Profile"
             />
-            {/* Your Original Pulsing Border */}
             <div className="absolute top-0 left-0 right-0 bottom-0 border-2 border-green-500 rounded-full animate-pulse"></div>
 
-            {/* Settings Gear Button */}
             <button
               onClick={handleEditProfile}
               className="absolute -top-1 -right-1 bg-white p-1.5 rounded-full shadow-lg hover:bg-gray-200 transition focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center justify-center"
@@ -149,7 +135,6 @@ const Account: React.FC = () => {
             </button>
           </div>
 
-          {/* Name and Email */}
           <h2 className="text-2xl font-semibold text-slate-900">
             {profileData.name}
           </h2>
@@ -157,15 +142,12 @@ const Account: React.FC = () => {
         </div>
       </div>
 
-      {/* Share Your Business Card Section */}
       <div className="flex-1 bg-gray-100 p-2">
         <div className="w-full">
           <h2 className="text-xl font-semibold text-slate-800 mb-4">
             Share your Business Card
           </h2>
-          {/* Scrollable Container */}
           <div className="flex space-x-4 overflow-x-auto pb-4 mb-4">
-            {/* Business Card 1 */}
             <div className="flex-shrink-0 w-40 bg-white rounded-sm shadow p-4 h-32 flex flex-col justify-between">
               <p className="font-semibold text-gray-800">Business Card 1</p>
               <button className="self-end focus:outline-none">
@@ -186,7 +168,6 @@ const Account: React.FC = () => {
               </button>
             </div>
 
-            {/* Business Card 2 */}
             <div className="flex-shrink-0 w-40 bg-white rounded-sm shadow p-4 h-32 flex flex-col justify-between">
               <p className="font-semibold text-gray-800">Business Card 2</p>
               <button className="self-end focus:outline-none">
@@ -207,7 +188,6 @@ const Account: React.FC = () => {
               </button>
             </div>
 
-            {/* Business Card 3 */}
             <div className="flex-shrink-0 w-40 bg-white rounded-sm shadow p-4 h-32 flex flex-col justify-between">
               <p className="font-semibold text-gray-800">Business Card 3</p>
               <button className="self-end focus:outline-none">
@@ -230,9 +210,8 @@ const Account: React.FC = () => {
           </div>
           <div className="w-full flex grid grid-cols-2 gap-4 justify-center mt-2 space-y-2 flex-col">
 
-            <PermissionWrapper
+            <ShowWrapper
               requiredPermission={Permissions.ViewPNLReport}
-              behavior="hide"
             >
               <Link
                 to={ROUTES.REPORTS}
@@ -258,7 +237,7 @@ const Account: React.FC = () => {
                 <span className="text-lg font-medium">Setting</span>
                 <span className="text-xl text-gray-600">→</span>
               </Link>
-            </PermissionWrapper>
+            </ShowWrapper>
           </div>
           <div className="mt-2 flex justify-center">
             <button
