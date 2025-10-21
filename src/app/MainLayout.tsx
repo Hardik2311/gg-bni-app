@@ -6,15 +6,16 @@ import { FloatingButton } from '../Components/FloatingButton';
 import { ROUTES } from '../constants/routes.constants';
 import { useNavigate } from 'react-router-dom';
 import { Permissions } from '../enums';
-import PermissionWrapper from '../context/PermissionWrapper';
+import ShowWrapper from '../context/ShowWrapper';
 
 const MainLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
   return (
-    <>
-      <main style={{ padding: '1rem', paddingBottom: '60px' }}>
+    <div className="h-dvh w-screen flex flex-col overflow-hidden bg-gray-100">
+
+      <main className="flex-1 min-h-0 overflow-y-auto p-4">
         <Suspense fallback={<div>Loading...</div>}>
           <Outlet />
         </Suspense>
@@ -28,9 +29,8 @@ const MainLayout = () => {
         >
           Add Sales
         </Button>
-        <PermissionWrapper
+        <ShowWrapper
           requiredPermission={Permissions.ViewTransactions}
-          behavior="hide"
         >
           <Button
             variant="outline"
@@ -39,23 +39,20 @@ const MainLayout = () => {
           >
             Add Purchase
           </Button>
-        </PermissionWrapper>
-        <PermissionWrapper
-          requiredPermission={Permissions.ViewTransactions}
-          behavior="hide"
+        </ShowWrapper>
+        <ShowWrapper
+          requiredPermission={Permissions.ManagePayments}
         >
           <Button
             variant="outline"
             className="w-full mb-2 rounded"
-            onClick={() => navigate(`${ROUTES.PAYMENT}`)}
+            onClick={() => navigate(`${ROUTES.PRINTQR}`)}
           >
-            Add Payments
+            Print Barcode
           </Button>
-        </PermissionWrapper>
-        <PermissionWrapper
-          requiredPermission={Permissions.ViewTransactions}
-          behavior="hide"
-        >
+        </ShowWrapper>
+        <ShowWrapper
+          requiredPermission={Permissions.ViewTransactions}>
           <Button
             variant="outline"
             className="w-full mb-2 rounded"
@@ -63,10 +60,9 @@ const MainLayout = () => {
           >
             Add Item
           </Button>
-        </PermissionWrapper>
-        <PermissionWrapper
+        </ShowWrapper>
+        <ShowWrapper
           requiredPermission={Permissions.ViewPNLReport}
-          behavior="hide"
         >
           <Button
             variant="outline"
@@ -75,7 +71,7 @@ const MainLayout = () => {
           >
             Add User
           </Button>
-        </PermissionWrapper>
+        </ShowWrapper>
       </FloatingButton>
 
       <nav className="fixed bottom-0 left-0 w-full border-t border-slate-200 bg-white">
@@ -84,7 +80,7 @@ const MainLayout = () => {
             <Link
               key={to}
               to={to}
-              className={`flex-1 flex flex-row items-center justify-center gap-1 py-2 rounded-lg text-sm transition-colors border border-[rgba(0,0,0,0.15)] duration-200 ${location.pathname === to ? 'bg-sky-500 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+              className={`flex-1 flex flex-row items-center justify-center gap-1 py-2 rounded-sm text-sm transition-colors border border-[rgba(0,0,0,0.15)] duration-200 ${location.pathname === to ? 'bg-sky-500 text-white' : 'text-black-500 hover:bg-gray-100'}`}
             >
               <div>{icon}</div>
               <span className="font-medium">{label}</span>
@@ -92,7 +88,7 @@ const MainLayout = () => {
           ))}
         </div>
       </nav>
-    </>
+    </div>
   );
 };
 

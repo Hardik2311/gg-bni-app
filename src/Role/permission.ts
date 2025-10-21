@@ -33,4 +33,5 @@ export interface User {
     name: string;
     role: Role;
     permissions: Permissions[];
+    companyId: string;
 }

@@ -1,31 +1,33 @@
-import React from 'react';
-import { useAuth } from '../context/auth-context'; // Or your new hook path
-import Loading from '../Pages/Loading/Loading';
+import { useAuth } from '../context/auth-context';
 import AccessDeniedPage from '../Pages/Unauthorized';
-import { Permissions } from '../enums';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Outlet, useMatches } from 'react-router-dom';
 import { ROUTES } from '../constants/routes.constants';
+import { Permissions } from '../enums';
 
-interface WrapperProps {
-    children: React.ReactNode;
-    requiredPermission: Permissions;
-    behavior?: 'showPage' | 'hide';
+interface RouteHandle {
+    isPublic?: boolean;
+    requiredPermission?: Permissions | null;
 }
 
-const PermissionWrapper = ({ children, requiredPermission, behavior = 'showPage' }: WrapperProps) => {
-    const { currentUser, loading, hasPermission } = useAuth();
-    let redirectPath = ROUTES.LANDING;
+const PermissionWrapper = () => {
+    const { currentUser, hasPermission } = useAuth();
+    const matches = useMatches();
 
-    if (loading) {
-        return <Loading />;
+    const routeConfig = matches[matches.length - 1]?.handle as RouteHandle | undefined;
+
+    if (routeConfig?.isPublic) {
+        return currentUser ? <Navigate to={ROUTES.HOME} replace /> : <Outlet />;
     }
+
     if (!currentUser) {
-        return <Navigate to={redirectPath} replace />;
+        return <Navigate to={ROUTES.LANDING} replace />;
     }
-    else if (!hasPermission(requiredPermission)) {
-        return behavior === 'showPage' ? <AccessDeniedPage /> : null;
-    };
 
-    return <>{children}</>;
-}
+    if (routeConfig?.requiredPermission && !hasPermission(routeConfig.requiredPermission)) {
+        return <AccessDeniedPage />;
+    }
+
+    return <Outlet />;
+};
+
 export default PermissionWrapper;

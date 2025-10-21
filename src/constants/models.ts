@@ -16,6 +16,8 @@ export interface Item {
   hsnSac?: string; // HSN/SAC code
   gst?: number; // GST percentage
   unit?: string; // Unit of measure (e.g., Pcs.)
+  companyId?: string | null; // Link to Company
+  restockQuantity: number;
 }
 
 export interface ItemGroup {
@@ -31,6 +33,27 @@ export interface PurchaseItem {
   name: string;
   purchasePrice: number;
   quantity: number;
+}
+export interface Purchase {
+  id: string;
+  userId: string;
+  partyName: string;
+  partyNumber: string;
+  invoiceNumber: string;
+  discount: number;
+  items: {
+    id: string;
+    name: string;
+    purchasePrice: number;
+    quantity: number;
+  }[];
+  totalAmount: number;
+  paymentMethods: {
+    method: string;
+    amount: number;
+  }[];
+  createdAt: any; // Or import firebase.firestore.Timestamp
+  companyId: string;
 }
 
 export interface PaymentMode {
@@ -64,5 +87,7 @@ export interface SalesItem {
   name: string;
   mrp: number;
   quantity: number;
-  discount: number; // Store as a number (e.g., 10 for 10%)
+  discount?: number; // ++ ADD THIS LINE ++
+  discountPercentage?: number; // ++ ADD THIS LINE ++
+  finalPrice?: number;
 }

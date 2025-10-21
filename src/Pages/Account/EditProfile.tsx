@@ -4,6 +4,7 @@ import { db, auth } from '../../lib/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
 import { useAuth } from '../../context/auth-context';
+import { FloatingLabelInput } from '../../Components/ui/FloatingLabelInput';
 
 // --- Data Types ---
 interface ProfileData {
@@ -138,9 +139,9 @@ const EditProfilePage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
-      <div className="max-w-3xl mx-auto bg-white p-6 rounded-xl shadow-md">
-        <div className="flex items-center justify-between pb-4 border-b border-gray-200 mb-6">
+    <div className="min-h-screen bg-gray-100 sm:p-6">
+      <div className="max-w-3xl mx-auto bg-gray-100 p-2 rounded-xl ">
+        <div className="flex items-center justify-between pb-2 border-b border-gray-200 mb-2">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Edit Profile</h1>
           <button onClick={() => navigate(-1)} className="rounded-full bg-gray-200 p-2 text-gray-700 transition hover:bg-gray-300">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
@@ -152,37 +153,41 @@ const EditProfilePage: React.FC = () => {
           <fieldset>
             <legend className="text-xl font-semibold text-gray-700 mb-4">Owner Details</legend>
             <div className="space-y-4">
-              <input name="name" value={formData.name || ''} onChange={handleInputChange} placeholder="Your Full Name" className="w-full p-3 border rounded-md" />
+              <FloatingLabelInput type="text" name="name" value={formData.name || ''} onChange={handleInputChange} label="Your Full Name" />
             </div>
           </fieldset>
 
           {/* Business Info Section */}
           <fieldset>
             <legend className="text-xl font-semibold text-gray-700 mb-4">Business Information</legend>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <input name="businessName" value={formData.businessName || ''} onChange={handleInputChange} placeholder="Business Name" className="w-full p-3 border rounded-md md:col-span-2" />
-              <input name="businessType" value={formData.businessType || ''} onChange={handleInputChange} placeholder="Business Type" className="w-full p-3 border rounded-md" />
-              <input name="businessCategory" value={formData.businessCategory || ''} onChange={handleInputChange} placeholder="Business Category" className="w-full p-3 border rounded-md" />
-              <input name="registrationNumber" value={formData.registrationNumber || ''} onChange={handleInputChange} placeholder="Registration Number" className="w-full p-3 border rounded-md" />
-              <input name="gstin" value={formData.gstin || ''} onChange={handleInputChange} placeholder="GSTIN (Optional)" className="w-full p-3 border rounded-md" />
+            <div className="grid grid-cols-2 md:grid-cols-2 gap-6 mb-6">
+              <div className="md:col-span-2">
+                <FloatingLabelInput type="text" name="businessName" value={formData.businessName || ''} onChange={handleInputChange} label="Business Name" />
+              </div>
+              <FloatingLabelInput type="text" name="businessType" value={formData.businessType || ''} onChange={handleInputChange} label="Business Type" />
+              <FloatingLabelInput type="text" name="businessCategory" value={formData.businessCategory || ''} onChange={handleInputChange} label="Business Category" />
+              <FloatingLabelInput type="text" name="registrationNumber" value={formData.registrationNumber || ''} onChange={handleInputChange} label="Registration No." />
             </div>
+            <FloatingLabelInput type="text" name="gstin" value={formData.gstin || ''} onChange={handleInputChange} label="GSTIN (Optional)" />
           </fieldset>
 
           {/* Business Address Section */}
           <fieldset>
-            <legend className="text-xl font-semibold text-gray-700 mb-4">Business Address</legend>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <textarea name="streetAddress" value={formData.streetAddress || ''} onChange={handleInputChange} placeholder="Street Address" rows={3} className="w-full p-3 border rounded-md md:col-span-2"></textarea>
-              <input name="city" value={formData.city || ''} onChange={handleInputChange} placeholder="City" className="w-full p-3 border rounded-md" />
-              <input name="state" value={formData.state || ''} onChange={handleInputChange} placeholder="State" className="w-full p-3 border rounded-md" />
-              <input name="postalCode" value={formData.postalCode || ''} onChange={handleInputChange} placeholder="Postal Code" className="w-full p-3 border rounded-md" />
+            <legend className="text-xl font-semibold text-gray-700 mb-2">Business Address</legend>
+            <div className="grid grid-cols-2 md:grid-cols-2 gap-6">
+              <div className="md:col-span-2">
+                <FloatingLabelInput name="streetAddress" value={formData.streetAddress || ''} onChange={handleInputChange} label="Street Address" />
+              </div>
+              <FloatingLabelInput type="text" name="city" value={formData.city || ''} onChange={handleInputChange} label="City" />
+              <FloatingLabelInput type="text" name="state" value={formData.state || ''} onChange={handleInputChange} label="State" />
+              <FloatingLabelInput type="text" name="postalCode" value={formData.postalCode || ''} onChange={handleInputChange} label="Postal Code" />
             </div>
           </fieldset>
 
           {submitError && <p className="text-sm text-center text-red-600">{submitError}</p>}
           {submitSuccess && <p className="text-sm text-center text-green-600">{submitSuccess}</p>}
 
-          <div className="flex justify-end pt-2">
+          <div className="flex justify-end ">
             <button type="submit" disabled={isSubmitting} className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-400">
               {isSubmitting ? 'Saving...' : 'Save All Changes'}
             </button>

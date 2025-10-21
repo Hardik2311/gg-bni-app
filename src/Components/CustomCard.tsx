@@ -2,7 +2,8 @@ import React from 'react';
 
 const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
 
-interface CustomCardProps {
+// MODIFIED: Extend React.HTMLAttributes<HTMLDivElement>
+interface CustomCardProps extends React.HTMLAttributes<HTMLDivElement> {
     children: React.ReactNode;
     className?: string;
 }
@@ -13,7 +14,7 @@ const CustomCard = React.forwardRef<HTMLDivElement, CustomCardProps>(
             <div
                 ref={ref}
                 className={cn(
-                    'mb-4 flex flex-col rounded-lg border border-slate-200 bg-white p-6 shadow-sm',
+                    'mb-4 flex flex-col rounded-sm border border-slate-200 bg-white p-6 shadow-sm',
                     className,
                 )}
                 {...props}

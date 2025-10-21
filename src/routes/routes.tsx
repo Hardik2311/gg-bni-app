@@ -32,7 +32,7 @@ const PurchaseReport = lazy(() => import('../Pages/Reports/PurchaseReport'));
 const PnlReport = lazy(() => import('../Pages/Reports/PNLReport'));
 const BusInfo = lazy(() => import('../Pages/Auth/BusInfo'));
 const BusAddress = lazy(() => import('../Pages/Auth/BusAddress'));
-const Payment = lazy(() => import('../Pages/Master/Payment'));
+const PrintQR = lazy(() => import('../Pages/Master/PrintQR'));
 const Permissionsetting = lazy(() => import('../Pages/Settings/Permissionsetting'));
 const UnauthorizedPage = lazy(() => import('../Pages/Unauthorized'));
 const SalesSettingsPage = lazy(() => import('../Pages/Settings/SalesSetting'));
@@ -41,202 +41,159 @@ const History = lazy(() => import('../UseComponents/historypage'));
 
 const router = createBrowserRouter([
   {
-    path: ROUTES.HOME,
-    element: (
-      <PermissionWrapper requiredPermission={Permissions.ViewDashboard}>
-        <MainLayout />
-      </PermissionWrapper>
-    ),
+    element: <PermissionWrapper />,
     children: [
       {
-        index: true,
-        element: (
-          <PermissionWrapper requiredPermission={Permissions.ViewDashboard}>
-            <Home />
-          </PermissionWrapper>
-        ),
+        children: [
+          {
+            path: ROUTES.LANDING,
+            element: <Landing />,
+            handle: { isPublic: true },
+          },
+          {
+            path: ROUTES.SIGNUP,
+            element: <Signup />,
+            handle: { isPublic: true },
+          },
+          {
+            path: ROUTES.BUSINESS_INFO,
+            element: <BusInfo />,
+            handle: { isPublic: true },
+          },
+          {
+            path: ROUTES.BUSINESS_ADDRESS,
+            element: <BusAddress />,
+            handle: { isPublic: true },
+          },
+          {
+            path: ROUTES.LOGIN,
+            element: <Login />,
+            handle: { isPublic: true },
+          },
+        ],
       },
       {
-        path: ROUTES.ACCOUNT.substring(1),
-        element: (
-          <PermissionWrapper requiredPermission={Permissions.ManageEditProfile}>
-            <Account />
-          </PermissionWrapper>
-        ),
+        path: ROUTES.HOME,
+        element: <MainLayout />,
+        handle: { requiredPermission: Permissions.ViewDashboard },
+        children: [
+          {
+            index: true,
+            element: <Home />,
+            handle: { requiredPermission: Permissions.ViewDashboard },
+          },
+          {
+            path: ROUTES.ACCOUNT.substring(1),
+            element: <Account />,
+            handle: { requiredPermission: Permissions.ManageEditProfile },
+          },
+          {
+            path: ROUTES.EDIT_PROFILE,
+            element: <EditProfile />,
+            handle: { requiredPermission: Permissions.ManageEditProfile },
+          },
+          {
+            path: ROUTES.JOURNAL.substring(1),
+            element: <Journal />,
+            handle: { requiredPermission: Permissions.ViewTransactions },
+          },
+          {
+            path: ROUTES.MASTERS.substring(1),
+            element: <Masters />,
+            handle: { requiredPermission: Permissions.ManageUsers },
+          },
+          {
+            path: ROUTES.SALES,
+            element: <Sales />,
+            handle: { requiredPermission: Permissions.CreateSales },
+          },
+          {
+            path: ROUTES.SALES_RETURN,
+            element: <SalesReturn />,
+            handle: { requiredPermission: Permissions.CreateSalesReturn },
+          },
+          {
+            path: ROUTES.PURCHASE,
+            element: <Purchase />,
+            handle: { requiredPermission: Permissions.CreatePurchase },
+          },
+          {
+            path: ROUTES.PURCHASE_RETURN,
+            element: <PurchaseReturn />,
+            handle: { requiredPermission: Permissions.CreatePurchaseReturn },
+          },
+          {
+            path: ROUTES.PRINTQR,
+            element: <PrintQR />,
+            handle: { requiredPermission: Permissions.ManagePayments },
+          },
+          {
+            path: ROUTES.ITEM_ADD,
+            element: <ItemAdd />,
+            handle: { requiredPermission: Permissions.ManageItems },
+          },
+          {
+            path: ROUTES.ITEM_GROUP,
+            element: <ItemGroup />,
+            handle: { requiredPermission: Permissions.ManageItemGroup },
+          },
+          {
+            path: ROUTES.USER_ADD,
+            element: <UserAdd />,
+            handle: { requiredPermission: Permissions.CreateUsers },
+          },
+          {
+            path: ROUTES.REPORTS.substring(1),
+            element: <Reports />,
+            handle: { requiredPermission: Permissions.ViewItemReport },
+          },
+          {
+            path: ROUTES.ITEM_REPORT,
+            element: <ItemReport />,
+            handle: { requiredPermission: Permissions.ViewItemReport },
+          },
+          {
+            path: ROUTES.SALES_REPORT,
+            element: <SalesReport />,
+            handle: { requiredPermission: Permissions.ViewSalesReport },
+          },
+          {
+            path: ROUTES.PURCHASE_REPORT,
+            element: <PurchaseReport />,
+            handle: { requiredPermission: Permissions.ViewPurchaseReport },
+          },
+          {
+            path: ROUTES.PNL_REPORT,
+            element: <PnlReport />,
+            handle: { requiredPermission: Permissions.ViewPNLReport },
+          },
+          {
+            path: ROUTES.PERMSETTING,
+            element: <Permissionsetting />,
+            handle: { requiredPermission: Permissions.SetPermissions },
+          },
+          {
+            path: ROUTES.HISTORY,
+            element: <History />,
+            handle: { requiredPermission: null },
+          },
+          {
+            path: ROUTES.SALESETTING,
+            element: <SalesSettingsPage />,
+            handle: { requiredPermission: null },
+          },
+          {
+            path: ROUTES.PURCHASESETTING,
+            element: <PurchaseSettingsPage />,
+            handle: { requiredPermission: null },
+          },
+        ],
       },
       {
-        path: ROUTES.EDIT_PROFILE,
-        element: (
-          <PermissionWrapper requiredPermission={Permissions.ManageEditProfile}>
-            <EditProfile />
-          </PermissionWrapper>
-        ),
-      },
-      {
-        path: ROUTES.JOURNAL.substring(1),
-        element: (
-          <PermissionWrapper requiredPermission={Permissions.ViewTransactions}>
-            <Journal />
-          </PermissionWrapper>
-        ),
-      },
-      {
-        path: ROUTES.MASTERS.substring(1),
-        element: (
-          <PermissionWrapper requiredPermission={Permissions.ManageUsers}>
-            <Masters />
-          </PermissionWrapper>
-        ),
-      },
-      {
-        path: ROUTES.SALES,
-        element: (
-          <PermissionWrapper requiredPermission={Permissions.CreateSales}>
-            <Sales />
-          </PermissionWrapper>
-        ),
-      },
-      {
-        path: ROUTES.SALES_RETURN,
-        element: (
-          <PermissionWrapper requiredPermission={Permissions.CreateSalesReturn}>
-            <SalesReturn />
-          </PermissionWrapper>
-        ),
-      },
-      {
-        path: ROUTES.PURCHASE,
-        element: (
-          <PermissionWrapper requiredPermission={Permissions.CreatePurchase}>
-            <Purchase />
-          </PermissionWrapper>
-        ),
-      },
-      {
-        path: ROUTES.PURCHASE_RETURN,
-        element: (
-          <PermissionWrapper requiredPermission={Permissions.CreatePurchaseReturn}>
-            <PurchaseReturn />
-          </PermissionWrapper>
-        ),
-      },
-      {
-        path: ROUTES.PAYMENT,
-        element: (
-          <PermissionWrapper requiredPermission={Permissions.ManagePayments}>
-            <Payment />
-          </PermissionWrapper>
-        ),
-      },
-      {
-        path: ROUTES.ITEM_ADD,
-        element: (
-          <PermissionWrapper requiredPermission={Permissions.ManageItems}>
-            <ItemAdd />
-          </PermissionWrapper>
-        ),
-      },
-      {
-        path: ROUTES.ITEM_GROUP,
-        element: (
-          <PermissionWrapper requiredPermission={Permissions.ManageItemGroup}>
-            <ItemGroup />
-          </PermissionWrapper>
-        ),
-      },
-      {
-        path: ROUTES.USER_ADD,
-        element: (
-          <PermissionWrapper requiredPermission={Permissions.CreateUsers}>
-            <UserAdd />
-          </PermissionWrapper>
-        ),
-      },
-      {
-        path: ROUTES.REPORTS.substring(1),
-        element: (
-          <PermissionWrapper requiredPermission={Permissions.ViewItemReport}>
-            <Reports />
-          </PermissionWrapper>
-        ),
-      },
-      {
-        path: ROUTES.ITEM_REPORT,
-        element: (
-          <PermissionWrapper requiredPermission={Permissions.ViewItemReport}>
-            <ItemReport />
-          </PermissionWrapper>
-        ),
-      },
-      {
-        path: ROUTES.SALES_REPORT,
-        element: (
-          <PermissionWrapper requiredPermission={Permissions.ViewSalesReport}>
-            <SalesReport />
-          </PermissionWrapper>
-        ),
-      },
-      {
-        path: ROUTES.PURCHASE_REPORT,
-        element: (
-          <PermissionWrapper requiredPermission={Permissions.ViewPurchaseReport}>
-            <PurchaseReport />
-          </PermissionWrapper>
-        ),
-      },
-      {
-        path: ROUTES.PNL_REPORT,
-        element: (
-          <PermissionWrapper requiredPermission={Permissions.ViewPNLReport}>
-            <PnlReport />
-          </PermissionWrapper>
-        ),
-      },
-      {
-        path: ROUTES.PERMSETTING,
-        element: (
-          <PermissionWrapper requiredPermission={Permissions.SetPermissions}>
-            <Permissionsetting />
-          </PermissionWrapper>
-        ),
-      },
-      {
-        path: ROUTES.HISTORY,
-        element: <History />,
-      },
-      {
-        path: ROUTES.SALESETTING,
-        element: <SalesSettingsPage />,
-      },
-      {
-        path: ROUTES.PURCHASESETTING,
-        element: <PurchaseSettingsPage />,
+        path: ROUTES.UNAUTHORIZED,
+        element: <UnauthorizedPage />,
       },
     ],
-  },
-  {
-    path: ROUTES.UNAUTHORIZED,
-    element: <UnauthorizedPage />,
-  },
-  {
-    path: ROUTES.LANDING,
-    element: <Landing />,
-  },
-  {
-    path: ROUTES.SIGNUP,
-    element: <Signup />,
-  },
-  {
-    path: ROUTES.BUSINESS_INFO,
-    element: <BusInfo />,
-  },
-  {
-    path: ROUTES.BUSINESS_ADDRESS,
-    element: <BusAddress />,
-  },
-  {
-    path: ROUTES.LOGIN,
-    element: <Login />,
   },
 ]);
 const AppRouter: React.FC = () => {

@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '../context/auth-context';
+import { useState, useEffect, useMemo } from 'react';
 import { db } from '../lib/firebase';
 import {
   collection,
@@ -9,7 +8,8 @@ import {
   Timestamp,
   orderBy,
 } from 'firebase/firestore';
-import { Line, LineChart, CartesianGrid, LabelList, XAxis } from 'recharts';
+import { useAuth } from '../context/auth-context';
+import { Line, LineChart, CartesianGrid, YAxis } from 'recharts';
 import {
   Card,
   CardContent,
@@ -22,21 +22,30 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from './ui/chart';
 import type { ChartConfig } from './ui/chart';
 import { useFilter } from './Filter';
 
-// --- Type Definitions ---
+// --- Interfaces ---
 interface SaleRecord {
   totalAmount: number;
   createdAt: { toDate: () => Date };
+  companyId: string;
 }
 interface ChartData {
   date: string;
   sales: number;
+  bills: number; // To store the count of bills
 }
+
+// --- Chart Configuration ---
 const chartConfig = {
   sales: {
-    label: 'Sales Amount',
-    color: 'var(--chart-1)',
+    label: 'Sales',
+    color: '#3b82f6',
+  },
+  bills: {
+    label: 'Bills',
+    color: '#3b82f6',
   },
 } satisfies ChartConfig;
+
 
 interface SalesBarChartReportProps {
   isDataVisible: boolean;
@@ -44,19 +53,15 @@ interface SalesBarChartReportProps {
 
 export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps) {
   const { currentUser } = useAuth();
-  const { filters } = useFilter(); // ✅ Use the global filter
+  const { filters } = useFilter();
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'amount' | 'quantity'>('amount');
 
   useEffect(() => {
     const fetchSalesData = async () => {
-      if (!currentUser) {
-        setIsLoading(false);
-        setError('Please log in to view sales data.');
-        return;
-      }
-      if (!filters.startDate || !filters.endDate) {
+      if (!currentUser?.companyId || !filters.startDate || !filters.endDate) {
         setIsLoading(false);
         setChartData([]);
         return;
@@ -64,76 +69,123 @@ export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps)
       setIsLoading(true);
       setError(null);
 
-      // ✅ Use dates from the global filter
       const start = new Date(filters.startDate);
       start.setHours(0, 0, 0, 0);
       const end = new Date(filters.endDate);
       end.setHours(23, 59, 59, 999);
 
-      const startTimestamp = Timestamp.fromDate(start);
-      const endTimestamp = Timestamp.fromDate(end);
-
       try {
-        const salesCollection = collection(db, 'sales');
         const salesQuery = query(
-          salesCollection,
-          where('createdAt', '>=', startTimestamp),
-          where('createdAt', '<=', endTimestamp),
+          collection(db, 'sales'),
+          where('companyId', '==', currentUser.companyId),
+          where('createdAt', '>=', Timestamp.fromDate(start)),
+          where('createdAt', '<=', Timestamp.fromDate(end)),
           orderBy('createdAt', 'asc'),
         );
         const querySnapshot = await getDocs(salesQuery);
-        const fetchedSales: SaleRecord[] = [];
+
+        // This object will now store both sales and bill counts
+        const salesByDate: { [key: string]: { sales: number; bills: number } } = {};
+
+        // Initialize all dates in the range with 0 sales and 0 bills
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          const dateKey = d.toLocaleDateString('en-CA'); // YYYY-MM-DD
+          salesByDate[dateKey] = { sales: 0, bills: 0 };
+        }
+
         querySnapshot.forEach((doc) => {
-          fetchedSales.push(doc.data() as SaleRecord);
-        });
-        const salesByDate: { [key: string]: number } = {};
-        fetchedSales.forEach((sale) => {
-          const date = sale.createdAt.toDate().toLocaleDateString('en-CA'); // Use YYYY-MM-DD for sorting
-          if (!salesByDate[date]) {
-            salesByDate[date] = 0;
+          const sale = doc.data() as SaleRecord;
+          const dateKey = sale.createdAt.toDate().toLocaleDateString('en-CA');
+          if (salesByDate[dateKey]) {
+            salesByDate[dateKey].sales += sale.totalAmount;
+            salesByDate[dateKey].bills += 1;
           }
-          salesByDate[date] += sale.totalAmount;
         });
+
         const newChartData: ChartData[] = Object.keys(salesByDate).map((date) => ({
           date,
-          sales: salesByDate[date],
+          sales: salesByDate[date].sales,
+          bills: salesByDate[date].bills,
         }));
-        newChartData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
         setChartData(newChartData);
       } catch (err) {
         console.error('Error fetching sales data:', err);
-        setError('Failed to fetch sales data. Please try again.');
+        setError('Failed to fetch sales data.');
       } finally {
         setIsLoading(false);
       }
     };
     fetchSalesData();
-  }, [currentUser, filters]); // ✅ Re-run when the global filter changes
+  }, [currentUser, filters]);
 
-  // ... (rest of the component's JSX remains the same)
+  const { totalSales, totalBills } = useMemo(() => {
+    return chartData.reduce((acc, data) => {
+      acc.totalSales += data.sales;
+      acc.totalBills += data.bills;
+      return acc;
+    }, { totalSales: 0, totalBills: 0 });
+  }, [chartData]);
+  const selectedPeriodText = useMemo(() => {
+    if (!filters.startDate || !filters.endDate) {
+      return 'for the selected period';
+    }
+    const options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'numeric', year: '2-digit' };
+    const startDate = new Date(filters.startDate).toLocaleDateString('en-IN', options);
+    const endDate = new Date(filters.endDate).toLocaleDateString('en-IN', options);
+
+    if (startDate === endDate) {
+      return `for ${startDate}`;
+    }
+    return `from ${startDate} to ${endDate}`;
+  }, [filters.startDate, filters.endDate]);
+
   return (
     <Card>
-      <CardHeader className="pb-4">
-        <CardTitle>Daily Sales Chart</CardTitle>
-        <CardDescription>Sales amount for the selected period</CardDescription>
-        {/* ❌ The local filter buttons are removed from here */}
+      <CardHeader className="flex flex-row items-center justify-between -mb-6">
+        <div>
+          <CardTitle>Daily Performance</CardTitle>
+          <CardDescription>
+            {viewMode === 'amount' ? 'Sales amount' : 'Number of bills'} {selectedPeriodText}
+          </CardDescription>
+        </div>
+        <div className="flex items-center p-1 bg-gray-100 rounded-lg">
+          <button
+            onClick={() => setViewMode('amount')}
+            className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${viewMode === 'amount' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
+          >
+            Amt
+          </button>
+          <button
+            onClick={() => setViewMode('quantity')}
+            className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${viewMode === 'quantity' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
+          >
+            Qty
+          </button>
+        </div>
       </CardHeader>
       <CardContent>
-        {isLoading ? <div className="flex h-[250px] items-center justify-center"><p>Loading Chart...</p></div> :
-          error ? <div className="flex h-[250px] items-center justify-center"><p className="text-red-500">{error}</p></div> :
+        {isLoading ? <div className="flex h-[260px] items-center justify-center"></div> :
+          error ? <div className="flex h-[260px] items-center justify-center text-center"><p className="text-red-500">{error}</p></div> :
             isDataVisible ? (
-              <ChartContainer config={chartConfig} >
-                <LineChart accessibilityLayer data={chartData} margin={{ top: 30, left: 12, right: 12 }}>
+              <ChartContainer config={chartConfig} className="h-[260px] w-full">
+                <LineChart data={chartData} margin={{ top: 30, left: -15, right: 12, bottom: 10 }}>
                   <CartesianGrid vertical={false} />
-                  <XAxis dataKey="date" tickLine={false} tickMargin={10} axisLine={false}
-                    tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}
-                  />
                   <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
-                  <Line dataKey="sales" type="monotone" stroke="var(--color-sales)" strokeWidth={2} dot={{ r: 4 }}>
-                    <LabelList position="top" offset={12} className="fill-foreground" fontSize={12}
-                      formatter={(value: number) => `₹${value.toLocaleString()}`}
-                    />
-                  </Line>
+                  <YAxis
+                    stroke="#888888"
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(value) => viewMode === 'amount' ? `₹${value / 1000}k` : value.toString()}
+                  />
+                  <Line
+                    dataKey={viewMode === 'amount' ? 'sales' : 'bills'}
+                    type="monotone"
+                    stroke={viewMode === 'amount' ? chartConfig.sales.color : chartConfig.bills.color}
+                    strokeWidth={2}
+                    dot={{ r: 4 }}
+                  />
                 </LineChart>
               </ChartContainer>
             ) : (
@@ -145,13 +197,12 @@ export function SalesBarChartReport({ isDataVisible }: SalesBarChartReportProps)
       </CardContent>
       <CardFooter className="flex-col items-start gap-2 text-sm">
         <div className="flex gap-2 leading-none font-medium">
-          Total sales for this period:
+          Total {viewMode === 'amount' ? 'Sales' : 'Bills'}:
           {isDataVisible ? (
-            ` ₹${chartData.reduce((sum, data) => sum + data.sales, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
-          ) : (' ₹ ******')}
-        </div>
-        <div className="text-muted-foreground leading-none">
-          Showing sales data grouped by day for the selected period.
+            viewMode === 'amount' ?
+              ` ₹${totalSales.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` :
+              ` ${totalBills} bills`
+          ) : (' ******')}
         </div>
       </CardFooter>
     </Card>

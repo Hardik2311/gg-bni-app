@@ -1,5 +1,3 @@
-// 1. Define all possible permissions as an enum
-
 export enum Permissions {
     // Dashboard & Reporting
     ViewDashboard = 'ViewDashboard',
@@ -12,6 +10,7 @@ export enum Permissions {
     ViewSalesReport = 'ViewSalesReport',
     ViewPurchaseReport = 'ViewPurchaseReport',
     ViewPNLReport = 'ViewPNLReport',
+    Viewrestockcard = 'Viewrestockcard',
     // Core Actions
     CreateSales = 'CreateSales',
     CreateSalesReturn = 'CreateSalesReturn',

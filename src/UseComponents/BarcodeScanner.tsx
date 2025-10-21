@@ -16,7 +16,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
     onClose,
     onScanSuccess,
     qrboxWidth = 300,
-    qrboxHeight = 150
+    qrboxHeight = 300
 }) => {
     const scannerRef = useRef<Html5Qrcode | null>(null);
     const scannerContainerId = 'barcode-scanner-container';
@@ -72,7 +72,6 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
                                 // Prevent multiple rapid scans
                                 if (scanner.isScanning) {
                                     scanner.stop();
-                                    alert(`${decodedText} test`)
                                     console.log(decodedText, "clg")
                                     onScanSuccess(decodedText);
                                 }

@@ -10,6 +10,7 @@ import {
 import type { User } from 'firebase/auth';
 import { FirebaseError } from 'firebase/app'; // FIX: Import FirebaseError
 import type { ROLES } from '../enums';
+import { companyId } from '../UseComponents/CompanyCounter';
 
 /**
  * Creates a new user in Firebase Auth and a corresponding
@@ -34,6 +35,7 @@ export const registerUserWithDetails = async (
       password,
     );
     const user = userCredential.user;
+    const newCompanyId = await companyId();
 
     // 2. Immediately create a user document in Firestore
     if (user.uid) {
@@ -44,6 +46,7 @@ export const registerUserWithDetails = async (
         email: user.email,
         createdAt: Date.now(),
         role: role || 'employee', // Default to 'employee' if no role provided
+        companyId: newCompanyId,
       });
     }
 
