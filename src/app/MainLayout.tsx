@@ -72,6 +72,17 @@ const MainLayout = () => {
             Add User
           </Button>
         </ShowWrapper>
+        <ShowWrapper
+          requiredPermission={Permissions.ViewPNLReport}
+        >
+          <Button
+            variant="outline"
+            className="w-full mb-2 rounded"
+            onClick={() => navigate(`${ROUTES.CHOME}`)}
+          >
+            Catalouge
+          </Button>
+        </ShowWrapper>
       </FloatingButton>
 
       <nav className="fixed bottom-0 left-0 w-full border-t border-slate-200 bg-white">
