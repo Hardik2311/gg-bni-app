@@ -3,16 +3,22 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import type { Item, ItemGroup } from '../../constants/models';
 import { ROUTES } from '../../constants/routes.constants';
 import { CustomButton } from '../../Components';
-import { Variant } from '../../enums';
+import { Variant, State } from '../../enums';
 import * as XLSX from 'xlsx';
 import BarcodeScanner from '../../UseComponents/BarcodeScanner';
 import { useAuth, useDatabase } from '../../context/auth-context';
+import { Spinner } from '../../constants/Spinner';
+import { Modal } from '../../constants/Modal';
+import { useItemSettings } from '../../context/Settingscontext';
+import { v4 as uuidv4 } from 'uuid';
+
 
 const ItemAdd: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const dbOperations = useDatabase();
-  const { currentUser } = useAuth();
+  const { currentUser, loading: authLoading } = useAuth();
+  const { itemSettings, loadingSettings: loadingItemSettings } = useItemSettings();
 
   const [itemName, setItemName] = useState<string>('');
   const [itemMRP, setItemMRP] = useState<string>('');
@@ -25,13 +31,21 @@ const ItemAdd: React.FC = () => {
   const [itemBarcode, setItemBarcode] = useState<string>('');
   const [itemGroups, setItemGroups] = useState<ItemGroup[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [pageIsLoading, setPageIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [modal, setModal] = useState<{ message: string; type: State } | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
 
-  // The isActive function now correctly uses the `location` hook
+
+  useEffect(() => {
+    setPageIsLoading(authLoading || loadingItemSettings || loading);
+  }, [authLoading, loadingItemSettings, loading]);
+
+
   const isActive = (path: string) => location.pathname === path;
 
   useEffect(() => {
@@ -47,6 +61,8 @@ const ItemAdd: React.FC = () => {
         setItemGroups(groups);
         if (groups.length > 0 && !selectedCategory) {
           setSelectedCategory(groups[0].id!);
+        } else if (groups.length === 0) {
+          setSelectedCategory('');
         }
       } catch (err) {
         console.error('Failed to fetch item groups:', err);
@@ -56,7 +72,7 @@ const ItemAdd: React.FC = () => {
       }
     };
     fetchGroups();
-  }, [dbOperations, selectedCategory]);
+  }, [dbOperations]);
 
   const resetForm = () => {
     setItemName('');
@@ -67,30 +83,59 @@ const ItemAdd: React.FC = () => {
     setItemAmount('');
     setItemBarcode('');
     setRestockQuantity('');
+    setSelectedCategory(itemGroups.length > 0 ? itemGroups[0].id! : '');
   };
 
   const handleAddItem = async () => {
-    if (!dbOperations || !currentUser) {
-      setError('Cannot add item. User or database not ready.');
+    if (!dbOperations || !currentUser || !itemSettings) {
+      setError('Cannot add item. User, database, or settings not ready.');
+      setModal({ message: 'Cannot add item. User, database, or settings not ready.', type: State.ERROR });
       return;
     }
     setError(null);
     setSuccess(null);
+    setModal(null);
 
     if (!itemName.trim() || !itemMRP.trim() || !selectedCategory || !itemAmount.trim()) {
-      setError('Please fill in all required fields: Item Name, MRP, Amount, and Category.');
+      setModal({ message: 'Item Name, MRP, Stock Amount, and Category are required.', type: State.ERROR });
       return;
     }
+
+    if (itemSettings.requirePurchasePrice && !itemPurchasePrice.trim()) {
+      setModal({ message: 'Purchase Price is required by settings.', type: State.ERROR }); return;
+    }
+    if (itemSettings.requireDiscount && !itemDiscount.trim()) {
+      setModal({ message: 'Discount is required by settings.', type: State.ERROR }); return;
+    }
+    if (itemSettings.requireTax && !itemTax.trim()) {
+      setModal({ message: 'Tax is required by settings.', type: State.ERROR }); return;
+    }
+    if (itemSettings.requireBarcode && !itemBarcode.trim() && !itemSettings.autoGenerateBarcode) { // Only require if not auto-generating
+      setModal({ message: 'Barcode is required by settings.', type: State.ERROR }); return;
+    }
+    if (itemSettings.requireRestockQuantity && !restockQuantity.trim()) {
+      setModal({ message: 'Restock Quantity is required by settings.', type: State.ERROR }); return;
+    }
+
+    let finalBarcode = itemBarcode.trim();
+    if (!finalBarcode && itemSettings.autoGenerateBarcode) {
+      finalBarcode = uuidv4();
+      console.log("Auto-generated barcode:", finalBarcode);
+    }
+
+
+    setIsSaving(true);
     try {
       const newItemData: Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'companyId'> = {
         name: itemName.trim(),
-        mrp: parseFloat(itemMRP),
+        mrp: parseFloat(itemMRP) || 0,
         purchasePrice: parseFloat(itemPurchasePrice) || 0,
         discount: parseFloat(itemDiscount) || 0,
         tax: parseFloat(itemTax) || 0,
         itemGroupId: selectedCategory,
-        amount: parseInt(itemAmount, 10),
-        barcode: itemBarcode.trim() || '',
+        Stock: parseInt(itemAmount, 10) || 0,
+        amount: parseInt(itemAmount, 10) || 0,
+        barcode: finalBarcode,
         restockQuantity: parseInt(restockQuantity, 10) || 0,
       };
 
@@ -102,16 +147,20 @@ const ItemAdd: React.FC = () => {
     } catch (err) {
       console.error('Error adding item:', err);
       setError('Failed to add item. Please try again.');
+      setModal({ message: 'Failed to add item.', type: State.ERROR });
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !dbOperations || !currentUser) return;
+    if (!file || !dbOperations || !currentUser || !itemSettings) return; // Added itemSettings check
 
     setIsUploading(true);
     setError(null);
     setSuccess(null);
+    setModal(null);
 
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -120,46 +169,81 @@ const ItemAdd: React.FC = () => {
         const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const json: any[] = XLSX.utils.sheet_to_json(worksheet);
+        const json: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: null });
+
 
         if (json.length === 0) {
-          throw new Error("The selected Excel file is empty or in the wrong format.");
+          throw new Error("Excel file is empty or unreadable.");
         }
 
         let processedCount = 0;
-        for (const row of json) {
-          if (
-            !row.name ||
-            row.mrp == null ||
-            !row.itemGroupId ||
-            row.amount == null
-          ) {
-            console.warn("Skipping invalid row (missing required fields):", row);
+        const errors: string[] = [];
+        const createdItems: string[] = [];
+
+        for (let i = 0; i < json.length; i++) {
+          const row = json[i];
+          const rowNum = i + 2;
+
+          const stockValue = row.Stock ?? row.amount;
+          if (!row.name || row.mrp == null || !row.itemGroupId || stockValue == null) {
+            errors.push(`Row ${rowNum}: Missing required field (Name, MRP, Item Group ID, or Stock/Amount).`);
             continue;
           }
 
-          const newItemData: Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'companyId'> = {
-            name: String(row.name).trim(),
-            mrp: parseFloat(String(row.mrp)),
-            purchasePrice: parseFloat(String(row.purchasePrice)) || 0,
-            discount: parseFloat(String(row.discount)) || 0,
-            tax: parseFloat(String(row.tax)) || 0,
-            itemGroupId: String(row.itemGroupId),
-            amount: parseInt(String(row.amount), 10),
-            barcode: String(row.barcode || '').trim(),
-            restockQuantity: parseInt(String(row.restockQuantity), 10) || 0,
-          };
+          try {
+            const currentStock = parseInt(String(stockValue ?? 0), 10);
+            const newItemData: Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'companyId'> = {
+              name: String(row.name).trim(),
+              mrp: parseFloat(String(row.mrp)),
+              purchasePrice: parseFloat(String(row.purchasePrice ?? 0)),
+              discount: parseFloat(String(row.discount ?? 0)),
+              tax: parseFloat(String(row.tax ?? 0)),
+              itemGroupId: String(row.itemGroupId),
+              Stock: currentStock,
+              amount: currentStock,
+              barcode: String(row.barcode || '').trim(),
+              restockQuantity: parseInt(String(row.restockQuantity ?? 0), 10),
+            };
 
-          await dbOperations.createItem(newItemData);
-          processedCount++;
+            if (isNaN(newItemData.mrp) || isNaN(newItemData.Stock)) {
+              errors.push(`Row ${rowNum}: Invalid number format for MRP or Stock/Amount.`);
+              continue;
+            }
+
+            if (!newItemData.barcode && itemSettings?.autoGenerateBarcode) {
+              newItemData.barcode = uuidv4();
+            } else if (!newItemData.barcode && itemSettings?.requireBarcode) {
+              errors.push(`Row ${rowNum}: Barcode is required by settings but missing in file.`);
+              continue;
+            }
+
+
+            await dbOperations.createItem(newItemData);
+            createdItems.push(newItemData.name);
+            processedCount++;
+          } catch (itemError: any) {
+            errors.push(`Row ${rowNum} (${row.name || 'N/A'}): Error - ${itemError.message}`);
+          }
         }
 
-        setSuccess(`${processedCount} items have been successfully imported!`);
-        setTimeout(() => setSuccess(null), 5000);
+        if (createdItems.length > 0) {
+          setSuccess(`${processedCount} items imported successfully!`);
+        }
+        if (errors.length > 0) {
+          const errorMsg = `Import finished with ${errors.length} errors:\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? '\n...' : ''}`;
+          setError(errorMsg);
+          setModal({ message: `Import failed for ${errors.length} rows. Check console/details.`, type: State.ERROR })
+          console.error("Import Errors:", errors);
+        } else if (createdItems.length === 0) {
+          setError("No valid items found to import in the file.");
+        }
 
-      } catch (err) {
+        setTimeout(() => { setSuccess(null); setError(null); }, 7000);
+
+      } catch (err: any) {
         console.error('Error processing Excel file:', err);
-        setError('Failed to process file. Check format and required columns.');
+        setError(`Failed to process file: ${err.message}. Check format and required columns.`);
+        setModal({ message: "File processing error.", type: State.ERROR })
       } finally {
         setIsUploading(false);
         if (fileInputRef.current) {
@@ -175,6 +259,15 @@ const ItemAdd: React.FC = () => {
     setIsScannerOpen(false);
   };
 
+  if (pageIsLoading) {
+    return (
+      <div className="flex flex-col min-h-screen items-center justify-center">
+        <Spinner />
+        <p className="mt-4 text-gray-600">Loading...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="relative flex flex-col min-h-screen bg-gray-100 w-full font-poppins text-gray-800">
       <BarcodeScanner
@@ -182,80 +275,62 @@ const ItemAdd: React.FC = () => {
         onClose={() => setIsScannerOpen(false)}
         onScanSuccess={handleBarcodeScanned}
       />
+      {modal && <Modal message={modal.message} onClose={() => setModal(null)} type={modal.type} />}
 
-      {/* Header with Title and Navigation Buttons */}
-      <div className="fixed top-0 left-0 right-0 z-10 p-4 bg-gray-100 border-b border-gray-300  flex flex-col">
+
+      <div className="fixed top-0 left-0 right-0 z-10 p-4 bg-gray-100 border-b border-gray-300 flex flex-col">
         <h1 className="text-2xl font-bold text-gray-800 text-center mb-4">Add Item</h1>
         <div className="flex items-center justify-center gap-6">
-          <CustomButton
-            variant={Variant.Transparent}
-            onClick={() => navigate(ROUTES.ITEM_ADD)}
-            active={isActive(ROUTES.ITEM_ADD)}
-          >
-            Item Add
-          </CustomButton>
-          <CustomButton
-            variant={Variant.Transparent}
-            onClick={() => navigate(ROUTES.ITEM_GROUP)}
-            active={isActive(ROUTES.ITEM_GROUP)}
-          >
-            Item Groups
-          </CustomButton>
+          <CustomButton variant={Variant.Transparent} onClick={() => navigate(ROUTES.ITEM_ADD)} active={isActive(ROUTES.ITEM_ADD)}>Item Add</CustomButton>
+          <CustomButton variant={Variant.Transparent} onClick={() => navigate(ROUTES.ITEM_GROUP)} active={isActive(ROUTES.ITEM_GROUP)}>Item Groups</CustomButton>
         </div>
       </div>
 
-      {/* Main content area */}
-      <div className="flex-grow p-2 md:p-6 mt-28 bg-gray-100 w-full overflow-y-auto mb-10">
+
+      <div className="flex-grow p-2 md:p-6 mt-28 bg-gray-100 w-full overflow-y-auto mb-10"> {/* Original padding & margin */}
         {error && <div className="mb-4 text-center p-3 bg-red-100 text-red-700 rounded-lg font-medium">{error}</div>}
         {success && <div className="mb-4 text-center p-3 bg-green-100 text-green-700 rounded-lg font-medium">{success}</div>}
 
-        {/* Bulk Import Section */}
         <div className="bg-white p-2 rounded-lg shadow-md mb-4">
           <div className="flex flex-col items-center justify-center mb-4 ">
             <h2 className="text-lg font-semibold text-gray-700 mb-2">Bulk Import</h2>
             <p className="text-sm text-center text-gray-500 mb-4 max-w-sm">
-              Upload an EXCEL file with columns: Name, MRP, Purchase Price, Discount, Tax, Item Group ID, Amount and Barcode, RestockQuantity.
+              Upload an EXCEL file with columns: Name*, MRP*, Purchase Price, Discount, Tax, Item Group ID*, Amount*(Stock*), Barcode, RestockQuantity. (*=req)
             </p>
             <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileUpload}
-              className="hidden"
-              accept=".xlsx, .csv"
+              type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept=".xlsx, .xls, .csv"
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
+              disabled={isUploading || pageIsLoading}
               className="w-full max-w-xs bg-sky-500 text-white py-2 px-4 rounded-lg font-semibold hover:bg-sky-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center text-lg"
             >
-              {isUploading ? 'Uploading...' : 'Import from Excel'}
+              {isUploading ? <Spinner /> : 'Import from Excel'}
             </button>
           </div>
         </div>
 
-        {/* Add a Single Item Section */}
         <div className="bg-white p-6 rounded-lg shadow-md mb-24 ">
           <h2 className="text-lg font-semibold text-gray-700 mb-4">Add a Single Item</h2>
+          {loadingItemSettings && <p className="text-xs text-yellow-600 mb-2">Loading item settings...</p>}
           <div className="space-y-4">
-            {/* Item Name */}
             <div>
-              <label htmlFor="itemName" className="block text-sm font-medium text-gray-600 mb-1">Item Name</label>
+              <label htmlFor="itemName" className="block text-sm font-medium text-gray-600 mb-1 after:content-['*'] after:ml-0.5 after:text-red-500">Item Name</label>
               <input type="text" id="itemName" value={itemName} onChange={(e) => setItemName(e.target.value)} placeholder="e.g., Laptop, Keyboard" className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500" />
             </div>
 
-            {/* Barcode with Scanner Button */}
             <div>
-              <label htmlFor="itemBarcode" className="block text-sm font-medium text-gray-600 mb-1">Barcode (Optional)</label>
+              <label htmlFor="itemBarcode" className={`block text-sm font-medium text-gray-600 mb-1 ${itemSettings?.requireBarcode && !itemSettings?.autoGenerateBarcode ? 'after:content-["*"] after:ml-0.5 after:text-red-500' : ''}`}>
+                Barcode {itemSettings?.autoGenerateBarcode ? '(Optional - Auto-generates)' : '(Optional)'}
+              </label>
               <div className="flex gap-2">
                 <input
-                  type="text"
-                  id="itemBarcode"
-                  value={itemBarcode}
-                  onChange={(e) => setItemBarcode(e.target.value)}
-                  placeholder="e.g., Laptop, Keyboard"
+                  type="text" id="itemBarcode" value={itemBarcode} onChange={(e) => setItemBarcode(e.target.value)}
+                  placeholder="Scan or type barcode"
                   className="flex-grow w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500"
                 />
                 <button
+                  type="button"
                   onClick={() => setIsScannerOpen(true)}
                   className="bg-gray-700 text-white p-3 rounded-md font-semibold transition hover:bg-gray-800 flex items-center justify-center"
                   title="Scan Barcode"
@@ -265,63 +340,56 @@ const ItemAdd: React.FC = () => {
               </div>
             </div>
 
-            {/* Grid of inputs */}
             <div className='grid grid-cols-2 gap-4'>
-              {/* MRP */}
               <div>
-                <label htmlFor="itemMRP" className="block text-sm font-medium text-gray-600 mb-1">MRP</label>
-                <input type="number" id="itemMRP" value={itemMRP} onChange={(e) => setItemMRP(e.target.value)} placeholder="00.00" className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500" />
+                <label htmlFor="itemMRP" className="block text-sm font-medium text-gray-600 mb-1 after:content-['*'] after:ml-0.5 after:text-red-500">MRP</label>
+                <input type="number" id="itemMRP" value={itemMRP} onChange={(e) => setItemMRP(e.target.value)} placeholder="0.00" className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500" step="0.01" min="0" />
               </div>
-              {/* Purchase Price */}
               <div>
-                <label htmlFor="itemPurchasePrice" className="block text-sm font-medium text-gray-600 mb-1">Purchase Price</label>
-                <input type="number" id="itemPurchasePrice" value={itemPurchasePrice} onChange={(e) => setItemPurchasePrice(e.target.value)} placeholder="00.00" className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500" />
+                <label htmlFor="itemPurchasePrice" className={`block text-sm font-medium text-gray-600 mb-1 ${itemSettings?.requirePurchasePrice ? 'after:content-["*"] after:ml-0.5 after:text-red-500' : ''}`}>Purchase Price</label>
+                <input type="number" id="itemPurchasePrice" value={itemPurchasePrice} onChange={(e) => setItemPurchasePrice(e.target.value)} placeholder="0.00" className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500" step="0.01" min="0" />
               </div>
-              {/* Item Discount */}
               <div>
-                <label htmlFor="itemDiscount" className="block text-sm font-medium text-gray-600 mb-1">Item Discount (%)</label>
-                <input type="number" id="itemDiscount" value={itemDiscount} onChange={(e) => setItemDiscount(e.target.value)} placeholder="00.00" className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500" />
+                <label htmlFor="itemDiscount" className={`block text-sm font-medium text-gray-600 mb-1 ${itemSettings?.requireDiscount ? 'after:content-["*"] after:ml-0.5 after:text-red-500' : ''}`}>Item Discount (%)</label>
+                <input type="number" id="itemDiscount" value={itemDiscount} onChange={(e) => setItemDiscount(e.target.value)} placeholder="0" className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500" min="0" max="100" />
               </div>
-              {/* Tax */}
               <div>
-                <label htmlFor="itemTax" className="block text-sm font-medium text-gray-600 mb-1">Tax (%)</label>
-                <input type="number" id="itemTax" value={itemTax} onChange={(e) => setItemTax(e.target.value)} placeholder="00.00" className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500" />
+                <label htmlFor="itemTax" className={`block text-sm font-medium text-gray-600 mb-1 ${itemSettings?.requireTax ? 'after:content-["*"] after:ml-0.5 after:text-red-500' : ''}`}>Tax (%)</label>
+                <input type="number" id="itemTax" value={itemTax} onChange={(e) => setItemTax(e.target.value)} placeholder="0" className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500" min="0" />
               </div>
-              {/* Stock Quantity */}
               <div>
-                <label htmlFor="itemAmount" className="block text-sm font-medium text-gray-600 mb-1">Stock Quantity</label>
-                <input type="number" id="itemAmount" value={itemAmount} onChange={(e) => setItemAmount(e.target.value)} placeholder="00.00" className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500" />
+                <label htmlFor="itemAmount" className="block text-sm font-medium text-gray-600 mb-1 after:content-['*'] after:ml-0.5 after:text-red-500">Stock Quantity</label>
+                <input type="number" id="itemAmount" value={itemAmount} onChange={(e) => setItemAmount(e.target.value)} placeholder="0" className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500" min="0" step="1" />
               </div>
-              {/* Restock Quantity */}
               <div>
-                <label htmlFor="restockQuantity" className="block text-sm font-medium text-gray-600 mb-1">Restock Quantity</label>
-                <input type="number" id="restockQuantity" value={restockQuantity} onChange={(e) => setRestockQuantity(e.target.value)} placeholder="00.00" className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500" />
+                <label htmlFor="restockQuantity" className={`block text-sm font-medium text-gray-600 mb-1 ${itemSettings?.requireRestockQuantity ? 'after:content-["*"] after:ml-0.5 after:text-red-500' : ''}`}>Restock Level</label>
+                <input type="number" id="restockQuantity" value={restockQuantity} onChange={(e) => setRestockQuantity(e.target.value)} placeholder="0" className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500" min="0" step="1" />
               </div>
             </div>
 
-            {/* Category */}
             <div>
-              <label htmlFor="itemCategory" className="block text-sm font-medium text-gray-600 mb-1">Category</label>
+              <label htmlFor="itemCategory" className="block text-sm font-medium text-gray-600 mb-1 after:content-['*'] after:ml-0.5 after:text-red-500">Category</label>
               {loading ? <p>Loading categories...</p> : (
-                <select id="itemCategory" value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500">
-                  <option value="">Select a category</option>
+                <select id="itemCategory" value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500 bg-white">
+                  <option value="" disabled>Select a category</option>
                   {itemGroups.map((group) => (
                     <option key={group.id} value={group.id!}>{group.name}</option>
                   ))}
                 </select>
               )}
+              {!loading && itemGroups.length === 0 && <p className="text-xs text-red-500 mt-1">No categories found. Add groups first.</p>}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Sticky Bottom Bar */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-100 flex items-center justify-center pb-18">
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-100 flex items-center justify-center pb-18"> {/* Original padding */}
         <button
           onClick={handleAddItem}
-          className="bg-sky-500 text-white py-3 px-6 rounded-lg text-lg font-semibold shadow-md hover:bg-sky-600 transition-colors"
+          disabled={isSaving || pageIsLoading || (!loading && itemGroups.length === 0)}
+          className="bg-sky-500 text-white py-3 px-6 rounded-lg text-lg font-semibold shadow-md hover:bg-sky-600 transition-colors disabled:bg-gray-400" // Original style
         >
-          Add Item
+          {isSaving ? <Spinner /> : 'Add Item'}
         </button>
       </div>
     </div>
@@ -329,3 +397,4 @@ const ItemAdd: React.FC = () => {
 };
 
 export default ItemAdd;
+

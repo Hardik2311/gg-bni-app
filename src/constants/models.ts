@@ -8,7 +8,7 @@ export interface Item {
   discount: number; // Store as a number (e.g., 0.10 for 10%, or 10 for 10%)
   tax: number; // Store as a number (e.g., 0.18 for 18%, or 18 for 18%)
   itemGroupId: string;
-  amount: number;
+  amount?: number;
   barcode?: string; // Link to ItemGroup. This will be derived from 'Category'
   createdAt: number; // Timestamp
   updatedAt: number; // Timestamp
@@ -18,6 +18,7 @@ export interface Item {
   unit?: string; // Unit of measure (e.g., Pcs.)
   companyId?: string | null; // Link to Company
   restockQuantity: number;
+  Stock: number;
 }
 
 export interface ItemGroup {
@@ -40,7 +41,6 @@ export interface Purchase {
   partyName: string;
   partyNumber: string;
   invoiceNumber: string;
-  discount: number;
   items: {
     id: string;
     name: string;
