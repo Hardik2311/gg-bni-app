@@ -30,6 +30,7 @@ export const ROUTES = {
   HISTORY: '/history',
   CHOME: '/catalogue-home',
   MYSHOP: '/my-shop',
+  ORDER: '/orders',
   USERSETTING: '/user-setting',
   ITEMSETTING: '/item-setting',
 };

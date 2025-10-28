@@ -32,8 +32,8 @@ const HomePage: React.FC = () => {
     // --- Main navigation items for your app's "catalogues" ---
     const navItems = [
         {
-            name: 'Sales',
-            route: ROUTES.SALES, // Main sales page
+            name: 'Orders',
+            route: ROUTES.ORDER, // Main sales page
             icon: FiTrendingUp,
             description: 'Create new sales and view sales returns.'
         },

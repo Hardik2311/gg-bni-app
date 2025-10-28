@@ -40,6 +40,7 @@ const CHome = lazy(() => import('../Catalogue/CHome'));
 const MyShop = lazy(() => import('../Catalogue/MyShop'));
 const UserSetting = lazy(() => import('../Pages/Settings/UserSettings'));
 const ItemSetting = lazy(() => import('../Pages/Settings/ItemSetting'));
+const Order = lazy(() => import('../Catalogue/OrderingPage'));
 
 const router = createBrowserRouter([
   {
@@ -197,6 +198,11 @@ const router = createBrowserRouter([
           {
             path: ROUTES.MYSHOP,
             element: <MyShop />,
+            handle: { requiredPermission: null },
+          },
+          {
+            path: ROUTES.ORDER,
+            element: <Order />,
             handle: { requiredPermission: null },
           },
           {

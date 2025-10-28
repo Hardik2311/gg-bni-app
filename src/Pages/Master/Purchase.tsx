@@ -117,7 +117,7 @@ const PurchasePage: React.FC = () => {
               mrp: item.mrp || 0,
               discount: item.discount || 0,
               barcode: item.barcode || '',
-              Stock: item.Stock
+              Stock: item.stock
             }));
             setEditModeData(purchaseData);
             setItems(validatedItems);
@@ -167,7 +167,7 @@ const PurchasePage: React.FC = () => {
           barcode: itemToAdd.barcode || '',
           quantity: 1,
           discount: defaultDiscount,
-          Stock: itemToAdd.Stock,
+          Stock: itemToAdd.stock,
         },
       ]);
     }
