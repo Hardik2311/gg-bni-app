@@ -18,7 +18,7 @@ export interface Item {
   unit?: string; // Unit of measure (e.g., Pcs.)
   companyId?: string | null; // Link to Company
   restockQuantity: number;
-  Stock: number;
+  stock: number;
 }
 
 export interface ItemGroup {

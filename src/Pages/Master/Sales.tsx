@@ -154,7 +154,7 @@ const Sales: React.FC = () => {
         purchasePrice: item.purchasePrice || 0,
         tax: item.tax || 0,
         itemGroupId: item.itemGroupId || '',
-        Stock: item.Stock || 0,
+        Stock: item.stock || 0,
         amount: item.amount || 0,
         barcode: item.barcode || '',
         restockQuantity: item.restockQuantity || 0,
@@ -278,7 +278,7 @@ const Sales: React.FC = () => {
         purchasePrice: itemToAdd.purchasePrice || 0,
         tax: itemToAdd.tax || 0,
         itemGroupId: itemToAdd.itemGroupId || '',
-        Stock: itemToAdd.Stock || 0,
+        Stock: itemToAdd.stock || 0,
         amount: itemToAdd.amount || 0,
         barcode: itemToAdd.barcode || '',
         restockQuantity: itemToAdd.restockQuantity || 0,
@@ -378,7 +378,7 @@ const Sales: React.FC = () => {
     }
     if (!salesSettings?.allowNegativeStock) {
       const invalidStockItems = items.filter(i => i.isEditable).reduce((acc, item) => {
-        const available = availableItems.find(a => a.id === item.id)?.Stock ?? 0;
+        const available = availableItems.find(a => a.id === item.id)?.stock ?? 0;
         if (available < (item.quantity ?? 1)) {
           acc.push({ name: item.name, stock: available, needed: item.quantity ?? 1 });
         }
@@ -496,7 +496,7 @@ const Sales: React.FC = () => {
           for (const newItem of newItems) {
             if (!salesSettings?.allowNegativeStock) {
               const itemRef = doc(db, "items", newItem.id);
-              transaction.update(itemRef, { Stock: firebaseIncrement(-(newItem.quantity ?? 1)) });
+              transaction.update(itemRef, { stock: firebaseIncrement(-(newItem.quantity ?? 1)) });
             }
           }
 
@@ -571,7 +571,7 @@ const Sales: React.FC = () => {
           items.forEach(cartItem => {
             if (!salesSettings?.allowNegativeStock) {
               const itemRef = doc(db, "items", cartItem.id);
-              transaction.update(itemRef, { Stock: firebaseIncrement(-(cartItem.quantity || 1)) });
+              transaction.update(itemRef, { stock: firebaseIncrement(-(cartItem.quantity || 1)) });
             }
           });
 
