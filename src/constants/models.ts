@@ -6,7 +6,8 @@ export interface Item {
   mrp: number; // Renamed from 'price' to 'mrp' to match your form
   purchasePrice: number;
   discount: number; // Store as a number (e.g., 0.10 for 10%, or 10 for 10%)
-  tax: number; // Store as a number (e.g., 0.18 for 18%, or 18 for 18%)
+  tax: number;
+  taxRate?: number; // Store as a number (e.g., 0.18 for 18%, or 18 for 18%)
   itemGroupId: string;
   amount?: number;
   barcode?: string; // Link to ItemGroup. This will be derived from 'Category'
@@ -19,6 +20,7 @@ export interface Item {
   companyId?: string | null; // Link to Company
   restockQuantity: number;
   stock: number;
+  isListed?: boolean;
 }
 
 export interface ItemGroup {

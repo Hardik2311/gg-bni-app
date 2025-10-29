@@ -15,14 +15,14 @@ import { Modal } from '../../constants/Modal';
 import { State } from '../../enums';
 import { useAuth } from '../../context/auth-context';
 
-
+// --- MODIFIED: Interface updated for GST ---
 export interface PurchaseSettings {
     companyId?: string;
     settingType?: 'purchase';
 
-    taxType?: 'inclusive' | 'exclusive';
-    defaultTaxRate?: number;
-    enableTax?: boolean;
+    // Replaced enableTax and defaultTaxRate
+    gstScheme?: 'regular' | 'composition' | 'none';
+    taxType?: 'inclusive' | 'exclusive'; // This applies to regular AND composition
 
     defaultDiscount?: number;
     inputMRP?: boolean;
@@ -40,6 +40,7 @@ export interface PurchaseSettings {
     requireSupplierName?: boolean;
     requireSupplierMobile?: boolean;
 }
+// --- END MODIFICATION ---
 
 const PurchaseSettingsPage: React.FC = () => {
     const navigate = useNavigate();
@@ -64,7 +65,7 @@ const PurchaseSettingsPage: React.FC = () => {
 
         const fetchOrCreateSettings = async () => {
             const settingsCollectionRef = collection(db, 'settings');
-            const q = query(settingsCollectionRef, where('companyId', '==', companyId), where('settingType', '==', 'purchase')); // Added settingType filter
+            const q = query(settingsCollectionRef, where('companyId', '==', companyId), where('settingType', '==', 'purchase'));
 
             try {
                 const querySnapshot = await getDocs(q);
@@ -75,12 +76,13 @@ const PurchaseSettingsPage: React.FC = () => {
                     setSettingsDocId(docSnap.id);
                 } else {
                     console.warn(`No purchase settings found for company ${companyId}. Creating defaults.`);
+
+                    // --- MODIFIED: Default settings updated for GST ---
                     const defaultSettings: PurchaseSettings = {
                         companyId: companyId,
                         settingType: 'purchase',
-                        taxType: 'exclusive',
-                        defaultTaxRate: 18,
-                        enableTax: true,
+                        gstScheme: 'regular', // Default to regular
+                        taxType: 'exclusive', // Default to exclusive
                         defaultDiscount: 0,
                         inputMRP: true,
                         zeroValueValidation: true,
@@ -94,6 +96,7 @@ const PurchaseSettingsPage: React.FC = () => {
                         requireSupplierName: true,
                         requireSupplierMobile: false,
                     };
+                    // --- END MODIFICATION ---
 
                     const predictableDocId = `purchase-${companyId}`;
                     const newDocRef = doc(db, 'settings', predictableDocId);
@@ -144,9 +147,10 @@ const PurchaseSettingsPage: React.FC = () => {
     };
 
     const handleChange = (field: keyof PurchaseSettings, value: string | number | boolean) => {
-        if (field === 'defaultTaxRate' || field === 'defaultDiscount' || field === 'currentVoucherNumber') {
+        // --- MODIFIED: Removed defaultTaxRate ---
+        if (field === 'defaultDiscount' || field === 'currentVoucherNumber') {
             if (value === '') {
-                setSettings(prev => ({ ...prev, [field]: undefined })); // Or null, depending on preference
+                setSettings(prev => ({ ...prev, [field]: undefined }));
             } else {
                 const numValue = parseFloat(String(value));
                 setSettings(prev => ({ ...prev, [field]: isNaN(numValue) ? 0 : numValue }));
@@ -184,42 +188,44 @@ const PurchaseSettingsPage: React.FC = () => {
                 <form onSubmit={handleSave} className="bg-white rounded-lg p-6 shadow-md max-w-3xl mx-auto">
 
                     <h2 className="text-lg font-semibold text-gray-800 mb-4 border-t pt-4">Pricing & Tax</h2>
-                    <div className="flex items-center mb-4">
-                        <input
-                            type="checkbox" id="enable-tax"
-                            checked={settings.enableTax ?? true}
-                            onChange={(e) => handleCheckboxChange('enableTax', e.target.checked)}
-                            className="w-4 h-4 text-blue-600"
-                        />
-                        <label htmlFor="enable-tax" className="ml-2 text-gray-700 text-sm font-medium">Enable Tax Calculation</label>
+
+                    {/* --- MODIFIED: Replaced checkbox with GST Scheme dropdown --- */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label htmlFor="gst-scheme" className="block text-gray-700 text-sm font-medium mb-1">GST Scheme</label>
+                            <select
+                                id="gst-scheme"
+                                value={settings.gstScheme || 'none'}
+                                onChange={(e) => handleChange('gstScheme', e.target.value as 'regular' | 'composition' | 'none')}
+                                className="w-full p-3 border border-gray-300 rounded-lg bg-white"
+                            >
+                                <option value="none">None (Tax Disabled)</option>
+                                <option value="regular">Regular GST</option>
+                                <option value="composition">Composition GST</option>
+                            </select>
+                        </div>
                     </div>
-                    {settings.enableTax !== false && (
+
+                    {/* --- MODIFIED: Show this for BOTH regular and composition --- */}
+                    {(settings.gstScheme === 'regular' || settings.gstScheme === 'composition') && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div>
                                 <label htmlFor="tax-type" className="block text-gray-700 text-sm font-medium mb-1">Tax Calculation Type</label>
                                 <select
                                     id="tax-type"
                                     value={settings.taxType || 'exclusive'}
-                                    onChange={(e) => handleChange('taxType', e.target.value)}
+                                    onChange={(e) => handleChange('taxType', e.target.value as 'inclusive' | 'exclusive')}
                                     className="w-full p-3 border border-gray-300 rounded-lg bg-white"
                                 >
                                     <option value="exclusive">Tax Exclusive (GST extra on Purchase Price)</option>
                                     <option value="inclusive">Tax Inclusive (Purchase Price includes GST)</option>
                                 </select>
                             </div>
-                            <div>
-                                <label htmlFor="tax-rate" className="block text-gray-700 text-sm font-medium mb-1">Default Tax Rate (%)</label>
-                                <input
-                                    type="number" id="tax-rate"
-                                    value={settings.defaultTaxRate ?? ''}
-                                    onChange={(e) => handleChange('defaultTaxRate', e.target.value)}
-                                    className="w-full p-3 border border-gray-300 rounded-lg"
-                                    placeholder="e.g., 18"
-                                    step="any"
-                                />
-                            </div>
+                            {/* --- MODIFIED: Removed Default Tax Rate input --- */}
                         </div>
                     )}
+                    {/* --- END MODIFICATION --- */}
+
                     <div className="flex items-center mb-4">
                         <input type="checkbox" id="rounding-off"
                             checked={settings.roundingOff ?? false}
@@ -250,10 +256,10 @@ const PurchaseSettingsPage: React.FC = () => {
                     </div>
                     <div className="flex items-center mb-4">
                         <input type="checkbox" id="zero-value"
-                            checked={settings.zeroValueValidation ?? false} // Assuming false means ALLOW zero value
+                            checked={settings.zeroValueValidation ?? false}
                             onChange={(e) => handleCheckboxChange('zeroValueValidation', e.target.checked)}
                             className="w-4 h-4 text-blue-600" />
-                        <label htmlFor="zero-value" className="ml-2 text-gray-700 text-sm font-medium">Prevent Zero Value Purchase Price</label> {/* Label implies checking PREVENTS zero */}
+                        <label htmlFor="zero-value" className="ml-2 text-gray-700 text-sm font-medium">Prevent Zero Value Purchase Price</label>
                     </div>
                     <div className="flex items-center mb-4">
                         <input type="checkbox" id="print-barcode"
@@ -322,7 +328,7 @@ const PurchaseSettingsPage: React.FC = () => {
                         <select
                             id="purchase-view-type"
                             value={settings.purchaseViewType || 'list'}
-                            onChange={(e) => handleChange('purchaseViewType', e.target.value)}
+                            onChange={(e) => handleChange('purchaseViewType', e.target.value as 'card' | 'list')}
                             className="w-full p-3 border border-gray-300 rounded-lg bg-white"
                         >
                             <option value="list">List View</option>
@@ -345,4 +351,3 @@ const PurchaseSettingsPage: React.FC = () => {
 };
 
 export default PurchaseSettingsPage;
-
