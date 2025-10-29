@@ -56,7 +56,7 @@ const Home = () => {
             <ShowWrapper requiredPermission={Permissions.ViewSalescard}>
               <button
                 onClick={() => setIsDataVisible(!isDataVisible)}
-                className="p-2 rounded-full hover:bg-slate-200 transition-colors"
+                className="p-2 rounded-sm border border-slate-400 hover:bg-slate-200 transition-colors"
                 title={isDataVisible ? 'Hide Data' : 'Show Data'}
               >
                 {isDataVisible ? (

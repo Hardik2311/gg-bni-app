@@ -14,6 +14,7 @@ export interface SalesSettings {
     enableTax?: boolean;
     salesViewType?: 'card' | 'list';
     enableSalesmanSelection?: boolean;
+    gstScheme?: 'regular' | 'composition' | 'none'; // 'none' means tax is disabled
     taxType?: 'inclusive' | 'exclusive';
     defaultTaxRate?: number;
     enableRounding?: boolean;

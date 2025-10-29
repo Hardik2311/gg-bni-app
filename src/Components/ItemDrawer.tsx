@@ -3,7 +3,7 @@ import type { Item } from '../constants/models'; // Adjust path as needed
 import { useDatabase } from '../context/auth-context'; // Adjust path as needed
 // Import FieldValue/Timestamp only if needed for ItemUpdatePayload definition consistency
 import { FieldValue, Timestamp } from 'firebase/firestore';
-import { FiSave, FiX } from 'react-icons/fi'; // Use FiX for close icon
+import { FiSave, FiX } from 'react-icons/fi'; // Use FiX or FiXCircle for close icon
 import { Spinner } from '../constants/Spinner'; // Adjust path as needed
 
 // Interface for props
@@ -19,6 +19,7 @@ interface ItemEditDrawerProps {
 type ItemUpdatePayload = Partial<Omit<Item, 'id' | 'createdAt' | 'companyId'>> & {
     createdAt?: FieldValue | Timestamp | number | null;
     updatedAt?: FieldValue | Timestamp | number | null; // Allow FieldValue/Timestamp/number based on updateItem type
+    isListed?: boolean; // Ensure isListed is allowed
 };
 
 
@@ -34,18 +35,19 @@ export const ItemEditDrawer: React.FC<ItemEditDrawerProps> = ({ item, isOpen, on
         if (isOpen && item) {
             setFormData({
                 name: item.name || '',
-                mrp: item.mrp ?? undefined, // Use undefined or '' for potentially empty number inputs
+                mrp: item.mrp ?? undefined,
                 purchasePrice: item.purchasePrice ?? undefined,
                 stock: item.stock ?? undefined, // Use lowercase 'stock'
                 itemGroupId: item.itemGroupId || '', // Use correct case if needed
                 barcode: item.barcode || '',
                 tax: item.tax ?? undefined,
                 discount: item.discount ?? undefined,
+                isListed: item.isListed ?? false, // Initialize isListed
             });
             setError(null);
             const timer = setTimeout(() => {
                 firstInputRef.current?.focus();
-            }, 100); // Small delay for transition
+            }, 100);
             return () => clearTimeout(timer);
         } else if (!isOpen) {
             // Clear form and state when closing
@@ -57,9 +59,20 @@ export const ItemEditDrawer: React.FC<ItemEditDrawerProps> = ({ item, isOpen, on
 
     // Handle input changes
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        const { name, value } = e.target;
-        // Keep value as string temporarily for controlled input
-        setFormData(prev => ({ ...prev, [name]: value }));
+        const { name, value, type } = e.target;
+        // Handle checkbox type specifically
+        const isCheckbox = type === 'checkbox';
+        const checked = (e.target as HTMLInputElement).checked; // Get checked state for checkboxes
+
+        const isNumericField = ['mrp', 'purchasePrice', 'stock', 'tax', 'discount'].includes(name);
+
+        setFormData(prev => ({
+            ...prev,
+            // Keep value as string temporarily for controlled input, handle checkbox
+            [name]: isCheckbox
+                ? checked
+                : (value === '' && isNumericField ? '' : (isNumericField ? parseFloat(value) : value))
+        }));
     };
 
     // Handle save action
@@ -81,6 +94,7 @@ export const ItemEditDrawer: React.FC<ItemEditDrawerProps> = ({ item, isOpen, on
                 discount: Number(formData.discount || 0),
                 itemGroupId: String(formData.itemGroupId || ''),
                 barcode: String(formData.barcode || ''),
+                isListed: formData.isListed ?? false, // Include isListed
                 // 'updatedAt' is handled by dbOperations.updateItem function
             };
 
@@ -96,6 +110,7 @@ export const ItemEditDrawer: React.FC<ItemEditDrawerProps> = ({ item, isOpen, on
                 discount: dataToUpdate.discount,
                 itemGroupId: dataToUpdate.itemGroupId,
                 barcode: dataToUpdate.barcode,
+                isListed: dataToUpdate.isListed,
                 // Do not include FieldValue timestamps here for local state
             };
 
@@ -184,7 +199,8 @@ export const ItemEditDrawer: React.FC<ItemEditDrawerProps> = ({ item, isOpen, on
                             <label htmlFor="edit-mrp" className="text-sm font-medium leading-none mb-1 block">MRP (₹)</label>
                             <input
                                 type="number" id="edit-mrp" name="mrp" step="0.01"
-                                value={formData.mrp ?? ''} onChange={handleChange} // Use ?? '' for input value
+                                value={formData.mrp ?? ''} // Use ?? '' for input value
+                                onChange={handleChange}
                                 className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                 disabled={isSaving}
                             />
@@ -193,7 +209,8 @@ export const ItemEditDrawer: React.FC<ItemEditDrawerProps> = ({ item, isOpen, on
                             <label htmlFor="edit-purchasePrice" className="text-sm font-medium leading-none mb-1 block">Purchase (₹)</label>
                             <input
                                 type="number" id="edit-purchasePrice" name="purchasePrice" step="0.01"
-                                value={formData.purchasePrice ?? ''} onChange={handleChange} // Use ?? ''
+                                value={formData.purchasePrice ?? ''} // Use ?? ''
+                                onChange={handleChange}
                                 className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                 disabled={isSaving}
                             />
@@ -204,7 +221,8 @@ export const ItemEditDrawer: React.FC<ItemEditDrawerProps> = ({ item, isOpen, on
                             <label htmlFor="edit-stock" className="text-sm font-medium leading-none mb-1 block">Stock</label>
                             <input
                                 type="number" id="edit-stock" name="stock" step="1" // lowercase 'stock'
-                                value={formData.stock ?? ''} onChange={handleChange} // Use ?? ''
+                                value={formData.stock ?? ''} // Use ?? ''
+                                onChange={handleChange}
                                 className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                 disabled={isSaving}
                             />
@@ -213,7 +231,8 @@ export const ItemEditDrawer: React.FC<ItemEditDrawerProps> = ({ item, isOpen, on
                             <label htmlFor="edit-tax" className="text-sm font-medium leading-none mb-1 block">Tax (%)</label>
                             <input
                                 type="number" id="edit-tax" name="tax" step="0.01"
-                                value={formData.tax ?? ''} onChange={handleChange} // Use ?? ''
+                                value={formData.tax ?? ''} // Use ?? ''
+                                onChange={handleChange}
                                 className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                 disabled={isSaving}
                             />
@@ -223,7 +242,8 @@ export const ItemEditDrawer: React.FC<ItemEditDrawerProps> = ({ item, isOpen, on
                         <label htmlFor="edit-discount" className="text-sm font-medium leading-none mb-1 block">Discount (%)</label>
                         <input
                             type="number" id="edit-discount" name="discount" step="0.01"
-                            value={formData.discount ?? ''} onChange={handleChange} // Use ?? ''
+                            value={formData.discount ?? ''} // Use ?? ''
+                            onChange={handleChange}
                             className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                             disabled={isSaving}
                         />
@@ -237,6 +257,25 @@ export const ItemEditDrawer: React.FC<ItemEditDrawerProps> = ({ item, isOpen, on
                             disabled={isSaving}
                         />
                     </div>
+                    {/* --- ADDED isListed Checkbox --- */}
+                    <div className="flex items-center space-x-2 pt-2">
+                        <input
+                            type="checkbox"
+                            id={`edit-isListed-${item?.id}`}
+                            name="isListed"
+                            checked={formData.isListed ?? false}
+                            onChange={handleChange}
+                            disabled={isSaving}
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" // Added cursor-pointer
+                        />
+                        <label
+                            htmlFor={`edit-isListed-${item?.id}`}
+                            className="text-sm font-medium text-gray-700 select-none cursor-pointer" // Added cursor-pointer
+                        >
+                            List this item on Ordering Page
+                        </label>
+                    </div>
+                    {/* ------------------------------- */}
                 </div>
 
                 {/* Footer with Actions - Mimics shadcn DrawerFooter */}

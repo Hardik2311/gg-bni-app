@@ -1,21 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../lib/firebase';
-import { doc, updateDoc, collection, query, where, getDocs, addDoc } from 'firebase/firestore'; // Import needed functions
+import { doc, updateDoc, collection, query, where, getDocs, addDoc } from 'firebase/firestore';
 import { Spinner } from '../../constants/Spinner';
 import { Modal } from '../../constants/Modal';
 import { State } from '../../enums';
 import { useAuth } from '../../context/auth-context';
 
-
+// --- THIS IS THE NEW INTERFACE ---
+// It replaces 'enableTax' and 'defaultTaxRate' with 'gstScheme'
 export interface SalesSettings {
     settingType: 'sales';
     salesViewType?: 'card' | 'list';
     enableSalesmanSelection?: boolean;
 
-    enableTax?: boolean;
-    taxType?: 'inclusive' | 'exclusive';
-    defaultTaxRate?: number;
+    // --- MODIFIED: New GST fields ---
+    gstScheme?: 'regular' | 'composition' | 'none'; // 'none' = tax disabled
+    taxType?: 'inclusive' | 'exclusive'; // Only used by 'regular' scheme
+    // --- END MODIFICATION ---
+
     enableRounding?: boolean;
     enforceExactMRP?: boolean;
 
@@ -40,6 +43,7 @@ export interface SalesSettings {
 const SalesSettingsPage: React.FC = () => {
     const navigate = useNavigate();
     const { currentUser } = useAuth();
+    // Initialize with the new type
     const [settings, setSettings] = useState<SalesSettings>({ settingType: 'sales' });
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -74,13 +78,14 @@ const SalesSettingsPage: React.FC = () => {
                     setSettingsDocId(docSnap.id);
                 } else {
                     console.warn(`No 'sales' settings found for company ${companyId}. Creating defaults.`);
+
+                    // --- MODIFIED: New default settings with GST ---
                     const defaultSettings: SalesSettings = {
                         settingType: 'sales',
                         salesViewType: 'list',
                         enableSalesmanSelection: true,
-                        enableTax: true,
-                        taxType: 'exclusive',
-                        defaultTaxRate: 0,
+                        gstScheme: 'regular', // Default to regular GST
+                        taxType: 'exclusive', // Default to exclusive
                         enableRounding: true,
                         enforceExactMRP: false,
                         enableItemWiseDiscount: true,
@@ -97,6 +102,7 @@ const SalesSettingsPage: React.FC = () => {
                         copyVoucherAfterSaving: false,
                         companyId: companyId,
                     };
+                    // --- END MODIFICATION ---
 
                     const newDocRef = await addDoc(settingsCollectionRef, defaultSettings);
                     setSettings(defaultSettings);
@@ -144,7 +150,8 @@ const SalesSettingsPage: React.FC = () => {
 
 
     const handleChange = (field: keyof SalesSettings, value: any) => {
-        if (field === 'defaultTaxRate' || field === 'defaultDiscount' || field === 'currentVoucherNumber') {
+        // --- MODIFIED: Removed 'defaultTaxRate' ---
+        if (field === 'defaultDiscount' || field === 'currentVoucherNumber') {
             const numValue = parseFloat(value);
             setSettings(prev => ({ ...prev, [field]: isNaN(numValue) ? 0 : numValue }));
         } else {
@@ -203,20 +210,30 @@ const SalesSettingsPage: React.FC = () => {
                     </div>
 
                     <h2 className="text-lg font-semibold text-gray-800 my-4 border-t pt-4">Pricing & Tax</h2>
-                    <div className="flex items-center mb-4">
-                        <input
-                            type="checkbox"
-                            id="enable-tax"
-                            checked={settings.enableTax ?? false}
-                            onChange={(e) => handleCheckboxChange('enableTax', e.target.checked)}
-                            className="w-4 h-4 text-blue-600"
-                        />
-                        <label htmlFor="enable-tax" className="ml-2 text-gray-700 text-sm font-medium">Enable Tax Calculation</label>
+
+                    {/* --- MODIFIED: This is the new GST Scheme dropdown --- */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label htmlFor="gst-scheme" className="block text-gray-700 text-sm font-medium mb-1">GST Scheme</label>
+                            <select
+                                id="gst-scheme"
+                                value={settings.gstScheme || 'none'}
+                                onChange={(e) => handleChange('gstScheme', e.target.value)}
+                                className="w-full p-3 border border-gray-300 rounded-lg bg-white"
+                            >
+                                <option value="none">None (Tax Disabled)</option>
+                                <option value="regular">Regular GST</option>
+                                <option value="composition">Composition GST (Inclusive)</option>
+                            </select>
+                        </div>
                     </div>
-                    {settings.enableTax && (
+                    {/* --- END MODIFICATION --- */}
+
+                    {/* --- MODIFIED: This section now only shows for 'regular' GST --- */}
+                    {settings.gstScheme === 'regular' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div>
-                                <label htmlFor="tax-type" className="block text-gray-700 text-sm font-medium mb-1">Tax Calculation</label>
+                                <label htmlFor="tax-type" className="block text-gray-700 text-sm font-medium mb-1">Tax Calculation (for Regular GST)</label>
                                 <select
                                     id="tax-type"
                                     value={settings.taxType || 'exclusive'}
@@ -227,20 +244,11 @@ const SalesSettingsPage: React.FC = () => {
                                     <option value="inclusive">Tax Inclusive (MRP includes GST)</option>
                                 </select>
                             </div>
-                            <div>
-                                <label htmlFor="tax-rate" className="block text-gray-700 text-sm font-medium mb-1">Default Tax Rate (%)</label>
-                                <input
-                                    type="number"
-                                    id="tax-rate"
-                                    value={settings.defaultTaxRate ?? 0}
-                                    onChange={(e) => handleChange('defaultTaxRate', e.target.value)}
-                                    className="w-full p-3 border border-gray-300 rounded-lg"
-                                    placeholder="e.g., 5"
-                                    step="0.01"
-                                />
-                            </div>
+                            {/* The defaultTaxRate input is removed */}
                         </div>
                     )}
+                    {/* --- END MODIFICATION --- */}
+
                     <div className="flex items-center mb-4">
                         <input type="checkbox" id="enable-rounding" checked={settings.enableRounding ?? false} onChange={(e) => handleCheckboxChange('enableRounding', e.target.checked)} className="w-4 h-4 text-blue-600" />
                         <label htmlFor="enable-rounding" className="ml-2 text-gray-700 text-sm font-medium">Enable Rounding Off</label>
@@ -256,7 +264,6 @@ const SalesSettingsPage: React.FC = () => {
                         <input type="checkbox" id="item-discount" checked={settings.enableItemWiseDiscount ?? false} onChange={(e) => handleCheckboxChange('enableItemWiseDiscount', e.target.checked)} className="w-4 h-4 text-blue-600" />
                         <label htmlFor="item-discount" className="ml-2 text-gray-700 text-sm font-medium">Enable Item-wise Discount</label>
                     </div>
-
 
                     <div className="flex items-center mb-4">
                         <input type="checkbox" id="lock-discount" checked={settings.lockDiscountEntry ?? false} onChange={(e) => handleCheckboxChange('lockDiscountEntry', e.target.checked)} className="w-4 h-4 text-blue-600" />
@@ -351,4 +358,3 @@ const SalesSettingsPage: React.FC = () => {
 };
 
 export default SalesSettingsPage;
-
