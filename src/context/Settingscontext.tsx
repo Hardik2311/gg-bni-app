@@ -38,19 +38,24 @@ export interface SalesSettings {
 export interface PurchaseSettings {
     companyId?: string;
     settingType?: 'purchase';
-    taxType?: 'inclusive' | 'exclusive';
-    defaultTaxRate?: number;
-    enableTax?: boolean;
+
+    // Replaced enableTax and defaultTaxRate
+    gstScheme?: 'regular' | 'composition' | 'none';
+    taxType?: 'inclusive' | 'exclusive'; // This applies to regular AND composition
+
     defaultDiscount?: number;
     inputMRP?: boolean;
     zeroValueValidation?: boolean;
     enableBarcodePrinting?: boolean;
     copyVoucherAfterSaving?: boolean;
     roundingOff?: boolean;
+
     voucherName?: string;
     voucherPrefix?: string;
     currentVoucherNumber?: number;
+
     purchaseViewType?: 'card' | 'list';
+
     requireSupplierName?: boolean;
     requireSupplierMobile?: boolean;
 }
@@ -109,8 +114,7 @@ const getDefaultPurchaseSettings = (companyId: string): PurchaseSettings => ({
     companyId: companyId,
     settingType: 'purchase',
     taxType: 'exclusive',
-    defaultTaxRate: 0,
-    enableTax: true,
+    gstScheme: 'regular',
     defaultDiscount: 0,
     inputMRP: true,
     zeroValueValidation: true,

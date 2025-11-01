@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import MainLayout from '../app/MainLayout';
+import CatalogueLayout from '../app/CatalougeLayout';
 import { ROUTES } from '../constants/routes.constants';
 import { AuthProvider } from '../context/Authcontext';
 import PermissionWrapper from '../context/PermissionWrapper';
@@ -41,6 +42,8 @@ const MyShop = lazy(() => import('../Catalogue/MyShop'));
 const UserSetting = lazy(() => import('../Pages/Settings/UserSettings'));
 const ItemSetting = lazy(() => import('../Pages/Settings/ItemSetting'));
 const Order = lazy(() => import('../Catalogue/OrderingPage'));
+const OrderDetails = lazy(() => import('../Catalogue/Orders'));
+const Catalogue = lazy(() => import('../Catalogue/SharedCatalouge'));
 
 const router = createBrowserRouter([
   {
@@ -191,8 +194,30 @@ const router = createBrowserRouter([
             handle: { requiredPermission: null },
           },
           {
-            path: ROUTES.CHOME,
+            path: ROUTES.USERSETTING,
+            element: <UserSetting />,
+            handle: { requiredPermission: null },
+          },
+          {
+            path: ROUTES.ITEMSETTING,
+            element: <ItemSetting />,
+            handle: { requiredPermission: null },
+          },
+        ],
+      },
+      {
+        path: ROUTES.CHOME,
+        element: <CatalogueLayout />,
+        handle: { requiredPermission: null },
+        children: [
+          {
+            index: true,
             element: <CHome />,
+            handle: { requiredPermission: null },
+          },
+          {
+            path: ROUTES.ORDERDETAILS,
+            element: <OrderDetails />,
             handle: { requiredPermission: null },
           },
           {
@@ -205,17 +230,12 @@ const router = createBrowserRouter([
             element: <Order />,
             handle: { requiredPermission: null },
           },
-          {
-            path: ROUTES.USERSETTING,
-            element: <UserSetting />,
-            handle: { requiredPermission: null },
-          },
-          {
-            path: ROUTES.ITEMSETTING,
-            element: <ItemSetting />,
-            handle: { requiredPermission: null },
-          },
         ],
+      },
+      {
+        path: `/catalogue/:companyId`,
+        element: <Catalogue />,
+        handle: { requiredPermission: null },
       },
       {
         path: ROUTES.UNAUTHORIZED,

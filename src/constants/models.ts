@@ -21,6 +21,8 @@ export interface Item {
   restockQuantity: number;
   stock: number;
   isListed?: boolean;
+  imageUrl?: string;
+  description?: string;
 }
 
 export interface ItemGroup {

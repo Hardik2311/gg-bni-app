@@ -13,14 +13,22 @@ import SearchableItemInput from '../../UseComponents/SearchIteminput';
 import { CustomButton } from '../../Components';
 import { generateNextInvoiceNumber } from '../../UseComponents/InvoiceCounter';
 import { Spinner } from '../../constants/Spinner';
-
+import { FiEdit } from 'react-icons/fi';
+import { ItemEditDrawer } from '../../Components/ItemDrawer';
 import { usePurchaseSettings } from '../../context/Settingscontext';
 
+// --- MODIFIED: Interface now includes tax fields ---
 interface PurchaseItem extends Omit<SalesItem, 'finalPrice' | 'effectiveUnitPrice' | 'discountPercentage'> {
   purchasePrice: number;
   barcode?: string;
+  taxRate?: number; // Added
+  taxType?: 'inclusive' | 'exclusive' | 'none'; // Added
+  taxAmount?: number; // Added
+  taxableAmount?: number; // Added
+  Stock: number; // Use capital 'S'
 }
 
+// --- MODIFIED: Document data updated for GST ---
 interface PurchaseDocumentData extends Omit<OriginalPurchase, 'items' | 'paymentMethods'> {
   userId: string;
   partyName: string;
@@ -31,7 +39,8 @@ interface PurchaseDocumentData extends Omit<OriginalPurchase, 'items' | 'payment
   totalDiscount?: number;
   taxableAmount?: number;
   taxAmount?: number;
-  taxType?: 'inclusive' | 'exclusive' | 'none';
+  gstScheme?: 'regular' | 'composition' | 'none'; // Added
+  taxType?: 'inclusive' | 'exclusive' | 'none';  // Kept for record
   totalAmount: number;
   paymentMethods: { [key: string]: number };
   createdAt: any;
@@ -41,9 +50,7 @@ interface PurchaseDocumentData extends Omit<OriginalPurchase, 'items' | 'payment
   updatedAt?: any;
 }
 
-
 type Purchase = PurchaseDocumentData & { id: string };
-
 
 const applyPurchaseRounding = (amount: number, isRoundingEnabled: boolean): number => {
   if (!isRoundingEnabled) {
@@ -63,7 +70,7 @@ const PurchasePage: React.FC = () => {
   const [modal, setModal] = useState<{ message: string; type: State } | null>(null);
   const [items, setItems] = useState<PurchaseItem[]>([]);
   const [availableItems, setAvailableItems] = useState<Item[]>([]);
-  const [pageIsLoading, setPageIsLoading] = useState<boolean>(true); // Combined loading state
+  const [pageIsLoading, setPageIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -74,7 +81,6 @@ const PurchasePage: React.FC = () => {
   const purchaseIdToEdit = location.state?.purchaseId as string | undefined;
 
   const [settingsDocId, setSettingsDocId] = useState<string | null>(null);
-
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -97,11 +103,11 @@ const PurchasePage: React.FC = () => {
     };
     findSettingsDocId();
 
-    if (pageIsLoading || !dbOperations || !currentUser) return; // Wait for loading & required data
+    if (pageIsLoading || !dbOperations || !currentUser) return;
 
     const initializePage = async () => {
       try {
-        const fetchedItems = await dbOperations.getItems();
+        const fetchedItems = await dbOperations.getItems(); // Make sure this fetches taxRate and Stock
         setAvailableItems(fetchedItems);
 
         if (purchaseIdToEdit) {
@@ -117,7 +123,11 @@ const PurchasePage: React.FC = () => {
               mrp: item.mrp || 0,
               discount: item.discount || 0,
               barcode: item.barcode || '',
-              Stock: item.stock
+              taxRate: item.taxRate || 0, // Load taxRate
+              taxType: item.taxType,
+              taxAmount: item.taxAmount,
+              taxableAmount: item.taxableAmount,
+              Stock: item.Stock || item.stock || 0, // Check for both
             }));
             setEditModeData(purchaseData);
             setItems(validatedItems);
@@ -140,6 +150,7 @@ const PurchasePage: React.FC = () => {
   }, [dbOperations, currentUser, purchaseIdToEdit, pageIsLoading, navigate]);
 
 
+  // --- MODIFIED: Added taxRate and fixed Stock ---
   const addItemToCart = (itemToAdd: Item) => {
     if (!itemToAdd || !itemToAdd.id) {
       console.error("Attempted to add invalid item:", itemToAdd);
@@ -156,7 +167,7 @@ const PurchasePage: React.FC = () => {
         )
       );
     } else {
-      const defaultDiscount = purchaseSettings?.defaultDiscount ?? 0; // Use setting
+      const defaultDiscount = purchaseSettings?.defaultDiscount ?? 0;
       setItems((prevItems) => [
         ...prevItems,
         {
@@ -167,64 +178,87 @@ const PurchasePage: React.FC = () => {
           barcode: itemToAdd.barcode || '',
           quantity: 1,
           discount: defaultDiscount,
-          Stock: itemToAdd.stock,
+          taxRate: itemToAdd.taxRate || 0, // <-- Get taxRate from item
+          Stock: itemToAdd.stock || 0,   // <-- Use capital 'S'
         },
       ]);
     }
   };
 
+  // --- MODIFIED: This entire hook is replaced with GST logic ---
   const {
-    subtotal,
+    subtotal,         // This is the total purchase price (pre-tax if exclusive)
     taxableAmount,
     taxAmount,
     roundingOffAmount,
     finalAmount,
-    totalDiscount
+    totalDiscount     // Kept your MRP vs PP logic
   } = useMemo(() => {
-    let currentSubtotal = 0;
-    let mrpTotal = 0;
-    items.forEach(item => {
-      currentSubtotal += (item.purchasePrice || 0) * (item.quantity || 1);
-      mrpTotal += (item.mrp || item.purchasePrice || 0) * (item.quantity || 1);
-    });
-
-    const isTaxEnabled = purchaseSettings?.enableTax ?? true;
-    const taxRate = purchaseSettings?.defaultTaxRate ?? 0;
-    const taxType = purchaseSettings?.taxType ?? 'exclusive';
+    // Get settings
+    const gstScheme = purchaseSettings?.gstScheme ?? 'none';
+    const taxType = purchaseSettings?.taxType ?? 'exclusive'; // Used by 'regular' and 'composition'
     const isRoundingEnabled = purchaseSettings?.roundingOff ?? true;
 
-    let currentTaxableAmount = currentSubtotal;
-    let currentTaxAmount = 0;
-    let finalPayableAmount = currentSubtotal;
+    let mrpTotalAgg = 0;
+    let purchasePriceTotalAgg = 0; // This is the subtotal
+    let totalTaxableBaseAgg = 0;
+    let totalTaxAgg = 0;
+    let finalAmountAggPreRounding = 0;
 
-    if (isTaxEnabled && taxRate > 0) {
-      if (taxType === 'exclusive') {
-        currentTaxAmount = currentSubtotal * (taxRate / 100);
-        finalPayableAmount = currentSubtotal + currentTaxAmount;
+    items.forEach(item => {
+      const purchasePrice = item.purchasePrice || 0;
+      const quantity = item.quantity || 1;
+      const itemTaxRate = item.taxRate || 0;
+      const mrp = item.mrp || 0;
+
+      // Calculate totals based on MRP and Purchase Price
+      mrpTotalAgg += mrp * quantity;
+      const itemTotalPurchasePrice = purchasePrice * quantity;
+      purchasePriceTotalAgg += itemTotalPurchasePrice;
+
+      // 3. Calculate Tax based on GST Scheme and Type
+      let itemTaxableBase = 0;
+      let itemTax = 0;
+      let itemFinalTotal = 0;
+
+      if (gstScheme === 'regular' || gstScheme === 'composition') {
+        if (taxType === 'exclusive') {
+          // Purchase price is the base
+          itemTaxableBase = itemTotalPurchasePrice;
+          itemTax = itemTaxableBase * (itemTaxRate / 100);
+          itemFinalTotal = itemTaxableBase + itemTax;
+        } else {
+          // 'inclusive'
+          // Purchase price includes tax
+          itemFinalTotal = itemTotalPurchasePrice;
+          itemTaxableBase = itemTotalPurchasePrice / (1 + (itemTaxRate / 100));
+          itemTax = itemTotalPurchasePrice - itemTaxableBase;
+        }
       } else {
-        currentTaxableAmount = currentSubtotal / (1 + (taxRate / 100));
-        currentTaxAmount = currentSubtotal - currentTaxableAmount;
-        finalPayableAmount = currentSubtotal;
+        // gstScheme === 'none'
+        itemTaxableBase = itemTotalPurchasePrice;
+        itemTax = 0;
+        itemFinalTotal = itemTaxableBase;
       }
-    } else {
-      currentTaxableAmount = currentSubtotal;
-      currentTaxAmount = 0;
-      finalPayableAmount = currentSubtotal;
-    }
 
-    const roundedAmount = applyPurchaseRounding(finalPayableAmount, isRoundingEnabled);
-    const currentRoundingOffAmount = roundedAmount - finalPayableAmount;
+      // 4. Aggregate totals
+      totalTaxableBaseAgg += itemTaxableBase;
+      totalTaxAgg += itemTax;
+      finalAmountAggPreRounding += itemFinalTotal;
+    });
 
-    const currentTotalDiscount = mrpTotal - currentSubtotal;
-
+    // 5. Calculate Final Aggregates
+    const roundedAmount = applyPurchaseRounding(finalAmountAggPreRounding, isRoundingEnabled);
+    const currentRoundingOffAmount = roundedAmount - finalAmountAggPreRounding;
+    const currentTotalDiscount = mrpTotalAgg - purchasePriceTotalAgg; // Your original logic
 
     return {
-      subtotal: currentSubtotal,
-      totalDiscount: currentTotalDiscount > 0 ? currentTotalDiscount : 0, // Ensure discount isn't negative
-      taxableAmount: currentTaxableAmount,
-      taxAmount: currentTaxAmount,
+      subtotal: purchasePriceTotalAgg, // Subtotal is total of purchase prices
+      totalDiscount: currentTotalDiscount > 0 ? currentTotalDiscount : 0,
+      taxableAmount: totalTaxableBaseAgg,
+      taxAmount: totalTaxAgg,
       roundingOffAmount: currentRoundingOffAmount,
-      finalAmount: roundedAmount,
+      finalAmount: roundedAmount, // Final rounded amount
     };
   }, [items, purchaseSettings]);
 
@@ -269,70 +303,98 @@ const PurchasePage: React.FC = () => {
       }
     }
 
-
     setIsDrawerOpen(true);
   };
 
 
+  // --- MODIFIED: This function is heavily updated ---
   const handleSavePurchase = async (completionData: PaymentCompletionData) => {
     if (!currentUser?.companyId) {
       setModal({ message: 'User or company information missing.', type: State.ERROR });
       return;
     }
 
-    if (purchaseSettings?.requireSupplierName && !completionData.partyName.trim()) {
-      setModal({ message: 'Supplier name is required.', type: State.ERROR });
-      setIsDrawerOpen(true);
-      return;
+    // Required field checks (Unchanged)
+    if (purchaseSettings?.requireSupplierName && !completionData.partyName.trim()) { setModal({ message: 'Supplier name is required.', type: State.ERROR }); setIsDrawerOpen(true); return; }
+    if (purchaseSettings?.requireSupplierMobile && !completionData.partyNumber.trim()) { setModal({ message: 'Supplier mobile is required.', type: State.ERROR }); setIsDrawerOpen(true); return; }
+
+    // 1. Determine final tax settings from GST Scheme
+    const gstScheme = purchaseSettings?.gstScheme ?? 'none';
+    const taxType = purchaseSettings?.taxType ?? 'exclusive';
+
+    let finalTaxType: 'inclusive' | 'exclusive' | 'none';
+    if (gstScheme === 'none') {
+      finalTaxType = 'none';
+    } else {
+      finalTaxType = taxType; // Use the setting for both 'regular' and 'composition'
     }
-    if (purchaseSettings?.requireSupplierMobile && !completionData.partyNumber.trim()) {
-      setModal({ message: 'Supplier mobile is required.', type: State.ERROR });
-      setIsDrawerOpen(true);
-      return;
-    }
 
-    const isTaxEnabled = purchaseSettings?.enableTax ?? true;
-    const finalTaxType = isTaxEnabled ? (purchaseSettings?.taxType ?? 'exclusive') : 'none';
+    // 2. Create a proper formatting function (replaces simple map)
+    const formatItemsForDB = (itemsToFormat: PurchaseItem[]): PurchaseItem[] => {
+      return itemsToFormat.map((item) => {
+        const purchasePrice = item.purchasePrice || 0;
+        const quantity = item.quantity || 1;
+        const itemTaxRate = item.taxRate || 0;
+        const itemTotalPurchasePrice = purchasePrice * quantity;
 
+        let itemTaxableBase = 0;
+        let itemTax = 0;
 
-    const formattedItemsForDB = items.map(({ id, name, purchasePrice, quantity, mrp, barcode, discount }) => ({
-      id, name: name || 'N/A',
-      purchasePrice: purchasePrice || 0,
-      quantity: quantity || 1,
-      mrp: mrp || 0,
-      barcode: barcode || '',
-      discount: discount || 0
-    }));
+        if (finalTaxType === 'exclusive') {
+          itemTaxableBase = itemTotalPurchasePrice;
+          itemTax = itemTaxableBase * (itemTaxRate / 100);
+        } else if (finalTaxType === 'inclusive') {
+          itemTaxableBase = itemTotalPurchasePrice / (1 + (itemTaxRate / 100));
+          itemTax = itemTotalPurchasePrice - itemTaxableBase;
+        } else { // 'none'
+          itemTaxableBase = itemTotalPurchasePrice;
+          itemTax = 0;
+        }
 
+        return {
+          ...item,
+          taxableAmount: parseFloat(itemTaxableBase.toFixed(2)),
+          taxAmount: parseFloat(itemTax.toFixed(2)),
+          taxRate: itemTaxRate,
+          taxType: finalTaxType,
+        };
+      });
+    };
+
+    const formattedItemsForDB = formatItemsForDB(items);
 
     if (editModeData && purchaseIdToEdit) {
-      await updateExistingPurchase(purchaseIdToEdit, completionData, formattedItemsForDB, finalTaxType);
+      await updateExistingPurchase(purchaseIdToEdit, completionData, formattedItemsForDB, gstScheme, finalTaxType);
     } else {
-      await createNewPurchase(completionData, formattedItemsForDB, finalTaxType);
+      await createNewPurchase(completionData, formattedItemsForDB, gstScheme, finalTaxType);
     }
   };
 
-  const createNewPurchase = async (completionData: PaymentCompletionData, formattedItemsForDB: any[], finalTaxType: 'inclusive' | 'exclusive' | 'none') => { // Use any[] for simpler type
+  const createNewPurchase = async (
+    completionData: PaymentCompletionData,
+    formattedItemsForDB: PurchaseItem[], // Use correct type
+    gstScheme: 'regular' | 'composition' | 'none',
+    finalTaxType: 'inclusive' | 'exclusive' | 'none'
+  ) => {
     if (!currentUser?.companyId) return;
-
 
     try {
       const newInvoiceNumber = await generateNextInvoiceNumber();
-
       await runTransaction(db, async (transaction) => {
         const purchaseData: Omit<PurchaseDocumentData, 'id'> = {
           userId: currentUser.uid,
           partyName: completionData.partyName.trim(),
           partyNumber: completionData.partyNumber.trim(),
           invoiceNumber: newInvoiceNumber,
-          items: formattedItemsForDB,
+          items: formattedItemsForDB, // Save fully calculated items
           subtotal: subtotal,
           totalDiscount: totalDiscount,
-          taxableAmount: taxableAmount,
-          taxAmount: taxAmount,
-          taxType: finalTaxType,
-          roundingOff: roundingOffAmount,
-          totalAmount: finalAmount,
+          taxableAmount: taxableAmount, // From useMemo
+          taxAmount: taxAmount,         // From useMemo
+          gstScheme: gstScheme,       // Save scheme
+          taxType: finalTaxType,      // Save tax type
+          roundingOff: roundingOffAmount, // From useMemo
+          totalAmount: finalAmount,       // From useMemo
           paymentMethods: completionData.paymentDetails,
           createdAt: serverTimestamp(),
           companyId: currentUser.companyId!,
@@ -345,9 +407,10 @@ const PurchasePage: React.FC = () => {
         formattedItemsForDB.forEach(item => {
           const itemRef = doc(db, "items", item.id);
           transaction.update(itemRef, {
-            Stock: firebaseIncrement(item.quantity || 1),
+            Stock: firebaseIncrement(item.quantity || 1), // <-- FIX: Use 'Stock'
             purchasePrice: item.purchasePrice,
-            mrp: item.mrp
+            mrp: item.mrp,
+            taxRate: item.taxRate, // Also update tax rate on the item
           });
         });
 
@@ -364,18 +427,15 @@ const PurchasePage: React.FC = () => {
 
       setIsDrawerOpen(false);
       const savedItemsCopy = [...items];
-
       if (!purchaseSettings?.copyVoucherAfterSaving) {
         setItems([]);
       }
-
       if (purchaseSettings?.enableBarcodePrinting) {
         setShowPrintQrModal(savedItemsCopy);
       } else {
         setModal({ message: `Purchase #${newInvoiceNumber} saved!`, type: State.SUCCESS });
         setTimeout(() => { setModal(null); }, 1500);
       }
-
     } catch (err: any) {
       console.error('Error saving purchase:', err);
       setModal({ message: `Save failed: ${err.message || 'Unknown error'}`, type: State.ERROR });
@@ -386,7 +446,8 @@ const PurchasePage: React.FC = () => {
   const updateExistingPurchase = async (
     purchaseId: string,
     completionData: PaymentCompletionData,
-    formattedItemsForDB: any[],
+    formattedItemsForDB: PurchaseItem[], // Use correct type
+    gstScheme: 'regular' | 'composition' | 'none',
     finalTaxType: 'inclusive' | 'exclusive' | 'none'
   ) => {
     if (!editModeData) return;
@@ -412,7 +473,7 @@ const PurchasePage: React.FC = () => {
 
           if (difference !== 0) {
             const itemRef = doc(db, 'items', id);
-            transaction.update(itemRef, { Stock: firebaseIncrement(difference) });
+            transaction.update(itemRef, { Stock: firebaseIncrement(difference) }); // <-- FIX: Use 'Stock'
           }
         });
 
@@ -420,7 +481,8 @@ const PurchasePage: React.FC = () => {
           const itemRef = doc(db, "items", item.id);
           transaction.update(itemRef, {
             purchasePrice: item.purchasePrice,
-            mrp: item.mrp
+            mrp: item.mrp,
+            taxRate: item.taxRate, // Also update tax rate
           });
         });
 
@@ -430,20 +492,19 @@ const PurchasePage: React.FC = () => {
           items: formattedItemsForDB,
           subtotal: subtotal,
           totalDiscount: totalDiscount,
-          taxableAmount: taxableAmount,
-          taxAmount: taxAmount,
-          taxType: finalTaxType,
-          roundingOff: roundingOffAmount,
-          totalAmount: finalAmount,
+          taxableAmount: taxableAmount,   // From useMemo
+          taxAmount: taxAmount,       // From useMemo
+          gstScheme: gstScheme,     // Save scheme
+          taxType: finalTaxType,    // Save tax type
+          roundingOff: roundingOffAmount, // From useMemo
+          totalAmount: finalAmount,     // From useMemo
           paymentMethods: completionData.paymentDetails,
           updatedAt: serverTimestamp(),
         };
 
         transaction.update(purchaseRef, updatedPurchaseData);
       });
-
       showSuccessModal('Purchase updated successfully!', ROUTES.JOURNAL);
-
     } catch (err: any) {
       console.error('Error updating purchase:', err);
       setModal({ message: `Update failed: ${err.message || 'Unknown error'}`, type: State.ERROR });
@@ -484,33 +545,57 @@ const PurchasePage: React.FC = () => {
     setShowPrintQrModal(null);
   };
 
+  // --- Item Edit Drawer Handlers (Unchanged) ---
+  const [selectedItemForEdit, setSelectedItemForEdit] = useState<Item | null>(null);
+  const [isItemDrawerOpen, setIsItemDrawerOpen] = useState(false);
+  const handleOpenEditDrawer = (item: Item) => {
+    setSelectedItemForEdit(item);
+    setIsItemDrawerOpen(true);
+  };
+  const handleCloseEditDrawer = () => {
+    setIsItemDrawerOpen(false);
+    setTimeout(() => setSelectedItemForEdit(null), 300);
+  };
+  const handleSaveSuccess = (updatedItemData: Partial<Item>) => {
+    // Update main item list
+    setAvailableItems(prevItems => prevItems.map(item =>
+      item.id === selectedItemForEdit?.id
+        ? { ...item, ...updatedItemData, id: item.id } as Item
+        : item
+    ));
+    // Update item in cart
+    setItems(prevCartItems => prevCartItems.map(cartItem => {
+      if (cartItem.id === selectedItemForEdit?.id) {
+        return {
+          ...cartItem,
+          ...updatedItemData,
+          id: cartItem.id,
+        };
+      }
+      return cartItem;
+    }));
+    console.log("Item updated successfully.");
+  };
 
+  // --- Loading / Error (Unchanged) ---
   if (pageIsLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Spinner />
-        <p className="ml-2">Loading...</p>
-      </div>
-    );
+    return (<div className="flex items-center justify-center h-screen"><Spinner /> <p className="ml-2">Loading...</p></div>);
   }
   if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen text-red-600">
-        <p>{error}</p>
-        <button onClick={() => navigate(-1)} className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Go Back</button>
-      </div>
-    );
+    return (<div className="flex flex-col items-center justify-center h-screen text-red-600"><p>{error}</p><button onClick={() => navigate(-1)} className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Go Back</button></div>);
   }
 
-  const isTaxEnabledDisplay = purchaseSettings?.enableTax ?? true;
+  // --- MODIFIED: Get display settings for GST ---
+  const gstSchemeDisplay = purchaseSettings?.gstScheme ?? 'none';
   const taxTypeDisplay = purchaseSettings?.taxType ?? 'exclusive';
-  const taxRateDisplay = purchaseSettings?.defaultTaxRate ?? 0;
+  const isTaxInclusiveDisplay = (gstSchemeDisplay !== 'none' && taxTypeDisplay === 'inclusive');
 
   return (
     <div className="flex flex-col h-screen bg-gray-100 w-full">
       {modal && <Modal message={modal.message} onClose={() => setModal(null)} type={modal.type} />}
       <BarcodeScanner isOpen={isScannerOpen} onClose={() => setIsScannerOpen(false)} onScanSuccess={handleBarcodeScanned} />
 
+      {/* (Print QR Modal unchanged) */}
       {showPrintQrModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
           <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm mx-4">
@@ -524,6 +609,7 @@ const PurchasePage: React.FC = () => {
         </div>
       )}
 
+      {/* (Header unchanged) */}
       <div className="flex-shrink-0">
         <div className="flex flex-col p-1 bg-gray-100 border-b border-gray-300">
           <h1 className="text-2xl font-bold text-gray-800 text-center mb-2">{editModeData ? 'Edit Purchase' : (purchaseSettings?.voucherName ?? 'Purchase')}</h1>
@@ -546,13 +632,14 @@ const PurchasePage: React.FC = () => {
                 error={error}
               />
             </div>
-            <button onClick={() => setIsScannerOpen(true)} className="p-3 bg-gray-700 text-white rounded-md font-semibold transition hover:bg-gray-800" title="Scan Barcode"> {/* Original Button Style */}
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>
+            <button onClick={() => setIsScannerOpen(true)} className="p-3 bg-gray-700 text-white rounded-md font-semibold transition hover:bg-gray-800" title="Scan Barcode">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>
             </button>
           </div>
         </div>
       </div>
 
+      {/* (Cart list unchanged, still uses your Item Edit Drawer) */}
       <div className='flex-grow overflow-y-auto p-2'>
         <h3 className="text-gray-700 text-lg font-medium px-2 mb-2">Cart</h3>
         <div className="flex flex-col gap-2">
@@ -562,7 +649,20 @@ const PurchasePage: React.FC = () => {
             items.map((item: PurchaseItem) => (
               <div key={item.id} className="relative bg-white rounded-lg shadow-sm border p-2 flex flex-col gap-1">
                 <div className="flex justify-between items-start">
-                  <p className="font-semibold text-gray-800 pr-8">{item.name}</p>
+                  <button
+                    onClick={() => {
+                      const originalItem = availableItems.find(a => a.id === item.id);
+                      if (originalItem) {
+                        handleOpenEditDrawer(originalItem);
+                      } else {
+                        setModal({ message: "Cannot edit this item. Original data not found.", type: State.ERROR });
+                      }
+                    }}
+                    className="absolute top-3 left-4 bg-gray-50 hover:bg-gray-100 "
+                  >
+                    <FiEdit className="h-5 w-5 md:h-4 md:w-4" />
+                  </button>
+                  <p className="font-semibold text-gray-800 pr-8 pl-10">{item.name}</p>
                   <button
                     onClick={() => handleDeleteItem(item.id)}
                     className="absolute top-4 right-4 text-gray-400 hover:text-red-500"
@@ -593,7 +693,7 @@ const PurchasePage: React.FC = () => {
 
                 <div className="flex justify-between items-center">
                   <p className="font-medium text-sm text-gray-600">Quantity</p>
-                  <div className="flex items-center gap-3 text-lg border border-gray-300 rounded-md"> {/* Original Gap & Style */}
+                  <div className="flex items-center gap-3 text-lg border border-gray-300 rounded-md">
                     <button onClick={() => handleQuantityChange(item.id, -1)} disabled={item.quantity <= 1} className="px-3 py-0.5 text-gray-700 hover:bg-gray-100 rounded-l-md disabled:text-gray-300">-</button>
                     <span className="font-bold text-gray-900 w-8 text-center border-l border-r px-2">{item.quantity}</span>
                     <button onClick={() => handleQuantityChange(item.id, 1)} className="px-3 py-0.5 text-gray-700 hover:bg-gray-100 rounded-r-md font-semibold">+</button>
@@ -605,33 +705,38 @@ const PurchasePage: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex-shrink-0 p-4 bg-white border-t rounded-sm shadow-[0_-2px_5px_rgba(0,0,0,0.05)] mb-4"> {/* Original Padding & Margin */}
-        {isTaxEnabledDisplay && (
+      {/* --- MODIFIED: Summary box updated for GST --- */}
+      <div className="flex-shrink-0 p-4 bg-white border-t rounded-sm shadow-[0_-2px_5px_rgba(0,0,0,0.05)] mb-4">
+        {gstSchemeDisplay !== 'none' ? (
           <>
             <div className="flex justify-between items-center text-sm">
-              <p className="text-gray-600">Subtotal (Pre-Tax)</p>
-              <p className="text-gray-800">₹{(taxTypeDisplay === 'inclusive' ? taxableAmount : subtotal).toFixed(2)}</p>
+              <p className="text-gray-600">Subtotal (Purchase Price)</p>
+              <p className="text-gray-800">₹{subtotal.toFixed(2)}</p>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <p className="text-gray-600">Taxable Amount</p>
+              <p className="text-gray-800">₹{taxableAmount.toFixed(2)}</p>
             </div>
             <div className="flex justify-between items-center text-sm text-blue-600">
-              <p>Tax @ {taxRateDisplay}% {taxTypeDisplay === 'inclusive' ? '(Incl.)' : '(Excl.)'}</p>
+              <p>Total Tax {isTaxInclusiveDisplay ? '(Incl.)' : ''}</p>
               <p>₹{taxAmount.toFixed(2)}</p>
             </div>
           </>
-        )}
-        {(purchaseSettings?.roundingOff && roundingOffAmount !== 0) && (
-          <div className="flex justify-between items-center text-sm text-green-600">
-            <p>Rounding</p>
-            <p>{roundingOffAmount > 0 ? '+' : ''} ₹{roundingOffAmount.toFixed(2)}</p>
+        ) : (
+          <div className="flex justify-between items-center text-sm">
+            <p className="text-gray-600">Subtotal</p>
+            <p className="text-gray-800">₹{subtotal.toFixed(2)}</p>
           </div>
         )}
-        <div className="flex justify-between items-center mb-3">
+        <div className="flex justify-between items-center mt-2 border-t pt-2">
           <p className="text-gray-700 text-lg font-medium">Total Amount</p>
           <p className="text-gray-900 text-2xl font-bold">₹{finalAmount.toFixed(2)}</p>
         </div>
       </div>
 
+      {/* (Button and drawers unchanged) */}
       <div className="px-14 py-1 mb-24">
-        <CustomButton onClick={handleProceedToPayment} variant={Variant.Payment} className="w-full flex items-center justify-center py-4 text-xl font-semibold" disabled={items.length === 0}> {/* Original Style */}
+        <CustomButton onClick={handleProceedToPayment} variant={Variant.Payment} className="w-full flex items-center justify-center py-4 text-xl font-semibold" disabled={items.length === 0}>
           {editModeData ? 'Update Purchase' : 'Proceed to Payment'}
         </CustomButton>
       </div>
@@ -646,9 +751,14 @@ const PurchasePage: React.FC = () => {
         initialPartyName={editModeData ? editModeData.partyName : ''}
         initialPartyNumber={editModeData ? editModeData.partyNumber : ''}
       />
+      <ItemEditDrawer
+        item={selectedItemForEdit}
+        isOpen={isItemDrawerOpen}
+        onClose={handleCloseEditDrawer}
+        onSaveSuccess={handleSaveSuccess}
+      />
     </div>
   );
 };
 
 export default PurchasePage;
-
