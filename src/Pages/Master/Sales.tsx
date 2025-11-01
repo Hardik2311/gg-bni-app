@@ -15,6 +15,9 @@ import { CustomButton } from '../../Components';
 import type { User } from '../../Role/permission';
 import { useSalesSettings } from '../../context/Settingscontext'; // <-- Settings context
 import { Spinner } from '../../constants/Spinner'; // <-- Added Spinner import
+import { ItemEditDrawer } from '../../Components/ItemDrawer';
+import { FiEdit } from 'react-icons/fi';
+
 
 interface SalesItem extends OriginalSalesItem {
   isEditable: boolean;
@@ -367,7 +370,38 @@ const Sales: React.FC = () => {
       return item;
     }));
   };
+  const [selectedItemForEdit, setSelectedItemForEdit] = useState<Item | null>(null);
+  const [isItemDrawerOpen, setIsItemDrawerOpen] = useState(false);
+  const handleOpenEditDrawer = (item: Item) => {
+    setSelectedItemForEdit(item);
+    setIsItemDrawerOpen(true); // <-- Use item drawer state
+  };
+  const handleCloseEditDrawer = () => {
+    setIsItemDrawerOpen(false); // <-- Use item drawer state
+    setTimeout(() => setSelectedItemForEdit(null), 300);
+  };
+  const handleSaveSuccess = (updatedItemData: Partial<Item>) => {
+    setAvailableItems(prevItems => prevItems.map(item =>
+      item.id === selectedItemForEdit?.id
+        ? { ...item, ...updatedItemData, id: item.id } as Item
+        : item
+    ));
 
+    // 2. Update the item if it's already in the sales cart
+    setItems(prevCartItems => prevCartItems.map(cartItem => {
+      if (cartItem.id === selectedItemForEdit?.id) {
+        return {
+          ...cartItem, // Keep cart-specific data like quantity
+          ...updatedItemData, // Apply new data like name, mrp
+          id: cartItem.id, // Ensure id is correct
+        };
+      }
+      return cartItem;
+    }));
+
+    console.log("Item updated successfully.");
+    // We don't need updateError, so no need to set it
+  };
 
   const handleProceedToPayment = () => {
     if (items.length === 0) {
@@ -625,9 +659,9 @@ const Sales: React.FC = () => {
   }
 
 
-  const isTaxEnabledDisplay = salesSettings?.enableTax ?? true;
-  const taxTypeDisplay = salesSettings?.taxType ?? 'exclusive';
-  const taxRateDisplay = salesSettings?.defaultTaxRate ?? 0;
+  const gstSchemeDisplay = salesSettings?.gstScheme ?? 'none';
+  const settingsTaxTypeDisplay = salesSettings?.taxType ?? 'exclusive';
+  const isTaxInclusiveDisplay = (gstSchemeDisplay === 'regular' && settingsTaxTypeDisplay === 'inclusive') || gstSchemeDisplay === 'composition';
 
   return (
     <div className="flex flex-col h-full bg-gray-100 w-full overflow-hidden pb-10 ">
@@ -719,6 +753,19 @@ const Sales: React.FC = () => {
                 return (
                   <div key={item.id} className={`bg-white rounded-sm shadow-sm border p-2 ${!item.isEditable ? 'bg-gray-100 opacity-75' : ''}`}>
                     <div className="flex justify-between items-start">
+                      <button
+                        onClick={() => {
+                          const originalItem = availableItems.find(a => a.id === item.id);
+                          if (originalItem) {
+                            handleOpenEditDrawer(originalItem);
+                          } else {
+                            setModal({ message: "Cannot edit this item. Original data not found.", type: State.ERROR });
+                          }
+                        }}
+                        className="bg-gray-50 hover:bg-gray-100 -mr-5"
+                      >
+                        <FiEdit className="h-5 w-5 md:h-4 md:w-4" />
+                      </button>
                       <p className="font-semibold text-gray-800">{(item.name || 'Unnamed').slice(0, 25)}</p>
                       <button onClick={() => handleDeleteItem(item.id)} disabled={!item.isEditable} className="text-black-400 hover:text-red-500 flex-shrink-0 ml-4 disabled:text-gray-300 disabled:cursor-not-allowed" title="Remove item">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
@@ -810,7 +857,12 @@ const Sales: React.FC = () => {
               <p className="text-2xl font-bold">₹{finalAmount.toFixed(2)}</p>
             </div>
 
-            {isTaxEnabledDisplay && taxTypeDisplay === 'inclusive' && <p className="text-xs text-gray-500 text-right -mt-1">(Incl. tax)</p>}
+            {gstSchemeDisplay !== 'none' && (
+              <>
+                <div className="flex justify-between items-center text-xs text-gray-600"> <p>Taxable Amount</p> <p>₹{taxableAmount.toFixed(2)}</p> </div>
+                <div className="flex justify-between items-center text-xs text-blue-600"> <p>Total Tax {isTaxInclusiveDisplay ? '(Incl.)' : ''}</p> <p>₹{taxAmount.toFixed(2)}</p> </div>
+              </>
+            )}
             <div className="flex justify-between items-center mb-1">
               <p className="text-md font-medium text-[#00A8E8]">Amount Due </p>
               <p className="text-md font-bold text-[#00A8E8]">₹{amountToPayNow.toFixed(2)}</p>
@@ -826,16 +878,10 @@ const Sales: React.FC = () => {
               <p className="text-md">Discount</p>
               <p className="text-md">- ₹{totalDiscount.toFixed(2)}</p>
             </div>
-            {isTaxEnabledDisplay && (
+            {gstSchemeDisplay !== 'none' && (
               <>
-                <div className="flex justify-between items-center text-sm">
-                  <p className="text-gray-600">Subtotal (Pre-Tax)</p>
-                  <p className="text-gray-800">₹{(taxTypeDisplay === 'inclusive' ? (taxableAmount - taxAmount) : taxableAmount).toFixed(2)}</p>
-                </div>
-                <div className="flex justify-between items-center text-sm text-blue-600">
-                  <p>Tax @ {taxRateDisplay}% {taxTypeDisplay === 'inclusive' ? '(Incl.)' : '(Excl.)'}</p>
-                  <p>₹{taxAmount.toFixed(2)}</p>
-                </div>
+                <div className="flex justify-between items-center text-xs text-gray-600"> <p>Taxable Amount</p> <p>₹{taxableAmount.toFixed(2)}</p> </div>
+                <div className="flex justify-between items-center text-xs text-blue-600"> <p>Total Tax {isTaxInclusiveDisplay ? '(Incl.)' : ''}</p> <p>₹{taxAmount.toFixed(2)}</p> </div>
               </>
             )}
             <div className="flex justify-between items-center border-t pt-3">
@@ -860,7 +906,13 @@ const Sales: React.FC = () => {
         initialPartyName={isEditMode ? invoiceToEdit?.partyName : ''}
         initialPartyNumber={isEditMode ? invoiceToEdit?.partyNumber : ''}
       />
-    </div>
+      <ItemEditDrawer
+        item={selectedItemForEdit}
+        isOpen={isItemDrawerOpen}
+        onClose={handleCloseEditDrawer}
+        onSaveSuccess={handleSaveSuccess}
+      />    </div>
+
   );
 };
 

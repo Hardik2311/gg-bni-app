@@ -8,6 +8,7 @@ import { CustomButton } from '../../Components';
 import { Variant } from '../../enums';
 import { Input } from '../../Components/ui/input';
 import QRCodeLib from 'qrcode';
+import JsBarcode from 'jsbarcode'; // Using JsBarcode
 
 // Helper types
 type PrintableItem = Item & { quantityToPrint: number };
@@ -16,22 +17,42 @@ type PrefilledItem = { id: string, quantity: number, name: string };
 // --- Preview Component ---
 const LabelPreview: React.FC<{ item: Item, companyName: string }> = ({ item, companyName }) => {
     const [qrDataUrl, setQrDataUrl] = useState('');
+    const [barcodeDataUrl, setBarcodeDataUrl] = useState('');
 
     useEffect(() => {
         if (item.barcode) {
-            QRCodeLib.toDataURL(item.barcode, { width: 150, margin: 1 }, (err: any, url: any) => {
+            QRCodeLib.toDataURL(item.barcode, { width: 140, margin: 1 }, (err: any, url: any) => {
                 if (err) console.error(err);
                 setQrDataUrl(url);
             });
+
+            const canvas = document.createElement('canvas');
+            JsBarcode(canvas, item.barcode, {
+                format: 'CODE128',
+                displayValue: false,
+                height: 40,
+                width: 1,
+                margin: 0,
+            });
+            setBarcodeDataUrl(canvas.toDataURL('image/png'));
         }
     }, [item.barcode]);
 
     return (
         <div className="w-[200px] h-[200px] border border-dashed border-gray-400 p-2 flex flex-col items-center justify-around font-sans bg-white shadow-lg mt-4">
             <div className="text-xs font-bold text-center">{companyName}</div>
-            {qrDataUrl && <img src={qrDataUrl} alt="QR Code Preview" className="w-28 h-28" />}
+
+            {/* Updated Preview Layout */}
+            <div className="flex flex-col justify-center items-center h-28">
+                {barcodeDataUrl && (
+                    <div className="w-24 h-8 flex items-center justify-center overflow-hidden mb-1">
+                        <img src={barcodeDataUrl} alt="Barcode Preview" className="w-24 h-8" />
+                    </div>
+                )}
+                {qrDataUrl && <img src={qrDataUrl} alt="QR Code Preview" className="w-24 h-24" />}
+            </div>
+
             <div className="text-[10px] text-center">{item.barcode}</div>
-            <div className="text-[9px] font-bold text-center truncate w-full">{item.name}</div>
             <div className="text-xs font-bold text-center">{`MRP: ₹${item.mrp}`}</div>
         </div>
     );
@@ -53,6 +74,8 @@ const QRCodeGeneratorPage: React.FC = () => {
     const searchInputRef = useRef<HTMLInputElement>(null);
     const hasPrefilled = useRef(false);
     const location = useLocation();
+
+    const printBarcodeCanvasRef = useRef<HTMLCanvasElement>(null);
 
     const dbOperations = useMemo(() => {
         if (currentUser?.companyId) {
@@ -78,7 +101,7 @@ const QRCodeGeneratorPage: React.FC = () => {
                 setCompanyName(businessInfo.name || 'Your Company');
 
             } catch (err) {
-                // Set an error state here if you add it back
+                // ... error handling
             } finally {
                 setIsLoading(false);
             }
@@ -86,7 +109,7 @@ const QRCodeGeneratorPage: React.FC = () => {
         fetchData();
     }, [dbOperations]);
 
-    // Effect to handle pre-filled items
+    // ... (other useEffects remain the same)
     useEffect(() => {
         const prefilledItems = location.state?.prefilledItems as PrefilledItem[] | undefined;
         if (prefilledItems && allItems.length > 0 && !hasPrefilled.current) {
@@ -114,6 +137,7 @@ const QRCodeGeneratorPage: React.FC = () => {
         }
     }, [printQueue, itemForPreview]);
 
+    // ... (other handlers remain the same)
     const searchResults = useMemo(() => {
         if (!searchTerm.trim()) return [];
         const lowerCaseSearchTerm = searchTerm.toLowerCase();
@@ -140,9 +164,9 @@ const QRCodeGeneratorPage: React.FC = () => {
 
     const isPrintButtonDisabled = printQueue.length === 0 || isPrinting;
 
-    // --- UPDATED: handlePrint function for your exact 3-column dimensions ---
+    // --- UPDATED: handlePrint function with new layout ---
     const handlePrint = useCallback(async () => {
-        if (isPrintButtonDisabled || !dbOperations) return;
+        if (isPrintButtonDisabled || !dbOperations || !printBarcodeCanvasRef.current) return;
 
         setIsPrinting(true);
 
@@ -161,19 +185,18 @@ const QRCodeGeneratorPage: React.FC = () => {
             printWindow.document.write('<style>');
             printWindow.document.write(`
                 @page {
-                    /* Total Width: 110mm, Label Height: 35mm */
                     size: 110mm 35mm;
                     margin: 0;
                 }
                 body { 
                     margin: 0; 
-                    padding-left: 2.5mm; /* Left-side margin */
-                    padding-right: 2.5mm; /* Right-side margin */
+                    padding-left: 2.5mm; 
+                    padding-right: 2.5mm; 
                     box-sizing: border-box;
                     font-family: sans-serif; 
                     display: flex; 
                     flex-wrap: wrap;
-                    justify-content: space-between; /* Creates the 2.5mm gap */
+                    justify-content: space-between;
                 }
                 .label-container { 
                     width: 35mm; 
@@ -183,15 +206,31 @@ const QRCodeGeneratorPage: React.FC = () => {
                     flex-direction: column; 
                     align-items: center; 
                     justify-content: space-between; 
-                    padding: 1.5mm;
+                    padding: 0.5mm;
                     page-break-inside: avoid; 
                     text-align: center; 
                     overflow: hidden;
                 }
                 .company-name { font-size: 7pt; font-weight: bold; margin: 0; }
-                .business-info { font-size: 5pt; margin: 0; line-height: 1; }
-                .qr-image { width: 18mm; height: 18mm; object-fit: contain; }
-                .item-barcode { font-size: 5pt; font-weight: bold; margin: 0; }
+                .business-info { font-size: 5pt; margin:0; }
+                
+                /* This container holds both barcodes */
+                .barcode-area {
+                    display: flex;
+                    flex-direction: column; /* Stack them vertically */
+                    justify-content: center;
+                    align-items: center;
+                    width: 100%;
+                }
+                .qr-image { width: 14mm; height: 14mm; object-fit: contain; } /* Slightly smaller */
+                .barcode-image {
+                    width: 30mm; /* The length of the barcode */
+                    height: 8mm; /* The height of the barcode bars */
+                    object-fit: contain;
+                    margin-bottom:-2mm; /* Space between barcode and QR code */
+                }
+                
+                .item-barcode { font-size: 6pt; font-weight: bold; margin: 0; }
                 .item-mrp { font-size: 7pt; font-weight: bold; margin: 0; }
             `);
             printWindow.document.write('</style></head><body>');
@@ -199,7 +238,18 @@ const QRCodeGeneratorPage: React.FC = () => {
             for (const item of printQueue) {
                 if (!item.barcode) continue;
 
-                const qrDataUrl = await QRCodeLib.toDataURL(item.barcode, { width: 180, margin: 1 });
+                const qrDataUrl = await QRCodeLib.toDataURL(item.barcode, { width: 150, margin: 1 });
+
+                // Generate 1D barcode data URL
+                JsBarcode(printBarcodeCanvasRef.current, item.barcode, {
+                    format: 'CODE128',
+                    displayValue: false,
+                    height: 40, // Your original height
+                    width: 1.5, // Your original width
+                    margin: 0,
+                });
+                const barcodeDataUrl = printBarcodeCanvasRef.current.toDataURL('image/png');
+
 
                 for (let i = 0; i < item.quantityToPrint; i++) {
                     printWindow.document.write(`
@@ -209,7 +259,12 @@ const QRCodeGeneratorPage: React.FC = () => {
                                 <p class="business-info">${businessAddress}</p>
                                 <p class="business-info">${businessPhoneNumber}</p>
                             </div>
-                            <img class="qr-image" src="${qrDataUrl}" alt="QR Code" />
+                            
+                            <div class="barcode-area">
+                                <img class="barcode-image" src="${barcodeDataUrl}" alt="Barcode" />
+                                <img class="qr-image" src="${qrDataUrl}" alt="QR Code" />
+                            </div>
+
                             <div>
                                 <p class="item-barcode">${item.barcode}</p>
                                 <p class="item-barcode">${item.name}</p>
@@ -314,6 +369,9 @@ const QRCodeGeneratorPage: React.FC = () => {
 
     return (
         <div>
+            {/* ADDED: Hidden canvas for generating 1D barcodes */}
+            <canvas ref={printBarcodeCanvasRef} style={{ display: 'none' }}></canvas>
+
             <Card className="max-w-4xl mx-auto">
                 <CardHeader>
                     <CardTitle className="text-2xl text-center font-bold text-gray-800">Item QR Code Generator</CardTitle>

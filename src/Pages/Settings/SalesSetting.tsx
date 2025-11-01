@@ -177,7 +177,7 @@ const SalesSettingsPage: React.FC = () => {
     }
 
     return (
-        <div className="flex flex-col min-h-screen bg-white w-full">
+        <div className="flex flex-col min-h-screen bg-white w-full mb-16">
             {modal && <Modal message={modal.message} onClose={() => setModal(null)} type={modal.type} />}
 
             <div className="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm sticky top-0 z-30">
@@ -187,167 +187,187 @@ const SalesSettingsPage: React.FC = () => {
             </div>
 
             <main className="flex-grow p-4 bg-gray-50 w-full overflow-y-auto box-border">
-                <form onSubmit={handleSave} className="bg-white rounded-lg p-6 shadow-md max-w-3xl mx-auto">
+                {/* --- MODIFIED: Removed card styles from form, added max-w --- */}
+                <form onSubmit={handleSave} className="max-w-3xl mx-auto">
 
-                    <h2 className="text-lg font-semibold text-gray-800 mb-4">General Settings</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div>
-                            <label htmlFor="sales-view-type" className="block text-gray-700 text-sm font-medium mb-1">Sales View Type</label>
-                            <select
-                                id="sales-view-type"
-                                value={settings.salesViewType || 'list'}
-                                onChange={(e) => handleChange('salesViewType', e.target.value)}
-                                className="w-full p-3 border border-gray-300 rounded-lg bg-white"
-                            >
-                                <option value="list">List View</option>
-                                <option value="card">Card View</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div className="flex items-center mb-4">
-                        <input type="checkbox" id="salesman-billing" checked={settings.enableSalesmanSelection ?? false} onChange={(e) => handleCheckboxChange('enableSalesmanSelection', e.target.checked)} className="w-4 h-4 text-blue-600" />
-                        <label htmlFor="salesman-billing" className="ml-2 text-gray-700 text-sm font-medium">Enable Salesman-wise Billing</label>
-                    </div>
-
-                    <h2 className="text-lg font-semibold text-gray-800 my-4 border-t pt-4">Pricing & Tax</h2>
-
-                    {/* --- MODIFIED: This is the new GST Scheme dropdown --- */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div>
-                            <label htmlFor="gst-scheme" className="block text-gray-700 text-sm font-medium mb-1">GST Scheme</label>
-                            <select
-                                id="gst-scheme"
-                                value={settings.gstScheme || 'none'}
-                                onChange={(e) => handleChange('gstScheme', e.target.value)}
-                                className="w-full p-3 border border-gray-300 rounded-lg bg-white"
-                            >
-                                <option value="none">None (Tax Disabled)</option>
-                                <option value="regular">Regular GST</option>
-                                <option value="composition">Composition GST (Inclusive)</option>
-                            </select>
-                        </div>
-                    </div>
-                    {/* --- END MODIFICATION --- */}
-
-                    {/* --- MODIFIED: This section now only shows for 'regular' GST --- */}
-                    {settings.gstScheme === 'regular' && (
+                    {/* --- Card 1: General Settings --- */}
+                    <div className="bg-white rounded-lg p-6 shadow-md mb-2">
+                        <h2 className="text-lg font-semibold text-gray-800 mb-4">General Settings</h2>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div>
-                                <label htmlFor="tax-type" className="block text-gray-700 text-sm font-medium mb-1">Tax Calculation (for Regular GST)</label>
+                                <label htmlFor="sales-view-type" className="block text-gray-700 text-sm font-medium mb-1">Sales View Type</label>
                                 <select
-                                    id="tax-type"
-                                    value={settings.taxType || 'exclusive'}
-                                    onChange={(e) => handleChange('taxType', e.target.value)}
+                                    id="sales-view-type"
+                                    value={settings.salesViewType || 'list'}
+                                    onChange={(e) => handleChange('salesViewType', e.target.value)}
                                     className="w-full p-3 border border-gray-300 rounded-lg bg-white"
                                 >
-                                    <option value="exclusive">Tax Exclusive (GST extra)</option>
-                                    <option value="inclusive">Tax Inclusive (MRP includes GST)</option>
+                                    <option value="list">List View</option>
+                                    <option value="card">Card View</option>
                                 </select>
                             </div>
-                            {/* The defaultTaxRate input is removed */}
                         </div>
-                    )}
-                    {/* --- END MODIFICATION --- */}
-
-                    <div className="flex items-center mb-4">
-                        <input type="checkbox" id="enable-rounding" checked={settings.enableRounding ?? false} onChange={(e) => handleCheckboxChange('enableRounding', e.target.checked)} className="w-4 h-4 text-blue-600" />
-                        <label htmlFor="enable-rounding" className="ml-2 text-gray-700 text-sm font-medium">Enable Rounding Off</label>
-                    </div>
-                    <div className="flex items-center mb-4">
-                        <input type="checkbox" id="enforce-mrp" checked={settings.enforceExactMRP ?? false} onChange={(e) => handleCheckboxChange('enforceExactMRP', e.target.checked)} className="w-4 h-4 text-blue-600" />
-                        <label htmlFor="enforce-mrp" className="ml-2 text-gray-700 text-sm font-medium">Enforce Selling Price == MRP</label>
+                        <div className="flex items-center mb-2">
+                            <input type="checkbox" id="salesman-billing" checked={settings.enableSalesmanSelection ?? false} onChange={(e) => handleCheckboxChange('enableSalesmanSelection', e.target.checked)} className="w-4 h-4 text-blue-600" />
+                            <label htmlFor="salesman-billing" className="ml-2 text-gray-700 text-sm font-medium">Enable Salesman-wise Billing</label>
+                        </div>
                     </div>
 
-                    <h2 className="text-lg font-semibold text-gray-800 my-4 border-t pt-4">Discounts & Price Control</h2>
+                    {/* --- Card 2: Pricing & Tax --- */}
+                    <div className="bg-white rounded-lg p-6 shadow-md mb-2">
+                        {/* MODIFIED: Removed border-t class */}
+                        <h2 className="text-lg font-semibold text-gray-800 mb-4">Pricing & Tax</h2>
 
-                    <div className="flex items-center mb-4">
-                        <input type="checkbox" id="item-discount" checked={settings.enableItemWiseDiscount ?? false} onChange={(e) => handleCheckboxChange('enableItemWiseDiscount', e.target.checked)} className="w-4 h-4 text-blue-600" />
-                        <label htmlFor="item-discount" className="ml-2 text-gray-700 text-sm font-medium">Enable Item-wise Discount</label>
+                        {/* --- MODIFIED: This is the new GST Scheme dropdown --- */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label htmlFor="gst-scheme" className="block text-gray-700 text-sm font-medium mb-1">GST Scheme</label>
+                                <select
+                                    id="gst-scheme"
+                                    value={settings.gstScheme || 'none'}
+                                    onChange={(e) => handleChange('gstScheme', e.target.value)}
+                                    className="w-full p-3 border border-gray-300 rounded-lg bg-white"
+                                >
+                                    <option value="none">None (Tax Disabled)</option>
+                                    <option value="regular">Regular GST</option>
+                                    <option value="composition">Composition GST (Inclusive)</option>
+                                </select>
+                            </div>
+                        </div>
+                        {/* --- END MODIFICATION --- */}
+
+                        {/* --- MODIFIED: This section now only shows for 'regular' GST --- */}
+                        {settings.gstScheme === 'regular' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
+                                <div>
+                                    <label htmlFor="tax-type" className="block text-gray-700 text-sm font-medium mb-1">Tax Calculation (for Regular GST)</label>
+                                    <select
+                                        id="tax-type"
+                                        value={settings.taxType || 'exclusive'}
+                                        onChange={(e) => handleChange('taxType', e.target.value)}
+                                        className="w-full p-3 border border-gray-300 rounded-lg bg-white"
+                                    >
+                                        <option value="exclusive">Tax Exclusive (GST extra)</option>
+                                        <option value="inclusive">Tax Inclusive (MRP includes GST)</option>
+                                    </select>
+                                </div>
+                                {/* The defaultTaxRate input is removed */}
+                            </div>
+                        )}
+                        {/* --- END MODIFICATION --- */}
+
+                        <div className="flex items-center mb-2">
+                            <input type="checkbox" id="enable-rounding" checked={settings.enableRounding ?? false} onChange={(e) => handleCheckboxChange('enableRounding', e.target.checked)} className="w-4 h-4 text-blue-600" />
+                            <label htmlFor="enable-rounding" className="ml-2 text-gray-700 text-sm font-medium">Enable Rounding Off</label>
+                        </div>
+                        <div className="flex items-center mb-4">
+                            <input type="checkbox" id="enforce-mrp" checked={settings.enforceExactMRP ?? false} onChange={(e) => handleCheckboxChange('enforceExactMRP', e.target.checked)} className="w-4 h-4 text-blue-600" />
+                            <label htmlFor="enforce-mrp" className="ml-2 text-gray-700 text-sm font-medium">Enforce Selling Price == MRP</label>
+                        </div>
                     </div>
 
-                    <div className="flex items-center mb-4">
-                        <input type="checkbox" id="lock-discount" checked={settings.lockDiscountEntry ?? false} onChange={(e) => handleCheckboxChange('lockDiscountEntry', e.target.checked)} className="w-4 h-4 text-blue-600" />
-                        <label htmlFor="lock-discount" className="ml-2 text-gray-700 text-sm font-medium">Lock Discount Entry (Prevent editing on sales screen)</label>
-                    </div>
-                    <div className="flex items-center mb-4">
-                        <input type="checkbox" id="lock-price" checked={settings.lockSalePriceEntry ?? false} onChange={(e) => handleCheckboxChange('lockSalePriceEntry', e.target.checked)} className="w-4 h-4 text-blue-600" />
-                        <label htmlFor="lock-price" className="ml-2 text-gray-700 text-sm font-medium">Lock Sale Price (Prevent editing on sales screen)</label>
+                    {/* --- Card 3: Discounts & Price Control --- */}
+                    <div className="bg-white rounded-lg p-6 shadow-md mb-2">
+                        <h2 className="text-lg font-semibold text-gray-800 mb-4">Discounts & Price Control</h2>
+                        <div className="flex items-center mb-4">
+                            <input type="checkbox" id="item-discount" checked={settings.enableItemWiseDiscount ?? false} onChange={(e) => handleCheckboxChange('enableItemWiseDiscount', e.target.checked)} className="w-4 h-4 text-blue-600" />
+                            <label htmlFor="item-discount" className="ml-2 text-gray-700 text-sm font-medium">Enable Item-wise Discount</label>
+                        </div>
+
+                        <div className="flex items-center mb-4">
+                            <input type="checkbox" id="lock-discount" checked={settings.lockDiscountEntry ?? false} onChange={(e) => handleCheckboxChange('lockDiscountEntry', e.target.checked)} className="w-4 h-4 text-blue-600" />
+                            <label htmlFor="lock-discount" className="ml-2 text-gray-700 text-sm font-medium">Lock Discount Entry (Prevent editing on sales screen)</label>
+                        </div>
+                        <div className="flex items-center mb-4">
+                            <input type="checkbox" id="lock-price" checked={settings.lockSalePriceEntry ?? false} onChange={(e) => handleCheckboxChange('lockSalePriceEntry', e.target.checked)} className="w-4 h-4 text-blue-600" />
+                            <label htmlFor="lock-price" className="ml-2 text-gray-700 text-sm font-medium">Lock Sale Price (Prevent editing on sales screen)</label>
+                        </div>
                     </div>
 
-                    <h2 className="text-lg font-semibold text-gray-800 my-4 border-t pt-4">Billing & Inventory Rules</h2>
-                    <div className="flex items-center mb-4">
-                        <input type="checkbox" id="allow-negative" checked={settings.allowNegativeStock ?? false} onChange={(e) => handleCheckboxChange('allowNegativeStock', e.target.checked)} className="w-4 h-4 text-blue-600" />
-                        <label htmlFor="allow-negative" className="ml-2 text-gray-700 text-sm font-medium">Allow Negative Inventory Billing</label>
-                    </div>
-                    <div className="flex items-center mb-4">
-                        <input type="checkbox" id="allow-due" checked={settings.allowDueBilling ?? false} onChange={(e) => handleCheckboxChange('allowDueBilling', e.target.checked)} className="w-4 h-4 text-blue-600" />
-                        <label htmlFor="allow-due" className="ml-2 text-gray-700 text-sm font-medium">Allow Due Billing (Credit Sales)</label>
-                    </div>
-
-                    <h2 className="text-lg font-semibold text-gray-800 my-4 border-t pt-4">Required Fields</h2>
-                    <p className="text-sm text-gray-500 mb-2">Select fields that must be filled before saving a sale.</p>
-                    <div className="flex items-center mb-4">
-                        <input type="checkbox" id="req-customer" checked={settings.requireCustomerName ?? false} onChange={(e) => handleCheckboxChange('requireCustomerName', e.target.checked)} className="w-4 h-4 text-blue-600" />
-                        <label htmlFor="req-customer" className="ml-2 text-gray-700 text-sm font-medium">Require Customer Name</label>
-                    </div>
-                    <div className="flex items-center mb-4">
-                        <input type="checkbox" id="req-mobile" checked={settings.requireCustomerMobile ?? false} onChange={(e) => handleCheckboxChange('requireCustomerMobile', e.target.checked)} className="w-4 h-4 text-blue-600" />
-                        <label htmlFor="req-mobile" className="ml-2 text-gray-700 text-sm font-medium">Require Customer Mobile</label>
+                    {/* --- Card 4: Billing & Inventory Rules --- */}
+                    <div className="bg-white rounded-lg p-6 shadow-md mb-2">
+                        <h2 className="text-lg font-semibold text-gray-800 mb-4">Billing & Inventory Rules</h2>
+                        <div className="flex items-center mb-4">
+                            <input type="checkbox" id="allow-negative" checked={settings.allowNegativeStock ?? false} onChange={(e) => handleCheckboxChange('allowNegativeStock', e.target.checked)} className="w-4 h-4 text-blue-600" />
+                            <label htmlFor="allow-negative" className="ml-2 text-gray-700 text-sm font-medium">Allow Negative Inventory Billing</label>
+                        </div>
+                        <div className="flex items-center mb-4">
+                            <input type="checkbox" id="allow-due" checked={settings.allowDueBilling ?? false} onChange={(e) => handleCheckboxChange('allowDueBilling', e.target.checked)} className="w-4 h-4 text-blue-600" />
+                            <label htmlFor="allow-due" className="ml-2 text-gray-700 text-sm font-medium">Allow Due Billing (Credit Sales)</label>
+                        </div>
                     </div>
 
-                    <h2 className="text-lg font-semibold text-gray-800 my-4 border-t pt-4">Voucher Numbering & Options</h2>
-                    <div className="flex items-center mb-4">
-                        <input
-                            type="checkbox"
-                            id="copy-voucher"
-                            checked={settings.copyVoucherAfterSaving ?? false}
-                            onChange={(e) => handleCheckboxChange('copyVoucherAfterSaving', e.target.checked)}
-                            className="w-4 h-4 text-blue-600"
-                        />
-                        <label htmlFor="copy-voucher" className="ml-2 text-gray-700 text-sm font-medium">Keep items in cart after saving (Copy Voucher)</label>
+                    {/* --- Card 5: Required Fields --- */}
+                    <div className="bg-white rounded-lg p-6 shadow-md mb-2">
+                        <h2 className="text-lg font-semibold text-gray-800 mb-4">Required Fields</h2>
+                        <p className="text-sm text-gray-500 mb-2">Select fields that must be filled before saving a sale.</p>
+                        <div className="flex items-center mb-4">
+                            <input type="checkbox" id="req-customer" checked={settings.requireCustomerName ?? false} onChange={(e) => handleCheckboxChange('requireCustomerName', e.target.checked)} className="w-4 h-4 text-blue-600" />
+                            <label htmlFor="req-customer" className="ml-2 text-gray-700 text-sm font-medium">Require Customer Name</label>
+                        </div>
+                        <div className="flex items-center mb-4">
+                            <input type="checkbox" id="req-mobile" checked={settings.requireCustomerMobile ?? false} onChange={(e) => handleCheckboxChange('requireCustomerMobile', e.target.checked)} className="w-4 h-4 text-blue-600" />
+                            <label htmlFor="req-mobile" className="ml-2 text-gray-700 text-sm font-medium">Require Customer Mobile</label>
+                        </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                            <label htmlFor="voucher-name" className="block text-gray-700 text-sm font-medium mb-1">Voucher Name</label>
+
+                    {/* --- Card 6: Voucher Numbering & Options --- */}
+                    <div className="bg-white rounded-lg p-6 shadow-md mb-2">
+                        <h2 className="text-lg font-semibold text-gray-800 mb-4">Voucher Numbering & Options</h2>
+                        <div className="flex items-center mb-4">
                             <input
-                                type="text"
-                                id="voucher-name"
-                                value={settings.voucherName || ''}
-                                onChange={(e) => handleChange('voucherName', e.target.value)}
-                                className="w-full p-3 border border-gray-300 rounded-lg"
-                                placeholder="e.g., Sales"
+                                type="checkbox"
+                                id="copy-voucher"
+                                checked={settings.copyVoucherAfterSaving ?? false}
+                                onChange={(e) => handleCheckboxChange('copyVoucherAfterSaving', e.target.checked)}
+                                className="w-4 h-4 text-blue-600"
                             />
+                            <label htmlFor="copy-voucher" className="ml-2 text-gray-700 text-sm font-medium">Keep items in cart after saving (Copy Voucher)</label>
                         </div>
-                        <div>
-                            <label htmlFor="voucher-prefix" className="block text-gray-700 text-sm font-medium mb-1">Voucher Prefix</label>
-                            <input
-                                type="text"
-                                id="voucher-prefix"
-                                value={settings.voucherPrefix || ''}
-                                onChange={(e) => handleChange('voucherPrefix', e.target.value)}
-                                className="w-full p-3 border border-gray-300 rounded-lg"
-                                placeholder="e.g., SLS-"
-                            />
-                        </div>
-                        <div>
-                            <label htmlFor="current-number" className="block text-gray-700 text-sm font-medium mb-1">Next Voucher Number</label>
-                            <input
-                                type="number"
-                                id="current-number"
-                                value={settings.currentVoucherNumber ?? 1}
-                                onChange={(e) => handleChange('currentVoucherNumber', e.target.value)}
-                                className="w-full p-3 border border-gray-300 rounded-lg"
-                                placeholder="e.g., 1"
-                                min="1"
-                                step="1"
-                            />
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label htmlFor="voucher-name" className="block text-gray-700 text-sm font-medium mb-1">Voucher Name</label>
+                                <input
+                                    type="text"
+                                    id="voucher-name"
+                                    value={settings.voucherName || ''}
+                                    onChange={(e) => handleChange('voucherName', e.target.value)}
+                                    className="w-full p-3 border border-gray-300 rounded-lg"
+                                    placeholder="e.g., Sales"
+                                />
+                            </div>
+                            <div>
+                                <label htmlFor="voucher-prefix" className="block text-gray-700 text-sm font-medium mb-1">Voucher Prefix</label>
+                                <input
+                                    type="text"
+                                    id="voucher-prefix"
+                                    value={settings.voucherPrefix || ''}
+                                    onChange={(e) => handleChange('voucherPrefix', e.target.value)}
+                                    className="w-full p-3 border border-gray-300 rounded-lg"
+                                    placeholder="e.g., SLS-"
+                                />
+                            </div>
+                            <div>
+                                <label htmlFor="current-number" className="block text-gray-700 text-sm font-medium mb-1">Next Voucher Number</label>
+                                <input
+                                    type="number"
+                                    id="current-number"
+                                    value={settings.currentVoucherNumber ?? 1}
+                                    onChange={(e) => handleChange('currentVoucherNumber', e.target.value)}
+                                    className="w-full p-3 border border-gray-300 rounded-lg"
+                                    placeholder="e.g., 1"
+                                    min="1"
+                                    step="1"
+                                />
+                            </div>
                         </div>
                     </div>
 
+                    {/* --- MODIFIED: Save button is now outside the last card --- */}
                     <button
                         type="submit"
                         disabled={isSaving || isLoading}
-                        className="w-full mt-8 flex items-center justify-center bg-blue-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                        className="w-full flex items-center justify-center bg-blue-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
                     >
                         {isSaving ? <Spinner /> : 'Save Settings'}
                     </button>
