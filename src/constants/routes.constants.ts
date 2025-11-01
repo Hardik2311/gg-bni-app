@@ -28,4 +28,11 @@ export const ROUTES = {
   SALESETTING: '/sales-setting',
   PURCHASESETTING: '/purchase-setting',
   HISTORY: '/history',
+  USERSETTING: '/user-setting',
+  ITEMSETTING: '/item-setting',
+  CHOME: '/catalogue-home',
+  MYSHOP: 'my-shop',
+  ORDER: 'orders',
+  ORDERDETAILS: 'order-details',
+  CATALOGUE: 'catalogue',
 };

@@ -12,6 +12,8 @@ import { Permissions } from '../enums';
 import { FilterControls, FilterProvider } from '../Components/Filter';
 import { PaymentChart } from '../Components/PaymentChart';
 import { RestockAlertsCard } from '../Components/RestockItems';
+import { Link } from 'react-router-dom';
+import { SiteItems } from '../routes/SiteRoutes';
 
 
 const useBusinessName = (userId?: string) => {
@@ -40,23 +42,74 @@ const Home = () => {
   const { currentUser, loading: authLoading } = useAuth();
   const { businessName, loading: nameLoading } = useBusinessName(currentUser?.uid);
   const [isDataVisible, setIsDataVisible] = useState<boolean>(false);
+  const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   const isLoading = authLoading || nameLoading;
+  const currentItem = SiteItems.find(item => item.to === location.pathname);
+  const currentLabel = currentItem ? currentItem.label : "Menu";
 
   return (
     <FilterProvider>
       <div className="flex min-h-screen w-full flex-col bg-gray-100">
-        {/* Header */}
+
         <header className="flex flex-shrink-0 items-center justify-between border-b border-slate-300 bg-gray-100 p-2 ">
-          <div className="w-14"></div>
+
+          <div className="relative w-14 flex justify-start">
+            <button
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="flex min-w-20 items-center justify-between gap-2 rounded-sm border border-slate-400 p-2 text-sm font-medium text-slate-700 hover:bg-slate-200 transition-colors" // Adjusted min-w and gap
+              title="Change Page"
+            >
+              <span className="font-medium">{currentLabel}</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={`transition-transform ${isMenuOpen ? 'rotate-180' : 'rotate-0'}`}
+              >
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+
+            {isMenuOpen && (
+              <div className="absolute top-full left-0 mt-2 w-56 bg-white border border-slate-300 rounded-md shadow-lg z-10">
+                <ul className="py-1">
+
+                  {SiteItems.map(({ to, label }) => (
+                    <li key={to}>
+                      <Link
+                        to={to}
+                        onClick={() => setIsMenuOpen(false)}
+                        className={`flex w-full items-center gap-3 px-4 py-2 text-sm font-medium ${location.pathname === to
+                          ? 'bg-gray-500 text-white'
+                          : 'text-slate-700 hover:bg-gray-100'
+                          }`}
+                      >
+                        {label}
+                      </Link>
+                    </li>
+                  ))}
+
+                </ul>
+              </div>
+            )}
+          </div>
+
           <div className="flex-1 text-center">
             <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
             <p className="text-sm text-slate-500">{isLoading ? 'Loading...' : businessName}</p>
           </div>
+
           <div className="w-14 flex justify-end">
             <ShowWrapper requiredPermission={Permissions.ViewSalescard}>
               <button
                 onClick={() => setIsDataVisible(!isDataVisible)}
-                className="p-2 rounded-full hover:bg-slate-200 transition-colors"
+                className="p-2 rounded-sm border border-slate-400 hover:bg-slate-200 transition-colors"
                 title={isDataVisible ? 'Hide Data' : 'Show Data'}
               >
                 {isDataVisible ? (

@@ -17,6 +17,38 @@ import {
 import type { Item, ItemGroup } from '../constants/models';
 import { Role, type User } from '../Role/permission';
 
+
+/**
+ * Fetches all publicly listed items for a specific company.
+ * @param companyId The company ID from the URL.
+ */
+export const getItemsByCompany = async (companyId: string): Promise<Item[]> => {
+  if (!companyId) {
+    throw new Error("A valid companyId must be provided.");
+  }
+  const itemCollectionRef = collection(db, 'items');
+  const q = query(
+    itemCollectionRef,
+    where('companyId', '==', companyId),
+    where('isListed', '==', true) // Only fetch items marked for public listing
+  );
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Item) }));
+};
+
+/**
+ * Fetches all item groups for a specific company.
+ * @param companyId The company ID from the URL.
+ */
+export const getItemGroupsByCompany = async (companyId: string): Promise<ItemGroup[]> => {
+  if (!companyId) {
+    throw new Error("A valid companyId must be provided.");
+  }
+  const itemGroupCollectionRef = collection(db, 'itemGroups');
+  const q = query(itemGroupCollectionRef, where('companyId', '==', companyId));
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as ItemGroup) }));
+};
 //================================================================================
 // PATTERN 1: MODULE-LEVEL INITIALIZATION (FOR BACKWARD COMPATIBILITY)
 //================================================================================
@@ -218,6 +250,7 @@ export const getFirestoreOperations = (companyId: string) => {
 
       return groupsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ItemGroup));
     },
+
     createItemGroup: async (itemGroup: Omit<ItemGroup, 'id' | 'createdAt' | 'updatedAt' | 'companyId'>): Promise<string> => {
       const docRef = await addDoc(itemGroupRef, { ...itemGroup, companyId, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
       return docRef.id;

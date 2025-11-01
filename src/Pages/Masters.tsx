@@ -20,8 +20,12 @@ const Masters = () => {
               <span className="text-lg font-medium">Purchase Setting</span>
               <span className="text-xl text-gray-500">→</span>
             </Link>
-            <Link to={ROUTES.HISTORY} className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-200 text-gray-800 transition-all duration-200 ease-in-out hover:transform hover:-translate-y-0.5 hover:shadow-lg no-underline">
+            <Link to={ROUTES.USERSETTING} className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-200 text-gray-800 transition-all duration-200 ease-in-out hover:transform hover:-translate-y-0.5 hover:shadow-lg no-underline">
               <span className="text-lg font-medium">Users (Salesman, Admin)</span>
+              <span className="text-xl text-gray-500">→</span>
+            </Link>
+            <Link to={ROUTES.ITEMSETTING} className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-200 text-gray-800 transition-all duration-200 ease-in-out hover:transform hover:-translate-y-0.5 hover:shadow-lg no-underline">
+              <span className="text-lg font-medium">Items Setting</span>
               <span className="text-xl text-gray-500">→</span>
             </Link>
             <Link to={ROUTES.PERMSETTING} className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-200 text-gray-800 transition-all duration-200 ease-in-out hover:transform hover:-translate-y-0.5 hover:shadow-lg no-underline">
